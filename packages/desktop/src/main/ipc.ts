@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 import {
+  getSetting,
   getLastPosition,
   getTheme,
   isOk,
@@ -7,12 +8,15 @@ import {
   saveLastPosition,
   setFileStatus,
   setFileTags,
+  setSetting,
   setTheme,
+  syncLibrary,
   upsertFile,
 } from '@taking-book/core';
 import type { BookStatus, SqlDriver } from '@taking-book/core';
 import { basename } from 'node:path';
 import { sha256File } from './hash';
+import { createSyncStorage } from './syncStorage';
 
 export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('files:open', async () => {
@@ -52,4 +56,33 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('settings:theme:set', (_event, theme: Parameters<typeof setTheme>[1]) =>
     setTheme(db, theme),
   );
+
+  ipcMain.handle('settings:sync-folder:get', () => getSetting(db, 'sync_folder'));
+
+  ipcMain.handle('settings:sync-folder:set', async (_event, folderPath: string) => {
+    const result = await setSetting(db, 'sync_folder', folderPath);
+    return result;
+  });
+
+  ipcMain.handle('sync:run', async () => {
+    const folderResult = await getSetting(db, 'sync_folder');
+    if (!folderResult.ok) return folderResult;
+    const folderPath = folderResult.data;
+    if (!folderPath) return { ok: false, error: 'Sync folder not configured' };
+
+    const local = createSyncStorage(folderPath);
+    const remote = createSyncStorage(folderPath);
+
+    const syncResult = await syncLibrary(db, {
+      local,
+      remote,
+      resolveLocalPath: async (hash) => {
+        const rowResult = await db.get('SELECT path FROM files WHERE hash = ?', [hash]);
+        if (!rowResult) return '';
+        return String((rowResult as { path: string }).path);
+      },
+      logWarning: (message) => console.warn('[sync]', message),
+    });
+    return syncResult;
+  });
 }

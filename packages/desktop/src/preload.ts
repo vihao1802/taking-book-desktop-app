@@ -11,6 +11,9 @@ const api: ReaderApi = {
   setFileTags: (id, tags) => ipcRenderer.invoke('files:tags:set', id, tags),
   getTheme: () => ipcRenderer.invoke('settings:theme:get'),
   setTheme: (theme) => ipcRenderer.invoke('settings:theme:set', theme),
+  getSyncFolder: () => ipcRenderer.invoke('settings:sync-folder:get'),
+  setSyncFolder: (folderPath) => ipcRenderer.invoke('settings:sync-folder:set', folderPath),
+  runSync: () => ipcRenderer.invoke('sync:run'),
 };
 
 contextBridge.exposeInMainWorld('api', api);

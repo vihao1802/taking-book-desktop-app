@@ -2,6 +2,8 @@ import type { BookFile, BookStatus, LastPosition } from './models';
 import type { Result } from './result';
 import { err, ok } from './result';
 import type { SqlDriver, SqlValue } from './sql';
+import { defaultStamp, filesSchema as syncFilesSchema } from './sync/syncRepository';
+import type { SyncStamp } from './sync/types';
 
 interface FileRow {
   id: number;
@@ -62,40 +64,41 @@ export interface UpsertFileInput {
 
 /** Returns the schema DDL to be executed once when a database is opened. */
 export function filesSchema(): string {
-  return `
-    CREATE TABLE IF NOT EXISTS files (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      hash TEXT NOT NULL UNIQUE,
-      path TEXT NOT NULL,
-      title TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'unread',
-      tags TEXT NOT NULL DEFAULT '[]',
-      last_page INTEGER,
-      last_position REAL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `;
+  return syncFilesSchema();
 }
 
 /**
  * Registers a file in the library. If the same content hash already exists,
  * updates its path (a file may move between syncs) and returns the existing
- * record so last-read-position is preserved.
+ * record so last-read-position is preserved. Passing a stamp records the local
+ * write for sync; without one the current time with an empty device id is used.
  */
-export async function upsertFile(db: SqlDriver, input: UpsertFileInput): Promise<Result<BookFile>> {
+export async function upsertFile(
+  db: SqlDriver,
+  input: UpsertFileInput,
+  stamp?: SyncStamp,
+): Promise<Result<BookFile>> {
   const { filePath, hash, title } = input;
+  const clock = stamp ?? defaultStamp();
   try {
     const existing = await db.get('SELECT * FROM files WHERE hash = ?', [hash]);
     if (existing) {
-      await db.run('UPDATE files SET path = ? WHERE id = ?', [filePath, Number(existing.id)]);
+      await db.run('UPDATE files SET path = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+        filePath,
+        clock.updatedAt,
+        clock.updatedBy,
+        Number(existing.id),
+      ]);
       const updated = await db.get('SELECT * FROM files WHERE id = ?', [Number(existing.id)]);
       if (!updated) return err('Updated file could not be read back');
       return ok(toBookFile(rowToRow(updated)));
     }
-    const info = await db.run('INSERT INTO files (hash, path, title) VALUES (?, ?, ?)', [
+    const info = await db.run('INSERT INTO files (hash, path, title, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)', [
       hash,
       filePath,
       title,
+      clock.updatedAt,
+      clock.updatedBy,
     ]);
     const row = await db.get('SELECT * FROM files WHERE id = ?', [info.lastInsertRowid]);
     if (!row) return err('Inserted file could not be read back');
@@ -116,10 +119,10 @@ export async function getLastPosition(db: SqlDriver, id: number): Promise<Result
   }
 }
 
-/** Lists every file in the library, newest first. */
+/** Lists every live file in the library, newest first. Tombstoned files are hidden. */
 export async function listFiles(db: SqlDriver): Promise<Result<BookFile[]>> {
   try {
-    const rows = await db.all('SELECT * FROM files ORDER BY created_at DESC, id DESC');
+    const rows = await db.all('SELECT * FROM files WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC');
     return ok(rows.map((row) => toBookFile(rowToRow(row))));
   } catch (error) {
     return err(`Failed to list files: ${errorMessage(error)}`);
@@ -131,9 +134,14 @@ export async function setFileStatus(
   db: SqlDriver,
   id: number,
   status: BookStatus,
+  stamp?: SyncStamp,
 ): Promise<Result<void>> {
+  const clock = stamp ?? defaultStamp();
   try {
-    const result = await db.run('UPDATE files SET status = ? WHERE id = ?', [status, id]);
+    const result = await db.run(
+      'UPDATE files SET status = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [status, clock.updatedAt, clock.updatedBy, id],
+    );
     if (result.changes === 0) return err(`No file with id ${id}`);
     return ok(undefined);
   } catch (error) {
@@ -146,17 +154,42 @@ export async function setFileTags(
   db: SqlDriver,
   id: number,
   tags: string[],
+  stamp?: SyncStamp,
 ): Promise<Result<void>> {
   const uniqueTags = [...new Set(tags.map((tag) => tag.trim()).filter((tag) => tag.length > 0))];
+  const clock = stamp ?? defaultStamp();
   try {
-    const result = await db.run('UPDATE files SET tags = ? WHERE id = ?', [
-      JSON.stringify(uniqueTags),
-      id,
-    ]);
+    const result = await db.run(
+      'UPDATE files SET tags = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [JSON.stringify(uniqueTags), clock.updatedAt, clock.updatedBy, id],
+    );
     if (result.changes === 0) return err(`No file with id ${id}`);
     return ok(undefined);
   } catch (error) {
     return err(`Failed to set tags for file ${id}: ${errorMessage(error)}`);
+  }
+}
+
+/**
+ * Removes a file from the library by tombstoning it: the row stays so the
+ * delete propagates to other devices, but the library view hides it. Returns
+ * the stamp under which it was tombstoned so callers can sync the change.
+ */
+export async function deleteFile(
+  db: SqlDriver,
+  id: number,
+  stamp?: SyncStamp,
+): Promise<Result<SyncStamp>> {
+  const clock = stamp ?? defaultStamp();
+  try {
+    const result = await db.run(
+      'UPDATE files SET deleted_at = ?, updated_at = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
+      [clock.updatedAt, clock.updatedAt, clock.updatedBy, id],
+    );
+    if (result.changes === 0) return err(`No live file with id ${id}`);
+    return ok(clock);
+  } catch (error) {
+    return err(`Failed to delete file ${id}: ${errorMessage(error)}`);
   }
 }
 
@@ -166,9 +199,17 @@ export async function saveLastPosition(
   id: number,
   page: number,
   position: number,
+  stamp?: SyncStamp,
 ): Promise<Result<void>> {
+  const clock = stamp ?? defaultStamp();
   try {
-    await db.run('UPDATE files SET last_page = ?, last_position = ? WHERE id = ?', [page, position, id]);
+    await db.run('UPDATE files SET last_page = ?, last_position = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+      page,
+      position,
+      clock.updatedAt,
+      clock.updatedBy,
+      id,
+    ]);
     return ok(undefined);
   } catch (error) {
     return err(`Failed to save last position for file ${id}: ${errorMessage(error)}`);

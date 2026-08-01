@@ -1,4 +1,4 @@
-import type { BookFile, BookStatus, LastPosition, OpenFileResult, Result, Theme } from '@taking-book/core';
+import type { BookFile, BookStatus, LastPosition, OpenFileResult, Result, SyncSummary, Theme } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -10,6 +10,9 @@ export interface ReaderApi {
   setFileTags(id: number, tags: string[]): Promise<Result<void>>;
   getTheme(): Promise<Result<Theme>>;
   setTheme(theme: Theme): Promise<Result<void>>;
+  getSyncFolder(): Promise<Result<string | null>>;
+  setSyncFolder(folderPath: string): Promise<Result<void>>;
+  runSync(): Promise<Result<SyncSummary>>;
 }
 
-export type { BookFile, BookStatus, LastPosition, OpenFileResult, Result, Theme };
+export type { BookFile, BookStatus, LastPosition, OpenFileResult, Result, SyncSummary, Theme };

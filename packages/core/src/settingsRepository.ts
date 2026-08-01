@@ -41,6 +41,33 @@ export async function setTheme(db: SqlDriver, theme: Theme): Promise<Result<void
   }
 }
 
+/** Reads a string setting, or null when it was never written. */
+export async function getSetting(db: SqlDriver, key: string): Promise<Result<string | null>> {
+  try {
+    const row = await db.get('SELECT value FROM settings WHERE key = ?', [key]);
+    return ok(row ? String(row.value) : null);
+  } catch (error) {
+    return err(`Failed to read setting "${key}": ${errorMessage(error)}`);
+  }
+}
+
+/** Writes or replaces a string setting. */
+export async function setSetting(
+  db: SqlDriver,
+  key: string,
+  value: string,
+): Promise<Result<void>> {
+  try {
+    await db.run(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      [key, value],
+    );
+    return ok(undefined);
+  } catch (error) {
+    return err(`Failed to save setting "${key}": ${errorMessage(error)}`);
+  }
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

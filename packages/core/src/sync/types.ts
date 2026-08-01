@@ -1,0 +1,55 @@
+import type { BookStatus } from '../models';
+import type { Result } from '../result';
+
+/**
+ * Last-write-wins clock stamp for a record. `updatedAt` is epoch milliseconds;
+ * `updatedBy` is the device id and breaks ties deterministically.
+ */
+export interface SyncStamp {
+  updatedAt: number;
+  updatedBy: string;
+}
+
+/**
+ * A single library record as it appears in the sync manifest. Deleted records
+ * are ordinary records with `deleted: true`, so a newer delete beats an older
+ * edit and a newer edit resurrects a deleted book.
+ */
+export interface SyncRecord extends SyncStamp {
+  hash: string;
+  title: string;
+  status: BookStatus;
+  tags: string[];
+  lastPage: number | null;
+  lastPosition: number | null;
+  deleted: boolean;
+}
+
+/** The on-disk sync manifest: a versioned list of records keyed by hash. */
+export interface SyncManifest {
+  version: 1;
+  records: SyncRecord[];
+}
+
+/**
+ * Platform-agnostic cloud-drive handle. The desktop implements it over a
+ * local folder synced by Dropbox/Google Drive/Nextcloud; a future mobile
+ * client would implement it over the same folder visible on its platform.
+ * Keys: `manifest.json` and `blobs/<hash>`.
+ */
+export interface SyncStorage {
+  readFile(key: string): Promise<Result<Uint8Array | null>>;
+  writeFile(key: string, data: Uint8Array): Promise<Result<void>>;
+  deleteFile(key: string): Promise<Result<void>>;
+  listFiles(prefix: string): Promise<Result<string[]>>;
+}
+
+/** What a sync pass did, so the UI can report it and tests can assert it. */
+export interface SyncSummary {
+  added: number;
+  updated: number;
+  deleted: number;
+  uploaded: number;
+  downloaded: number;
+  warnings: string[];
+}
