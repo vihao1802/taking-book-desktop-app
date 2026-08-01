@@ -1,0 +1,6 @@
+{
+  "name": "@taking-book/mobile",
+  "version": "0.1.0",
+  "description": "React Native mobile app for Taking Book (Phase 5, not yet started).",
+  "private": true
+}

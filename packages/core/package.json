@@ -1,0 +1,22 @@
+{
+  "name": "@taking-book/core",
+  "version": "0.1.0",
+  "description": "Platform-agnostic logic for Taking Book: models, SQLite repositories, position tracking, hashing.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "better-sqlite3": "^13.0.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

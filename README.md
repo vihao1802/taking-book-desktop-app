@@ -1,48 +1,43 @@
-# Electron + Vite + TypeScript Project
+# Taking Book
 
-This project demonstrates a modern Electron desktop application using Vite for frontend development and TypeScript for type safety.
+A distraction-free, cross-platform document reader: shared core logic + Electron
+desktop app + React Native mobile app, backed by SQLite and cloud-drive sync.
 
-## Prerequisites
+## Packages
 
--   **Node.js**: >= 18.0.0
--   **npm** (or **yarn** / **pnpm**)
+| Package | Description | Status |
+| --- | --- | --- |
+| `packages/core` | Platform-agnostic logic: models, SQLite repositories, position tracking, hashing | Phase 1 complete |
+| `packages/desktop` | Electron desktop app (library + reader + theme) | Phase 1 complete, Phase 2 complete |
+| `packages/mobile` | React Native mobile app | Phase 5, not started |
 
-## Getting Started
+## Conventions
 
-1.  Clone the repository:
-    ```bash
-    git clone <repository-url>
-    cd taking-book-desktop-app
-    ```
+See [AGENTS.md](./AGENTS.md) — the monorepo coding rules (structure, TS strictness,
+Result-style data access, testing).
 
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
+## Scripts
 
-## Available Scripts
+```bash
+npm install   # install all workspaces
+npm run build # build @taking-book/core (must run before typecheck/desktop)
+npm test      # run core unit tests
+npm run typecheck
+npm run lint
+```
 
-### Development
+Run the desktop app:
 
--   `npm run dev`: Starts the development server for the renderer process (Vite). This will automatically reload the app when changes are made.
--   `npm run dev:main`: Starts the main process in watch mode (if supported).
+```bash
+cd packages/desktop
+TB_DISABLE_GPU=1 npm start   # TB_DISABLE_GPU for VMs/containers
+```
 
-### Build & Package
+## Phases
 
--   `npm run build`: Builds the renderer process (Vite).
--   `npm run package`: Packages the application for distribution (requires Electron Forge).
--   `npm run make`: Creates distributable installers for your platform.
--   `npm run make:win`: Creates installers for Windows.
--   `npm run make:mac`: Creates installers for macOS.
--   `npm run make:linux`: Creates installers for Linux.
-
-### Run
-
--   `npm run start`: Compiles the main process and runs the application.
-
-## Project Structure
-
--   `src/main/`: Contains the Electron main process code (entry point, IPC handlers).
--   `src/renderer/`: Contains the frontend code (React/HTML/CSS).
--   `electron.vite.config.ts`: Configuration for Electron's Vite integration.
--   `vite.config.ts`: Standard Vite configuration.
+1. **Phase 1 — Reader core (done):** chrome-less Electron PDF reader, themes,
+   last-read-position memory, content-hash file identity.
+2. **Phase 2 — Library (done):** grid view, status/tags, search.
+3. **Phase 3 — Mobile reflow:** re-layout PDF text for narrow screens.
+4. **Phase 4 — Sync:** cloud-drive sync with conflict handling.
+5. **Phase 5 — React Native port** of the reader using `packages/core`.

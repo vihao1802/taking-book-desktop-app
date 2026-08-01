@@ -1,0 +1,145 @@
+import { describe, expect, it } from 'vitest';
+import {
+  filesSchema,
+  getLastPosition,
+  listFiles,
+  saveLastPosition,
+  setFileStatus,
+  setFileTags,
+  upsertFile,
+} from '../src';
+import { isOk } from '../src';
+import { createMemoryDriver } from './helpers';
+
+describe('filesRepository', () => {
+  it('registers a new file and returns its record', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+
+    const result = await upsertFile(db, {
+      filePath: '/books/one.pdf',
+      hash: 'abc123',
+      title: 'One',
+    });
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.data.hash).toBe('abc123');
+      expect(result.data.path).toBe('/books/one.pdf');
+      expect(result.data.status).toBe('unread');
+      expect(result.data.tags).toEqual([]);
+      expect(result.data.lastPage).toBeNull();
+      expect(result.data.id).toBeGreaterThan(0);
+    }
+  });
+
+  it('updates the path and returns the same id for a duplicate hash', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+
+    const first = await upsertFile(db, { filePath: '/old.pdf', hash: 'same', title: 'T' });
+    const second = await upsertFile(db, { filePath: '/new.pdf', hash: 'same', title: 'T' });
+
+    expect(isOk(first) && isOk(second)).toBe(true);
+    if (isOk(first) && isOk(second)) {
+      expect(second.data.id).toBe(first.data.id);
+      expect(second.data.path).toBe('/new.pdf');
+    }
+  });
+
+  it('treats a corrupt tags column as an empty tag list', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    await db.run("INSERT INTO files (hash, path, title, tags) VALUES ('h', '/p', 't', 'not-json')");
+
+    const result = await upsertFile(db, { filePath: '/moved.pdf', hash: 'h', title: 't' });
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.data.tags).toEqual([]);
+  });
+
+  it('saves and reads back the last position', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/b.pdf', hash: 'h2', title: 'B' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const saved = await saveLastPosition(db, created.data.id, 42, 0.5);
+    expect(isOk(saved)).toBe(true);
+
+    const loaded = await getLastPosition(db, created.data.id);
+    expect(isOk(loaded)).toBe(true);
+    if (isOk(loaded)) {
+      expect(loaded.data).toEqual({ page: 42, position: 0.5 });
+    }
+  });
+
+  it('returns null position for a file that was never opened', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/c.pdf', hash: 'h3', title: 'C' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const loaded = await getLastPosition(db, created.data.id);
+    expect(isOk(loaded) && loaded.data === null).toBe(true);
+  });
+
+  it('returns a null position for an unknown file id', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const loaded = await getLastPosition(db, 999);
+    expect(isOk(loaded) && loaded.data === null).toBe(true);
+  });
+
+  it('lists files newest first', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    await upsertFile(db, { filePath: '/a.pdf', hash: 'h-a', title: 'A' });
+    await upsertFile(db, { filePath: '/b.pdf', hash: 'h-b', title: 'B' });
+
+    const list = await listFiles(db);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) {
+      expect(list.data.map((f) => f.title)).toEqual(['B', 'A']);
+    }
+  });
+
+  it('sets the reading status', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/d.pdf', hash: 'h-d', title: 'D' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const set = await setFileStatus(db, created.data.id, 'finished');
+    expect(isOk(set)).toBe(true);
+
+    const list = await listFiles(db);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) expect(list.data[0].status).toBe('finished');
+  });
+
+  it('errors when setting status for a missing file', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const result = await setFileStatus(db, 404, 'reading');
+    expect(result.ok).toBe(false);
+  });
+
+  it('sets tags, trimming blanks and removing duplicates', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/e.pdf', hash: 'h-e', title: 'E' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const set = await setFileTags(db, created.data.id, ['  work ', '', 'work', 'fiction']);
+    expect(isOk(set)).toBe(true);
+
+    const list = await listFiles(db);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) expect(list.data[0].tags).toEqual(['work', 'fiction']);
+  });
+});
