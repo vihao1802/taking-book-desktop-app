@@ -58,6 +58,17 @@ This file defines conventions any coding agent (or contributor) must follow when
 - Every function in `/core` (data access, sync logic, position tracking) has a unit test — this is the shared logic both platforms depend on, so it's the highest-value place to catch bugs.
 - UI components get tests for behavior (renders, handles tap/click), not implementation detail (internal state shape).
 
+## Development & Verification
+
+- npm workspaces at the repo root. All commands run from the root; the desktop app is run from `packages/desktop`.
+- `@taking-book/core` is consumed by platforms as a **built** package (it must be `npm run build`-ed before platform typecheck/start). The desktop `start`/`package`/`make` scripts build core first automatically.
+- Verification commands (from repo root): `npm run build` → `npm run typecheck` → `npm run lint` → `npm test`. Run all of these before finishing a task.
+- Vitest lives in `/core`; platform packages have no test runner unless one is added explicitly.
+- Environment quirks:
+  - Containers/VMs with no GPU: run the desktop app as `TB_DISABLE_GPU=1 npm start`.
+  - Forge's system check trips on this shell's `npm_config_user_agent=npm/undefined`; `~/.skip-forge-system-check` is the workaround — do not delete it.
+- Smoke tests: end-to-end verification in this environment is done by temporarily instrumenting `packages/desktop/src/main.ts` with a `TB_SMOKE_EXIT_MS` hook that exercises IPC/core and then exits. The hook is removed before committing; never leave it in.
+
 ## Git & Commits
 
 - One logical change per commit; commit messages describe intent (`Add last-read-position tracking by file hash`), not mechanics (`update files`).
