@@ -5,3 +5,12 @@ export { filesSchema, getLastPosition, listFiles, saveLastPosition, setFileStatu
 export { getTheme, setTheme, settingsSchema } from './settingsRepository';
 export { createSha256Hasher, sha256Hex, type Sha256Hasher } from './sha256';
 export { normalizePosition, progressFraction } from './position';
+export {
+  extractLines,
+  paragraphsFromLines,
+  reflowPage,
+  type ReflowLine,
+  type ReflowOptions,
+  type ReflowParagraph,
+  type ReflowTextItem,
+} from './reflow';
