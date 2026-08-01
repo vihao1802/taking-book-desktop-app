@@ -7,8 +7,8 @@ desktop app + React Native mobile app, backed by SQLite and cloud-drive sync.
 
 | Package | Description | Status |
 | --- | --- | --- |
-| `packages/core` | Platform-agnostic logic: models, SQLite repositories, position tracking, hashing | Phase 1 complete |
-| `packages/desktop` | Electron desktop app (library + reader + theme) | Phase 1 complete, Phase 2 complete |
+| `packages/core` | Platform-agnostic logic: models, SQLite repositories, position tracking, hashing, text reflow | Phase 1 complete |
+| `packages/desktop` | Electron desktop app (library + reader + reflow prototype + theme) | Phase 1–3 complete |
 | `packages/mobile` | React Native mobile app | Phase 5, not started |
 
 ## Conventions
@@ -38,6 +38,7 @@ TB_DISABLE_GPU=1 npm start   # TB_DISABLE_GPU for VMs/containers
 1. **Phase 1 — Reader core (done):** chrome-less Electron PDF reader, themes,
    last-read-position memory, content-hash file identity.
 2. **Phase 2 — Library (done):** grid view, status/tags, search.
-3. **Phase 3 — Mobile reflow:** re-layout PDF text for narrow screens.
+3. **Phase 3 — Mobile reflow (prototype done):** core reflow engine (PDF text
+   items → flowing paragraphs) + desktop prototype reader with page/reflow toggle.
 4. **Phase 4 — Sync:** cloud-drive sync with conflict handling.
 5. **Phase 5 — React Native port** of the reader using `packages/core`.

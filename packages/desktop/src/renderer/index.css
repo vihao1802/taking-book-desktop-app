@@ -384,3 +384,27 @@ body {
   min-width: 5.5ch;
   text-align: right;
 }
+
+/* ---------- Reflow (Phase 3 prototype) ---------- */
+
+.reflow-viewport {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 40px 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.reflow-article {
+  width: min(68ch, 100%);
+  max-width: 100%;
+  line-height: 1.65;
+  color: var(--fg);
+}
+
+.reflow-para {
+  margin: 0 0 1em;
+  text-align: justify;
+}

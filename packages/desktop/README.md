@@ -3,9 +3,10 @@
 The Electron desktop app for Taking Book. UI and platform glue only: all data
 logic lives in [`@taking-book/core`](../core) and is imported from here.
 
-> **Phase 2 in progress.** Phase 1 (chrome-less reader) is complete; the
-> library grid view (status/tags/search) landed, and cover thumbnails are still
-> on the roadmap.
+> **Phase 3 in progress.** Phases 1–2 (chrome-less reader, library grid with
+> status/tags/search) are complete. A reflow prototype reader is implemented:
+> it extracts text via pdf.js and re-lays it into flowing paragraphs using the
+> core reflow engine, toggleable per document.
 
 ## Tech stack
 
@@ -39,7 +40,9 @@ src/
       Reader.tsx          chrome-less reader + auto-hiding overlay
       PdfPages.tsx        windowed scroll renderer (fit-to-width)
       PageCanvas.tsx      single-page pdf.js rasterization
-      Overlay.tsx         thin control overlay (back, slider, theme)
+      ReflowReader.tsx    flowing reflow view (Phase 3 prototype)
+      useReflowDocument.ts pdf.js getTextContent → core reflow pipeline
+      Overlay.tsx         thin control overlay (back, page/reflow toggle, theme)
       pdf.ts              pdf.js setup, hooks, page layout math
   shared/types.ts         ReaderApi (window.api) contract
 ```
@@ -74,6 +77,13 @@ normally (plain `file://` fetch is blocked in the renderer).
 - Per-book reading status (unread/reading/finished) and editable tags.
 - Search filters by title or tag.
 - "Add PDF" opens the file dialog and registers the book by content hash.
+
+## Reflow (Phase 3 prototype)
+
+- The overlay's ¶ button toggles between page (rasterized) and reflow views.
+- Reflow extracts text with pdf.js `getTextContent`, feeds fragments into the
+  core reflow engine, and renders flowing paragraphs at a narrow measure —
+  the reading experience a mobile client will target.
 
 ## Scripts
 

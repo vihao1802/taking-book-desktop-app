@@ -3,12 +3,24 @@ interface OverlayProps {
   title: string;
   page: number;
   total: number;
+  mode: 'page' | 'reflow';
+  onToggleMode: () => void;
   onClose: () => void;
   onSeek: (page: number) => void;
   onCycleTheme: () => void;
 }
 
-export function Overlay({ visible, title, page, total, onClose, onSeek, onCycleTheme }: OverlayProps) {
+export function Overlay({
+  visible,
+  title,
+  page,
+  total,
+  mode,
+  onToggleMode,
+  onClose,
+  onSeek,
+  onCycleTheme,
+}: OverlayProps) {
   return (
     <div className="overlay-root" onPointerDown={(e) => e.stopPropagation()}>
       <div className={`overlay overlay-top${visible ? '' : ' overlay-hidden'}`}>
@@ -17,8 +29,16 @@ export function Overlay({ visible, title, page, total, onClose, onSeek, onCycleT
             ‹
           </button>
           <span className="bar-title">{title}</span>
-          <button className="icon-btn bar-spacer" onClick={onCycleTheme} aria-label="Theme">
-            Aa
+          <button
+            className="icon-btn bar-spacer"
+            onClick={onToggleMode}
+            aria-label="Toggle reflow"
+            title={mode === 'reflow' ? 'Page view' : 'Reflow (continuous text)'}
+          >
+            {mode === 'reflow' ? '¶' : 'Aa'}
+          </button>
+          <button className="icon-btn" onClick={onCycleTheme} aria-label="Theme">
+            T
           </button>
         </div>
       </div>
@@ -31,7 +51,7 @@ export function Overlay({ visible, title, page, total, onClose, onSeek, onCycleT
             max={Math.max(total, 1)}
             value={page}
             onChange={(e) => onSeek(Number(e.target.value))}
-            aria-label="Page"
+            aria-label="Position"
           />
           <span className="bar-page">
             {page} / {total}

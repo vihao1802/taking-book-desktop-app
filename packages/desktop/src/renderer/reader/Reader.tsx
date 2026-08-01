@@ -5,12 +5,17 @@ import { useTheme } from '../theme';
 import { Overlay } from './Overlay';
 import { fileUrl, useElementSize, usePageLayout, usePdfDocument } from './pdf';
 import { PdfPages, type PdfPagesHandle } from './PdfPages';
+import { ReflowReader } from './ReflowReader';
+import { useReflowDocument } from './useReflowDocument';
 
 const HIDE_DELAY_MS = 2500;
 
 export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
   const { cycleTheme } = useTheme();
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
+  const { paragraphs, error: reflowError } = useReflowDocument(pdf);
+
+  const [mode, setMode] = useState<'page' | 'reflow'>('page');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pagesRef = useRef<PdfPagesHandle>(null);
@@ -103,6 +108,18 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const ready =
     pdf != null && layout != null && height > 0 && initialPosition !== undefined;
 
+  if (mode === 'reflow') {
+    return (
+      <ReflowReader
+        file={file}
+        paragraphs={paragraphs}
+        error={reflowError}
+        onClose={onClose}
+        onToggleMode={() => setMode('page')}
+      />
+    );
+  }
+
   return (
     <div className="reader-root" onMouseMove={reveal}>
       {error ? (
@@ -136,6 +153,8 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           title={file.title}
           page={currentPage}
           total={total}
+          mode={mode}
+          onToggleMode={() => setMode(mode === 'page' ? 'reflow' : 'page')}
           onClose={onClose}
           onSeek={(p) => pagesRef.current?.scrollToPage(p)}
           onCycleTheme={cycleTheme}
