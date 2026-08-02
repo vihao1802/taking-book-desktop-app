@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { isOk } from '@taking-book/core';
-import type { BookFile, BookStatus, SyncSummary } from '../../shared/types';
+import type { BookFile, BookStatus, CloudAccount, SyncSummary } from '../../shared/types';
 
 export interface SyncState {
   syncing: boolean;
@@ -12,7 +12,8 @@ export function useLibrary() {
   const [files, setFiles] = useState<BookFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [syncFolder, setSyncFolderState] = useState<string | null>(null);
+  const [account, setAccount] = useState<CloudAccount | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const [sync, setSync] = useState<SyncState>({ syncing: false, last: null, error: null });
 
   const refresh = useCallback(async () => {
@@ -26,8 +27,8 @@ export function useLibrary() {
   }, [refresh]);
 
   useEffect(() => {
-    window.api.getSyncFolder().then((result) => {
-      if (isOk(result)) setSyncFolderState(result.data);
+    window.api.getCloudAccount().then((result) => {
+      if (isOk(result)) setAccount(result.data);
     });
   }, []);
 
@@ -45,6 +46,31 @@ export function useLibrary() {
       setBusy(false);
     }
   }, [refresh]);
+
+  const connectCloud = useCallback(async () => {
+    setConnecting(true);
+    try {
+      const result = await window.api.connectCloud();
+      if (isOk(result)) {
+        setAccount(result.data);
+        setSync({ syncing: false, last: null, error: null });
+      } else {
+        setSync({ syncing: false, last: null, error: result.error });
+      }
+    } finally {
+      setConnecting(false);
+    }
+  }, []);
+
+  const disconnectCloud = useCallback(async () => {
+    const result = await window.api.disconnectCloud();
+    if (isOk(result)) {
+      setAccount(null);
+      setSync({ syncing: false, last: null, error: null });
+    } else {
+      setSync({ syncing: false, last: null, error: result.error });
+    }
+  }, []);
 
   const setStatus = useCallback(async (id: number, status: BookStatus) => {
     const result = await window.api.setFileStatus(id, status);
@@ -73,16 +99,6 @@ export function useLibrary() {
     setFiles((prev) => prev.filter((f) => f.id !== id));
   }, []);
 
-  const chooseSyncFolder = useCallback(async () => {
-    const result = await window.api.chooseSyncFolder();
-    if (isOk(result)) {
-      setSyncFolderState(result.data);
-      if (result.data) setSync({ syncing: false, last: null, error: null });
-    } else {
-      setSync({ syncing: false, last: null, error: result.error });
-    }
-  }, []);
-
   const runSync = useCallback(async () => {
     setSync({ syncing: true, last: null, error: null });
     const result = await window.api.runSync();
@@ -98,13 +114,15 @@ export function useLibrary() {
     files,
     error,
     busy,
-    syncFolder,
+    account,
+    connecting,
     sync,
     addFile,
     setStatus,
     setTags,
     removeFile,
-    chooseSyncFolder,
+    connectCloud,
+    disconnectCloud,
     runSync,
     refresh,
   };

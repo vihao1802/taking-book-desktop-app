@@ -9,13 +9,15 @@ export function Library({ onOpen }: { onOpen: (file: BookFile) => void }) {
     files,
     error,
     busy,
-    syncFolder,
+    account,
+    connecting,
     sync,
     addFile,
     setStatus,
     setTags,
     removeFile,
-    chooseSyncFolder,
+    connectCloud,
+    disconnectCloud,
     runSync,
   } = useLibrary();
   const [query, setQuery] = useState('');
@@ -54,18 +56,31 @@ export function Library({ onOpen }: { onOpen: (file: BookFile) => void }) {
       </header>
 
       <section className="sync-bar">
-        <div className="sync-bar-folder">
-          <span className="sync-bar-label">Sync folder:</span>
-          <span className="sync-bar-path" title={syncFolder ?? undefined}>
-            {syncFolder ?? 'not set'}
-          </span>
-          <button className="sync-folder-pick" onClick={chooseSyncFolder}>
-            {syncFolder ? 'Change' : 'Choose…'}
-          </button>
-        </div>
-        <button className="sync-run" onClick={runSync} disabled={sync.syncing}>
-          {sync.syncing ? 'Syncing…' : 'Sync now'}
-        </button>
+        {account ? (
+          <>
+            <div className="sync-bar-folder">
+              <span className="sync-bar-label">Google Drive:</span>
+              <span className="sync-bar-path" title={account.email}>
+                {account.displayName}
+                {account.email ? ` (${account.email})` : ''}
+              </span>
+              <button className="sync-folder-pick" onClick={disconnectCloud}>
+                Disconnect
+              </button>
+            </div>
+            <button className="sync-run" onClick={runSync} disabled={sync.syncing}>
+              {sync.syncing ? 'Syncing…' : 'Sync now'}
+            </button>
+          </>
+        ) : (
+          <div className="sync-bar-folder">
+            <span className="sync-bar-label">Sync:</span>
+            <span className="sync-bar-path">not connected</span>
+            <button className="sync-folder-pick" onClick={connectCloud} disabled={connecting}>
+              {connecting ? 'Connecting…' : 'Connect Google Drive'}
+            </button>
+          </div>
+        )}
       </section>
 
       {sync.error && <p className="sync-error">{sync.error}</p>}

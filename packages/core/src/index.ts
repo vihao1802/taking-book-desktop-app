@@ -25,3 +25,15 @@ export { emptyManifest, parseManifest, serializeManifest } from './sync/manifest
 export { isNewerThan, mergeRecords, pickWinner } from './sync/merge';
 export { syncLibrary, type SyncLibraryOptions } from './sync/syncLibrary';
 export type { SyncManifest, SyncRecord, SyncStamp, SyncStorage, SyncSummary } from './sync/types';
+export {
+  buildAuthorizationUrl,
+  exchangeAuthorizationCode,
+  parseTokenResponse,
+  refreshAccessToken,
+  type CloudAccount,
+  type CloudProvider,
+  type CloudToken,
+  type OAuthClientConfig,
+  type OAuthHttpClient,
+  type OAuthTokenResponse,
+} from './sync/cloud';

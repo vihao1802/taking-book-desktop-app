@@ -1,16 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { copyFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { Result, SqlDriver, SyncSummary } from '@taking-book/core';
+import type { CloudProvider, Result, SqlDriver, SyncSummary } from '@taking-book/core';
 import { err, isOk, ok, syncLibrary, getSetting, setSetting, listFiles } from '@taking-book/core';
+import { createGoogleDriveProvider } from './cloud/googleDrive';
+import { createCloudTokenStore } from './cloud/tokenStore';
 import { createFolderSyncStorage } from './syncStorage';
+
 const DEVICE_KEY = 'deviceId';
-const SYNC_FOLDER_KEY = 'syncFolder';
+const CLIENT_ID_KEY = 'googleDriveClientId';
+const DEFAULT_CLIENT_ID = '600959561990-on63p5pa0pn27njohftcd0nl326c4alj.apps.googleusercontent.com';
 
 /**
- * Desktop glue for the core sync engine. The "cloud drive" is a plain folder
- * the user keeps synced via Dropbox/Google Drive/Nextcloud; our manifest and
- * content-addressed blobs live inside it. The local content store is a
+ * Desktop glue for the core sync engine. The remote is a cloud provider (the
+ * Google Drive REST API today); the local content store is a
  * `userData/blobs/<hash>` directory, so downloaded books are addressable by
  * hash and uploads read from a stable location regardless of the original file.
  */
@@ -24,14 +27,13 @@ export async function getDeviceId(db: SqlDriver): Promise<string> {
   return id;
 }
 
-/** Returns the configured sync folder path, or null when none is set. */
-export async function getSyncFolder(db: SqlDriver): Promise<Result<string | null>> {
-  return getSetting(db, SYNC_FOLDER_KEY);
-}
-
-/** Persists the sync folder path. */
-export async function setSyncFolder(db: SqlDriver, folder: string): Promise<Result<void>> {
-  return setSetting(db, SYNC_FOLDER_KEY, folder);
+/** Returns the Google OAuth client id, or null when none is configured. */
+export async function getGoogleClientId(db: SqlDriver): Promise<string | null> {
+  const fromEnv = process.env.TB_GDRIVE_CLIENT_ID;
+  if (fromEnv) return fromEnv;
+  const stored = await getSetting(db, CLIENT_ID_KEY);
+  if (isOk(stored) && stored.data) return stored.data;
+  return DEFAULT_CLIENT_ID;
 }
 
 /** Returns the local content-store directory (created on demand). */
@@ -44,10 +46,7 @@ export function localBlobDir(userDataDir: string): string {
  * reading from the file path recorded in the database. This lets books added
  * before the sync store existed still upload by content hash.
  */
-export async function seedLocalBlobs(
-  db: SqlDriver,
-  blobDir: string,
-): Promise<Result<number>> {
+export async function seedLocalBlobs(db: SqlDriver, blobDir: string): Promise<Result<number>> {
   const files = await listFiles(db);
   if (!isOk(files)) return files;
   let seeded = 0;
@@ -77,18 +76,32 @@ async function fileExists(target: string): Promise<boolean> {
   }
 }
 
+/** Builds the Google Drive provider for the given client id. */
+export function createCloudProvider(
+  db: SqlDriver,
+  userDataDir: string,
+  clientId: string,
+): CloudProvider {
+  const tokenStore = createCloudTokenStore(db);
+  return createGoogleDriveProvider({
+    clientId,
+    tokenStore,
+    openExternal: (url) => import('electron').then(({ shell }) => shell.openExternal(url)),
+  });
+}
+
 /**
- * Runs one sync pass against the configured folder. Fails with a clear message
- * when no folder is configured; the core engine guarantees a failed sync never
- * blocks reading or corrupts the local library.
+ * Runs one sync pass against the connected cloud provider. Fails with a clear
+ * message when no provider is connected; the core engine guarantees a failed
+ * sync never blocks reading or corrupts the local library.
  */
 export async function runSync(
   db: SqlDriver,
   userDataDir: string,
+  provider: CloudProvider,
 ): Promise<Result<SyncSummary>> {
-  const folder = await getSyncFolder(db);
-  if (!isOk(folder)) return folder;
-  if (!folder.data) return err('No sync folder configured yet.');
+  const storage = await provider.createSyncStorage();
+  if (!isOk(storage)) return storage;
 
   const blobDir = localBlobDir(userDataDir);
   const seeded = await seedLocalBlobs(db, blobDir);
@@ -96,7 +109,7 @@ export async function runSync(
 
   return syncLibrary(db, {
     local: createFolderSyncStorage(userDataDir),
-    remote: createFolderSyncStorage(folder.data),
+    remote: storage.data,
     resolveLocalPath: (hash) => path.join(blobDir, hash),
     logWarning: (message) => console.warn(`[sync] ${message}`),
   });

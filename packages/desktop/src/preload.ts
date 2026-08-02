@@ -12,9 +12,9 @@ const api: ReaderApi = {
   setFileTags: (id, tags) => ipcRenderer.invoke('files:tags:set', id, tags),
   getTheme: () => ipcRenderer.invoke('settings:theme:get'),
   setTheme: (theme) => ipcRenderer.invoke('settings:theme:set', theme),
-  getSyncFolder: () => ipcRenderer.invoke('settings:sync-folder:get'),
-  setSyncFolder: (folderPath) => ipcRenderer.invoke('settings:sync-folder:set', folderPath),
-  chooseSyncFolder: () => ipcRenderer.invoke('settings:sync-folder:choose'),
+  getCloudAccount: () => ipcRenderer.invoke('cloud:status'),
+  connectCloud: () => ipcRenderer.invoke('cloud:connect'),
+  disconnectCloud: () => ipcRenderer.invoke('cloud:disconnect'),
   runSync: () => ipcRenderer.invoke('sync:run'),
 };
 
