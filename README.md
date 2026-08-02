@@ -40,8 +40,10 @@ TB_DISABLE_GPU=1 npm start   # TB_DISABLE_GPU for VMs/containers
 2. **Phase 2 — Library (done):** grid view, status/tags, search.
 3. **Phase 3 — Mobile reflow (prototype done):** core reflow engine (PDF text
    items → flowing paragraphs) + desktop prototype reader with page/reflow toggle.
-4. **Phase 4 — Sync (done):** cloud-drive folder sync. Core implements
+4. **Phase 4 — Sync (done):** Google Drive OAuth cloud sync. Core implements
    last-write-wins merge with per-record clocks, tombstones, and a
-   content-addressed blob store; the desktop app syncs a manifest + blobs into
-   any folder kept in sync by Dropbox/Google Drive/Nextcloud.
+   content-addressed blob store; the desktop app syncs a manifest + blobs into a
+   `Taking Book/` Drive folder. Connect via the in-app "Connect Google Drive"
+   flow (loopback OAuth); tokens are stored encrypted via Electron `safeStorage`
+   and auto-refreshed on expiry.
 5. **Phase 5 — React Native port** of the reader using `packages/core`.
