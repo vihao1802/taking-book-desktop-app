@@ -22,6 +22,7 @@ export function usePdfDocument(url: string | null) {
     const task = pdfjs.getDocument({
       url,
       standardFontDataUrl: 'appfile://fonts/',
+      wasmUrl: 'appfile://wasm/',
     });
     task.promise
       .then((doc) => {

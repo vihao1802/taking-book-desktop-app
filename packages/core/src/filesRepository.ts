@@ -83,7 +83,9 @@ export async function upsertFile(
   try {
     const existing = await db.get('SELECT * FROM files WHERE hash = ?', [hash]);
     if (existing) {
-      await db.run('UPDATE files SET path = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+      // Re-adding a file whose bytes match an existing (possibly tombstoned)
+      // record revives it and repoints it at the new copy.
+      await db.run('UPDATE files SET path = ?, updated_at = ?, updated_by = ?, deleted_at = NULL WHERE id = ?', [
         filePath,
         clock.updatedAt,
         clock.updatedBy,

@@ -32,7 +32,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   useEffect(() => {
     let cancelled = false;
     window.api.getLastPosition(file.id).then((pos) => {
-      if (!cancelled && isOk(pos) && pos.data) setInitialPosition(pos.data.position);
+      if (!cancelled && isOk(pos)) setInitialPosition(pos.data?.position ?? 0);
     });
     return () => {
       cancelled = true;
@@ -128,23 +128,25 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           <pre>{error}</pre>
           <button onClick={onClose}>Back</button>
         </div>
-      ) : ready ? (
-        <div className="pdf-viewport" ref={scrollRef} onClick={handleClick}>
-          <PdfPages
-            ref={pagesRef}
-            pdf={pdf}
-            layout={layout}
-            containerWidth={width}
-            containerHeight={height}
-            dpr={dpr}
-            initialPosition={initialPosition}
-            onScrollPosition={savePosition}
-            onCurrentPage={setCurrentPage}
-          />
-        </div>
       ) : (
-        <div className="reader-loading">
-          <p>Loading…</p>
+        <div className="pdf-viewport" ref={scrollRef} onClick={handleClick}>
+          {ready ? (
+            <PdfPages
+              ref={pagesRef}
+              pdf={pdf}
+              layout={layout}
+              containerWidth={width}
+              containerHeight={height}
+              dpr={dpr}
+              initialPosition={initialPosition}
+              onScrollPosition={savePosition}
+              onCurrentPage={setCurrentPage}
+            />
+          ) : (
+            <div className="reader-loading">
+              <p>Loading…</p>
+            </div>
+          )}
         </div>
       )}
       {!error && (

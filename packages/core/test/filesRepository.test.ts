@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  deleteFile,
   filesSchema,
   getLastPosition,
   listFiles,
@@ -44,6 +45,28 @@ describe('filesRepository', () => {
     if (isOk(first) && isOk(second)) {
       expect(second.data.id).toBe(first.data.id);
       expect(second.data.path).toBe('/new.pdf');
+    }
+  });
+
+  it('revives a deleted file when the same bytes are added again', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/g.pdf', hash: 'h-revive', title: 'G' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    await deleteFile(db, created.data.id);
+    let list = await listFiles(db);
+    expect(isOk(list) && list.data.length === 0).toBe(true);
+
+    const readd = await upsertFile(db, { filePath: '/g-new.pdf', hash: 'h-revive', title: 'G' });
+    expect(isOk(readd)).toBe(true);
+    if (isOk(readd)) expect(readd.data.id).toBe(created.data.id);
+
+    list = await listFiles(db);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) {
+      expect(list.data.map((f) => f.title)).toEqual(['G']);
     }
   });
 

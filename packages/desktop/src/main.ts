@@ -39,14 +39,23 @@ function standardFontsDir(): string {
   return path.join(path.dirname(packageJson), 'standard_fonts');
 }
 
+function pdfjsWasmDir(): string {
+  const packageJson = requireFromBundle.resolve('pdfjs-dist/package.json');
+  return path.join(path.dirname(packageJson), 'wasm');
+}
+
 function registerFileProtocol(): void {
-  protocol.handle('appfile', (request) => {
+  protocol.handle('appfile', async (request) => {
     const url = new URL(request.url);
     const rawPath = decodeURIComponent(url.pathname);
 
     if (url.hostname === 'fonts') {
-      const name = path.basename(rawPath);
-      return net.fetch(pathToFileURL(path.join(standardFontsDir(), name)).toString());
+      const fontFile = path.join(standardFontsDir(), path.basename(rawPath));
+      return net.fetch(pathToFileURL(fontFile).toString());
+    }
+    if (url.hostname === 'wasm') {
+      const wasmFile = path.join(pdfjsWasmDir(), path.basename(rawPath));
+      return net.fetch(pathToFileURL(wasmFile).toString());
     }
     if (url.hostname === 'doc') {
       return net.fetch(pathToFileURL(rawPath).toString());
