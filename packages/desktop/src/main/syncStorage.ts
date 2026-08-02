@@ -1,67 +1,80 @@
-import { err, ok, type Result, type SyncStorage } from '@taking-book/core';
-import fs from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { Result, SyncStorage } from '@taking-book/core';
+import { err, ok } from '@taking-book/core';
 
 /**
- * Implements SyncStorage over a local folder synced by a cloud drive
- * (Google Drive, OneDrive, Dropbox, etc.). The folder contains:
- * - manifest.json: the sync manifest
- * - blobs/<hash>: file content blobs keyed by content hash
+ * Folder-backed SyncStorage. Keys map onto files verbatim: `manifest.json`
+ * becomes `<root>/manifest.json` and `blobs/<hash>` becomes
+ * `<root>/blobs/<hash>`. Both the local content store and the cloud-drive
+ * folder use this same implementation. Writes are atomic (temp file + rename)
+ * so a crash never leaves a partially-written manifest on the drive.
  */
-export function createSyncStorage(basePath: string): SyncStorage {
+
+function isNotFound(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && (error as { code?: string }).code === 'ENOENT';
+}
+
+export function createFolderSyncStorage(root: string): SyncStorage {
+  const keyPath = (key: string): string => {
+    if (key.includes('..')) throw new Error(`Invalid sync key: ${key}`);
+    return path.join(root, key);
+  };
+
+  async function readOrNull(file: string): Promise<Uint8Array | null> {
+    try {
+      return await readFile(file);
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
   return {
-    async readFile(key: string): Promise<Result<Uint8Array | null>> {
+    async readFile(key): Promise<Result<Uint8Array | null>> {
       try {
-        const fullPath = path.join(basePath, key);
-        const data = await fs.readFile(fullPath);
-        return ok(new Uint8Array(data.buffer));
+        const data = await readOrNull(keyPath(key));
+        return ok(data);
       } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code === 'ENOENT') return ok(null);
-        return err(`Failed to read ${key}: ${error instanceof Error ? error.message : String(error)}`);
+        return err(`Failed reading "${key}" from ${root}: ${errorMessage(error)}`);
       }
     },
 
-    async writeFile(key: string, data: Uint8Array): Promise<Result<void>> {
+    async writeFile(key, data): Promise<Result<void>> {
+      const target = keyPath(key);
       try {
-        const fullPath = path.join(basePath, key);
-        const dir = path.dirname(fullPath);
-        await fs.mkdir(dir, { recursive: true });
-        await fs.writeFile(fullPath, Buffer.from(data));
+        await mkdir(path.dirname(target), { recursive: true });
+        const temp = `${target}.tmp-${process.pid}`;
+        await writeFile(temp, data);
+        await rename(temp, target);
         return ok(undefined);
       } catch (error) {
-        return err(`Failed to write ${key}: ${error instanceof Error ? error.message : String(error)}`);
+        return err(`Failed writing "${key}" to ${root}: ${errorMessage(error)}`);
       }
     },
 
-    async deleteFile(key: string): Promise<Result<void>> {
+    async deleteFile(key): Promise<Result<void>> {
       try {
-        const fullPath = path.join(basePath, key);
-        await fs.unlink(fullPath);
+        await rm(keyPath(key), { force: true });
         return ok(undefined);
       } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code === 'ENOENT') return ok(undefined);
-        return err(`Failed to delete ${key}: ${error instanceof Error ? error.message : String(error)}`);
+        return err(`Failed deleting "${key}" from ${root}: ${errorMessage(error)}`);
       }
     },
 
-    async listFiles(prefix: string): Promise<Result<string[]>> {
+    async listFiles(prefix): Promise<Result<string[]>> {
       try {
-        const searchDir = path.join(basePath, prefix);
-        const entries = await fs.readdir(searchDir, { withFileTypes: true });
-        const files: string[] = [];
-        for (const entry of entries) {
-          if (entry.isFile()) {
-            files.push(path.join(prefix, entry.name));
-          }
-        }
-        return ok(files);
+        const dir = keyPath(prefix);
+        const entries = await readdir(dir, { withFileTypes: true });
+        return ok(entries.filter((entry) => entry.isFile()).map((entry) => entry.name));
       } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code === 'ENOENT') return ok([]);
-        return err(`Failed to list ${prefix}: ${error instanceof Error ? error.message : String(error)}`);
+        if (isNotFound(error)) return ok([]);
+        return err(`Failed listing "${prefix}" in ${root}: ${errorMessage(error)}`);
       }
     },
   };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

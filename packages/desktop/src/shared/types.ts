@@ -3,6 +3,7 @@ import type { BookFile, BookStatus, LastPosition, OpenFileResult, Result, SyncSu
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
   openFile(): Promise<Result<OpenFileResult | null>>;
+  deleteFile(id: number): Promise<Result<void>>;
   getLastPosition(id: number): Promise<Result<LastPosition | null>>;
   saveLastPosition(id: number, page: number, position: number): Promise<Result<void>>;
   listFiles(): Promise<Result<BookFile[]>>;
@@ -12,6 +13,7 @@ export interface ReaderApi {
   setTheme(theme: Theme): Promise<Result<void>>;
   getSyncFolder(): Promise<Result<string | null>>;
   setSyncFolder(folderPath: string): Promise<Result<void>>;
+  chooseSyncFolder(): Promise<Result<string | null>>;
   runSync(): Promise<Result<SyncSummary>>;
 }
 

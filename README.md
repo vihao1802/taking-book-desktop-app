@@ -7,8 +7,8 @@ desktop app + React Native mobile app, backed by SQLite and cloud-drive sync.
 
 | Package | Description | Status |
 | --- | --- | --- |
-| `packages/core` | Platform-agnostic logic: models, SQLite repositories, position tracking, hashing, text reflow | Phase 1 complete |
-| `packages/desktop` | Electron desktop app (library + reader + reflow prototype + theme) | Phase 1–3 complete |
+| `packages/core` | Platform-agnostic logic: models, SQLite repositories, position tracking, hashing, text reflow, sync merge | Phase 1 + 4 complete |
+| `packages/desktop` | Electron desktop app (library + reader + reflow prototype + theme + sync) | Phase 1–4 complete |
 | `packages/mobile` | React Native mobile app | Phase 5, not started |
 
 ## Conventions
@@ -40,5 +40,8 @@ TB_DISABLE_GPU=1 npm start   # TB_DISABLE_GPU for VMs/containers
 2. **Phase 2 — Library (done):** grid view, status/tags, search.
 3. **Phase 3 — Mobile reflow (prototype done):** core reflow engine (PDF text
    items → flowing paragraphs) + desktop prototype reader with page/reflow toggle.
-4. **Phase 4 — Sync:** cloud-drive sync with conflict handling.
+4. **Phase 4 — Sync (done):** cloud-drive folder sync. Core implements
+   last-write-wins merge with per-record clocks, tombstones, and a
+   content-addressed blob store; the desktop app syncs a manifest + blobs into
+   any folder kept in sync by Dropbox/Google Drive/Nextcloud.
 5. **Phase 5 — React Native port** of the reader using `packages/core`.

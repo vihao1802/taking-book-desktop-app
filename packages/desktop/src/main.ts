@@ -62,10 +62,14 @@ const createWindow = () => {
     backgroundColor: '#faf9f7',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
 
+  // Open DevTools in development to debug white screen
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    mainWindow.webContents.openDevTools();
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
     mainWindow.loadFile(
@@ -74,9 +78,10 @@ const createWindow = () => {
   }
 };
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerFileProtocol();
-  registerIpc(getDriver());
+  const db = await getDriver();
+  registerIpc(db);
   createWindow();
 });
 

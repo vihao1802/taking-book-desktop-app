@@ -3,10 +3,12 @@
 The Electron desktop app for Taking Book. UI and platform glue only: all data
 logic lives in [`@taking-book/core`](../core) and is imported from here.
 
-> **Phase 3 in progress.** Phases 1–2 (chrome-less reader, library grid with
-> status/tags/search) are complete. A reflow prototype reader is implemented:
-> it extracts text via pdf.js and re-lays it into flowing paragraphs using the
-> core reflow engine, toggleable per document.
+> **Phase 4 in progress.** Phases 1–2 (chrome-less reader, library grid with
+> status/tags/search) are complete. Phase 3 added a reflow prototype reader
+> (pdf.js text extraction → core reflow engine). Phase 4 adds cloud-drive sync:
+> pick any folder kept in sync by Dropbox/Google Drive/Nextcloud, and the app
+> pushes a manifest + content-addressed blobs there and pulls them on other
+> devices, with last-write-wins conflict handling.
 
 ## Tech stack
 
@@ -23,28 +25,30 @@ logic lives in [`@taking-book/core`](../core) and is imported from here.
 
 ```
 src/
-  main.ts                 Electron main process entry
-  preload.ts              contextBridge API surface (window.api)
-  main/
-    db.ts                 SQLite connection; applies core schema; exposes SqlDriver
-    sqliteDriver.ts       better-sqlite3 -> core SqlDriver adapter
-    hash.ts               streams file bytes into core's pure sha256
-    ipc.ts                IPC handlers (open, position, theme)
-  renderer/
-    App.tsx               Library <-> Reader state routing
-    theme.tsx             light / dark / sepia / system theme context
-    library/
-      Library.tsx         grid view: status, tags, search
-      useLibrary.ts       library data hook (list, add, status, tags)
-    reader/
-      Reader.tsx          chrome-less reader + auto-hiding overlay
-      PdfPages.tsx        windowed scroll renderer (fit-to-width)
-      PageCanvas.tsx      single-page pdf.js rasterization
-      ReflowReader.tsx    flowing reflow view (Phase 3 prototype)
-      useReflowDocument.ts pdf.js getTextContent → core reflow pipeline
-      Overlay.tsx         thin control overlay (back, page/reflow toggle, theme)
-      pdf.ts              pdf.js setup, hooks, page layout math
-  shared/types.ts         ReaderApi (window.api) contract
+    main.ts                 Electron main process entry
+    preload.ts              contextBridge API surface (window.api)
+    main/
+      db.ts                 SQLite connection; applies core schema; exposes SqlDriver
+      sqliteDriver.ts       better-sqlite3 -> core SqlDriver adapter
+      hash.ts               streams file bytes into core's pure sha256
+      ipc.ts                IPC handlers (open, position, theme, sync)
+      sync.ts               device id + sync-folder glue for the core engine
+      syncStorage.ts        folder-backed SyncStorage (atomic writes)
+    renderer/
+      App.tsx               Library <-> Reader state routing
+      theme.tsx             light / dark / sepia / system theme context
+      library/
+        Library.tsx         grid view: status, tags, search, sync bar
+        useLibrary.ts       library data hook (list, add, status, tags, sync)
+      reader/
+        Reader.tsx          chrome-less reader + auto-hiding overlay
+        PdfPages.tsx        windowed scroll renderer (fit-to-width)
+        PageCanvas.tsx      single-page pdf.js rasterization
+        ReflowReader.tsx    flowing reflow view (Phase 3 prototype)
+        useReflowDocument.ts pdf.js getTextContent → core reflow pipeline
+        Overlay.tsx         thin control overlay (back, page/reflow toggle, theme)
+        pdf.ts              pdf.js setup, hooks, page layout math
+    shared/types.ts         ReaderApi (window.api) contract
 ```
 
 Data access (upsert file, positions, theme) is delegated to the core
@@ -85,6 +89,17 @@ normally (plain `file://` fetch is blocked in the renderer).
   core reflow engine, and renders flowing paragraphs at a narrow measure —
   the reading experience a mobile client will target.
 
+## Sync (Phase 4)
+
+- The library header has a sync bar: pick any folder (typically one kept in
+  sync by Dropbox/Google Drive/Nextcloud) and hit **Sync now**.
+- The app maintains a content-addressed store (`userData/blobs/<hash>`) so
+  books are identified and transferred by hash, never by path.
+- Adding a PDF copies it into that store before registering; removing a book
+  tombstones it so the delete propagates to other devices.
+- The engine (in core) is local-first: a failed or missing sync folder never
+  blocks reading or corrupts the library.
+
 ## Scripts
 
 ```bash
@@ -102,5 +117,5 @@ and unpacked from the asar via the `AutoUnpackNativesPlugin`.
 
 - `TB_DISABLE_GPU=1 npm start` runs with hardware acceleration disabled —
   useful for VMs/containers where the GPU process is unavailable.
-- Phase 1 covers only PDF. Future phases: library view (status/tags/search),
-  mobile reflow, Drive/OneDrive sync, and a React Native port.
+- Phase 1 covers only PDF. Future phases: mobile reflow, Drive/OneDrive sync
+  polish, and a React Native port.

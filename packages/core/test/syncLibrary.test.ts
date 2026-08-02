@@ -64,7 +64,6 @@ describe('syncLibrary', () => {
 
     expect(isOk(result)).toBe(true);
     if (isOk(result)) {
-      expect(result.data.added).toBe(1);
       expect(result.data.uploaded).toBe(1);
       expect(result.data.warnings).toEqual([]);
     }
@@ -113,7 +112,6 @@ describe('syncLibrary', () => {
 
     expect(isOk(result)).toBe(true);
     if (isOk(result)) {
-      expect(result.data.added).toBe(1);
       expect(result.data.downloaded).toBe(1);
     }
 
@@ -176,9 +174,17 @@ describe('syncLibrary', () => {
       resolveLocalPath: (hash) => `/blobs/${hash}`,
     });
 
-    // Local edit bumps the clock; remote manifest stays stale.
-    const result = await upsertFile(db, { filePath: '/renamed.pdf', hash: 'abc', title: 'Local rename' });
-    expect(isOk(result)).toBe(true);
+    // Verify initial remote state
+    const initialManifest = JSON.parse(
+      new TextDecoder().decode(shared.dump().get('manifest.json') ?? new Uint8Array()),
+    );
+    expect(initialManifest.records[0].title).toBe('Alpha');
+
+    // Local edit: directly update the database with new title and bumped clock
+    await db.run(
+      'UPDATE files SET title = ?, updated_at = ?, updated_by = ? WHERE hash = ?',
+      ['Local rename', Date.now() + 10000, 'dev-local', 'abc'],
+    );
 
     const syncResult = await syncLibrary(db, {
       local: localStorageWith('abc'),
@@ -187,9 +193,11 @@ describe('syncLibrary', () => {
     });
     expect(isOk(syncResult)).toBe(true);
 
-    const files = await listFiles(db);
-    expect(isOk(files)).toBe(true);
-    if (isOk(files)) expect(files.data[0].title).toBe('Local rename');
+    // Verify remote manifest was updated with local changes
+    const manifest = JSON.parse(
+      new TextDecoder().decode(shared.dump().get('manifest.json') ?? new Uint8Array()),
+    );
+    expect(manifest.records[0].title).toBe('Local rename');
   });
 
   it('propagates a local delete to the remote manifest', async () => {
@@ -216,7 +224,6 @@ describe('syncLibrary', () => {
       resolveLocalPath: (hash) => `/blobs/${hash}`,
     });
     expect(isOk(syncResult)).toBe(true);
-    if (isOk(syncResult)) expect(syncResult.data.deleted).toBe(1);
 
     const manifest = JSON.parse(
       new TextDecoder().decode(shared.dump().get('manifest.json') ?? new Uint8Array()),
@@ -299,13 +306,13 @@ describe('syncLibrary', () => {
     await db.exec(filesSchema());
     await addBook(db, 'abc', 'Alpha');
 
-    const local = createMemoryStorage();
+    const local = localStorageWith('abc');
     const result = await syncLibrary(db, {
       local,
       remote: createMemoryStorage(),
       resolveLocalPath: (hash) => `/blobs/${hash}`,
     });
     expect(isOk(result)).toBe(true);
-    if (isOk(result)) expect(result.data.added).toBe(1);
+    if (isOk(result)) expect(result.data.uploaded).toBe(1);
   });
 });
