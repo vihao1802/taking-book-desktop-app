@@ -73,6 +73,8 @@ This file defines conventions any coding agent (or contributor) must follow when
 
 - One logical change per commit; commit messages describe intent (`Add last-read-position tracking by file hash`), not mechanics (`update files`).
 - No committing generated files, `.env`, or local SQLite `.db` files — these go in `.gitignore`.
+- **Commit after every major change.** Whenever a task introduces a completed, working unit of work (a new feature, a fixed bug, a refactor, a config change, etc.), commit it immediately so we always have a clean rollback point. Do this automatically at the end of the task, without being asked. Verify with `git status` that the work was actually committed; never leave major work sitting uncommitted.
+- Do not commit broken/intermediate states — commit at natural checkpoints where the code builds and tests pass, or commit partial work with a message clearly marking it as WIP if a checkpoint is genuinely unreachable.
 
 ## General
 
