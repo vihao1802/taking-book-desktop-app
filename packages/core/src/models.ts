@@ -12,9 +12,32 @@ export interface BookFile {
   title: string;
   status: BookStatus;
   tags: string[];
+  favorite: boolean;
   lastPage: number | null;
   lastPosition: number | null;
+  /** Total pages of the document, known once the reader opens it. */
+  pageCount: number | null;
   createdAt: string;
+}
+
+/** Reading minutes logged for one calendar day (local time, YYYY-MM-DD). */
+export interface DayMinutes {
+  day: string;
+  minutes: number;
+}
+
+/** Aggregated reading statistics shown on the Statistics screen. */
+export interface ReadingStats {
+  /** Reading minutes per day for the trailing window, oldest first. */
+  series: DayMinutes[];
+  /** Consecutive days read ending today (or yesterday if today is empty). */
+  currentStreak: number;
+  /** Longest run of consecutive reading days in the window. */
+  longestStreak: number;
+  /** Total reading minutes in the window. */
+  totalMinutes: number;
+  /** Reading minutes recorded today. */
+  minutesToday: number;
 }
 
 /** Where the reader should resume for a book. */
@@ -23,7 +46,52 @@ export interface LastPosition {
   position: number;
 }
 
-/** Payload returned when the user opens a file. */
+/** Payload returned when the user opens one or more files. */
 export interface OpenFileResult {
-  file: BookFile;
+  files: BookFile[];
+}
+
+/** Highlight marker colors offered to the reader. */
+export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink';
+
+/**
+ * A highlight (and its optional comment) anchored to a stretch of text. Two
+ * anchors are stored so the same highlight can render in both reader modes:
+ * char offsets into the page's joined pdf.js text content (page view) and
+ * offsets into a reflow paragraph (reflow view). One of the pair may be null
+ * when the text could not be matched in that mode at creation time.
+ */
+export interface Annotation {
+  id: number;
+  fileHash: string;
+  /** 1-based PDF page the highlighted text lives on. */
+  page: number;
+  /** Char range into the page's joined textContent, for the page view. */
+  pageStart: number | null;
+  pageEnd: number | null;
+  /** The highlighted text, as it was selected. */
+  quote: string;
+  color: AnnotationColor;
+  /** Comment attached to the highlight; null when there is none. */
+  note: string | null;
+  /** Char range into a reflow paragraph, for the reflow view. */
+  paraIndex: number | null;
+  paraStart: number | null;
+  paraEnd: number | null;
+  createdAt: string;
+  updatedAt: number;
+  updatedBy: string;
+}
+
+/** Payload for creating a new highlight/comment. */
+export interface CreateAnnotationInput {
+  page: number;
+  pageStart: number | null;
+  pageEnd: number | null;
+  quote: string;
+  color: AnnotationColor;
+  note: string | null;
+  paraIndex: number | null;
+  paraStart: number | null;
+  paraEnd: number | null;
 }

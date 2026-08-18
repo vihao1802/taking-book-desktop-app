@@ -1,24 +1,34 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron';
 import {
+  computeReadingStats,
+  createAnnotation,
+  deleteAnnotation,
   deleteFile,
+  getDailyReadingMinutes,
   getLastPosition,
   getTheme,
   isOk,
+  listAnnotations,
   listFiles,
+  recordReadingSession,
   saveLastPosition,
+  setAnnotationNote,
+  setFileFavorite,
+  setFilePageCount,
   setFileStatus,
   setFileTags,
   setTheme,
   upsertFile,
 } from '@taking-book/core';
-import type { BookStatus, CloudAccount, Result, SqlDriver, SyncStamp } from '@taking-book/core';
-import { basename, join } from 'node:path';
+import type { BookFile, BookStatus, CloudAccount, CreateAnnotationInput, Result, SqlDriver, SyncStamp } from '@taking-book/core';
+import { basename, extname, join } from 'node:path';
 import { copyFile, mkdir } from 'node:fs/promises';
 import { sha256File } from './hash';
 import {
   createCloudProvider,
   getDeviceId,
   getGoogleClientId,
+  getGoogleClientSecret,
   localBlobDir,
   runSync,
 } from './sync';
@@ -36,37 +46,44 @@ export function registerIpc(db: SqlDriver): void {
   async function cloudProvider(): Promise<Result<ReturnType<typeof createCloudProvider>>> {
     const clientId = await getGoogleClientId(db);
     if (!clientId) return { ok: false, error: 'No Google client id configured.' };
-    return { ok: true, data: createCloudProvider(db, userDataDir, clientId) };
+    const clientSecret = getGoogleClientSecret();
+    return { ok: true, data: createCloudProvider(db, userDataDir, clientId, clientSecret) };
   }
 
   ipcMain.handle('files:open', async () => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
     if (!win) return { ok: false, error: 'No window to host the file dialog' };
     const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-      properties: ['openFile'],
+      properties: ['openFile', 'multiSelections'],
       filters: [{ name: 'Documents', extensions: ['pdf'] }],
     });
     if (canceled || filePaths.length === 0) return { ok: true, data: null };
-    const filePath = filePaths[0];
-    const hash = await sha256File(filePath);
-    const title = basename(filePath).replace(/\.[^.]+$/, '');
+    const files: BookFile[] = [];
+    for (const filePath of filePaths) {
+      if (extname(filePath).toLowerCase() !== '.pdf') {
+        return { ok: false, error: `Only PDF files can be added to the library (skipped: ${basename(filePath)}).` };
+      }
+      const hash = await sha256File(filePath);
+      const title = basename(filePath).replace(/\.[^.]+$/, '');
 
-    // Register the book with a content-addressed copy in the local store so
-    // its bytes are stable for sync regardless of the original location.
-    const blobDir = localBlobDir(app.getPath('userData'));
-    const blobPath = join(blobDir, hash);
-    try {
-      await mkdir(blobDir, { recursive: true });
-      await copyFile(filePath, blobPath);
-    } catch (error) {
-      return {
-        ok: false,
-        error: `File could not be copied into the local store: ${errorMessage(error)}`,
-      };
+      // Register the book with a content-addressed copy in the local store so
+      // its bytes are stable for sync regardless of the original location.
+      const blobDir = localBlobDir(app.getPath('userData'));
+      const blobPath = join(blobDir, hash);
+      try {
+        await mkdir(blobDir, { recursive: true });
+        await copyFile(filePath, blobPath);
+      } catch (error) {
+        return {
+          ok: false,
+          error: `File could not be copied into the local store: ${errorMessage(error)}`,
+        };
+      }
+      const registered = await upsertFile(db, { filePath: blobPath, hash, title }, await stamp());
+      if (!isOk(registered)) return registered;
+      files.push(registered.data);
     }
-    const registered = await upsertFile(db, { filePath: blobPath, hash, title }, await stamp());
-    if (!isOk(registered)) return registered;
-    return { ok: true, data: { file: registered.data } };
+    return { ok: true, data: { files } };
   });
 
   ipcMain.handle('files:delete', async (_event, id: number) => {
@@ -84,6 +101,10 @@ export function registerIpc(db: SqlDriver): void {
     saveLastPosition(db, id, page, position, await stamp()),
   );
 
+  ipcMain.handle('files:page-count:set', async (_event, id: number, pageCount: number) =>
+    setFilePageCount(db, id, pageCount, await stamp()),
+  );
+
   ipcMain.handle('files:list', () => listFiles(db));
 
   ipcMain.handle('files:status:set', async (_event, id: number, status: BookStatus) =>
@@ -93,6 +114,36 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('files:tags:set', async (_event, id: number, tags: string[]) =>
     setFileTags(db, id, tags, await stamp()),
   );
+
+  ipcMain.handle('files:favorite:set', async (_event, id: number, favorite: boolean) =>
+    setFileFavorite(db, id, favorite, await stamp()),
+  );
+
+  ipcMain.handle('annotations:list', (_event, fileHash: string) => listAnnotations(db, fileHash));
+
+  ipcMain.handle('annotations:create', async (_event, fileHash: string, input: CreateAnnotationInput) =>
+    createAnnotation(db, fileHash, input, await stamp()),
+  );
+
+  ipcMain.handle('annotations:note:set', async (_event, id: number, note: string | null) =>
+    setAnnotationNote(db, id, note, await stamp()),
+  );
+
+  ipcMain.handle('annotations:delete', async (_event, id: number) =>
+    deleteAnnotation(db, id, await stamp()),
+  );
+
+  ipcMain.handle('sessions:record', (_event, fileId: number, minutes: number) =>
+    recordReadingSession(db, fileId, localDay(new Date()), minutes),
+  );
+
+  ipcMain.handle('stats:get', async () => {
+    const today = localDay(new Date());
+    const days = 30;
+    const daily = await getDailyReadingMinutes(db, days, today);
+    if (!isOk(daily)) return daily;
+    return { ok: true, data: computeReadingStats(daily.data, days, today) };
+  });
 
   ipcMain.handle('settings:theme:get', () => getTheme(db));
 
@@ -127,4 +178,12 @@ export function registerIpc(db: SqlDriver): void {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Returns the local calendar day as YYYY-MM-DD for a given date. */
+function localDay(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }

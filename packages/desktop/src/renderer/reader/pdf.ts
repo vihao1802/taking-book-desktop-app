@@ -42,17 +42,22 @@ export function usePdfDocument(url: string | null) {
 
 export function useElementSize<T extends HTMLElement>(ref: RefObject<T | null>) {
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [node, setNode] = useState<T | null>(null);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    setNode(ref.current);
+  });
+
+  useEffect(() => {
+    if (!node) return;
     const ro = new ResizeObserver((entries) => {
       const rect = entries[0].contentRect;
       setSize({ width: rect.width, height: rect.height });
     });
-    ro.observe(el);
+    ro.observe(node);
+    setSize({ width: node.clientWidth, height: node.clientHeight });
     return () => ro.disconnect();
-  }, [ref]);
+  }, [node]);
 
   return size;
 }

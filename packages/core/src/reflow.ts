@@ -59,6 +59,26 @@ function mergeOptions(options: ReflowOptions | undefined): Required<ReflowOption
 }
 
 /**
+ * Removes text fragments that share the same origin coordinates. Some PDFs
+ * embed duplicate or partially overlapping text items at identical positions
+ * (e.g. a watermark repeated five times, or "漢字" alongside a stray "漢"),
+ * which would otherwise be concatenated into garbage like
+ * "reated in Master PDF Editorreated in Master PDF Editor…". When several
+ * fragments occupy the same spot, the widest one is kept since it carries the
+ * most complete text.
+ */
+function dedupOverlapping(items: ReflowTextItem[]): ReflowTextItem[] {
+  const byOrigin = new Map<string, ReflowTextItem>();
+  for (const item of items) {
+    if (item.str.trim().length === 0) continue;
+    const key = `${item.x.toFixed(1)}|${item.y.toFixed(1)}`;
+    const existing = byOrigin.get(key);
+    if (!existing || item.width > existing.width) byOrigin.set(key, item);
+  }
+  return [...byOrigin.values()];
+}
+
+/**
  * Groups fragments into lines by baseline proximity, sorting each line
  * left-to-right and joining fragments with a space when the gap suggests a word
  * boundary. Returns lines top-to-bottom.
@@ -68,7 +88,9 @@ export function extractLines(
   options?: ReflowOptions,
 ): ReflowLine[] {
   const opts = mergeOptions(options);
-  const sorted = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+
+  const deduped = dedupOverlapping(items);
+  const sorted = [...deduped].sort((a, b) => a.y - b.y || a.x - b.x);
 
   const lines: { items: ReflowTextItem[]; y: number }[] = [];
   for (const item of sorted) {
@@ -165,4 +187,56 @@ export function paragraphsFromLines(
 export function reflowPage(items: ReflowTextItem[], pageIndex: number, options?: ReflowOptions): ReflowParagraph[] {
   const lines = extractLines(items, options);
   return paragraphsFromLines(lines, pageIndex, options);
+}
+
+interface BoilerplateOptions {
+  /** Shortest text (in characters) worth considering as boilerplate. */
+  minLength?: number;
+  /** Longest text (in characters) that can still be boilerplate. */
+  maxLength?: number;
+  /** Fraction of pages a repeated line must appear on to be dropped. */
+  coverageRatio?: number;
+}
+
+const BOILERPLATE_DEFAULTS: Required<BoilerplateOptions> = {
+  minLength: 12,
+  maxLength: 120,
+  coverageRatio: 0.6,
+};
+
+/**
+ * Drops paragraphs that repeat verbatim across most pages — running headers,
+ * footers, and watermarks (e.g. a "Created in Master PDF Editor" stamp on every
+ * page). These are page furniture, not content, and would otherwise clutter
+ * continuous reflow text. Takes the concatenated multi-page paragraph list.
+ */
+export function filterBoilerplateParagraphs(
+  paragraphs: ReflowParagraph[],
+  options?: BoilerplateOptions,
+): ReflowParagraph[] {
+  if (paragraphs.length === 0) return paragraphs;
+  const opts = { ...BOILERPLATE_DEFAULTS, ...options };
+
+  const totalPages = new Set(paragraphs.map((p) => p.pageIndex)).size;
+  if (totalPages <= 1) return paragraphs;
+
+  const pagesByText = new Map<string, Set<number>>();
+  for (const para of paragraphs) {
+    const text = para.text.trim();
+    if (text.length < opts.minLength || text.length > opts.maxLength) continue;
+    let pages = pagesByText.get(text);
+    if (!pages) {
+      pages = new Set<number>();
+      pagesByText.set(text, pages);
+    }
+    pages.add(para.pageIndex);
+  }
+
+  const boilerplate = new Set<string>();
+  for (const [text, pages] of pagesByText) {
+    if (pages.size / totalPages >= opts.coverageRatio) boilerplate.add(text);
+  }
+
+  if (boilerplate.size === 0) return paragraphs;
+  return paragraphs.filter((para) => !boilerplate.has(para.text.trim()));
 }

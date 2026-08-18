@@ -88,6 +88,46 @@ describe('exchangeAuthorizationCode', () => {
     });
   });
 
+  it('includes the PKCE code_verifier when provided', async () => {
+    let posted: Record<string, string> | null = null;
+    const http: OAuthHttpClient = {
+      postForm: async (_url, params) => {
+        posted = params;
+        return { ok: true, data: { status: 200, body: JSON.stringify({ access_token: 't', expires_in: 3600 }) } };
+      },
+    };
+
+    const result = await exchangeAuthorizationCode(http, config, 'code-9', 'verifier-1');
+    expect(result.ok).toBe(true);
+    expect(posted?.code_verifier).toBe('verifier-1');
+  });
+
+  it('omits the client secret when none is configured', async () => {
+    let posted: Record<string, string> | null = null;
+    const http: OAuthHttpClient = {
+      postForm: async (_url, params) => {
+        posted = params;
+        return { ok: true, data: { status: 200, body: JSON.stringify({ access_token: 't', expires_in: 3600 }) } };
+      },
+    };
+
+    await exchangeAuthorizationCode(http, config, 'code-9');
+    expect(posted?.client_secret).toBeUndefined();
+  });
+
+  it('sends the client secret when configured', async () => {
+    let posted: Record<string, string> | null = null;
+    const http: OAuthHttpClient = {
+      postForm: async (_url, params) => {
+        posted = params;
+        return { ok: true, data: { status: 200, body: JSON.stringify({ access_token: 't', expires_in: 3600 }) } };
+      },
+    };
+
+    await exchangeAuthorizationCode(http, { ...config, clientSecret: 'secret-x' }, 'code-9');
+    expect(posted?.client_secret).toBe('secret-x');
+  });
+
   it('returns an error on a non-2xx response', async () => {
     const http: OAuthHttpClient = {
       postForm: async () => ({ ok: true, data: { status: 400, body: '{"error":"invalid_grant"}' } }),

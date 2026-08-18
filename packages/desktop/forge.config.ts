@@ -6,10 +6,19 @@ import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-nati
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
+// The gitignored `.env` is shipped into the packaged app's resources/ so the
+// Google OAuth client id/secret resolve at runtime without being committed.
+// When absent (e.g. a fresh checkout), the build proceeds and the packaged
+// app falls back to env vars / settings / the bundled default client id.
+const bundledEnv = existsSync(path.join(__dirname, '.env')) ? ['.env'] : [];
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    extraResource: bundledEnv,
   },
   rebuildConfig: {},
   makers: [

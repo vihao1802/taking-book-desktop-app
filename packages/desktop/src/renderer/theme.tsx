@@ -48,8 +48,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = resolved;
-  }, [resolved]);
+    const root = document.documentElement;
+    root.classList.toggle('dark', resolved === 'dark');
+    // data-theme drives the sepia overrides in index.css; light/dark fall back
+    // to the :root and .dark token blocks respectively.
+    root.dataset.theme = theme === 'sepia' ? 'sepia' : resolved;
+  }, [theme, resolved]);
 
   const setTheme = (next: Theme) => setThemeState(next);
   const cycleTheme = () => {

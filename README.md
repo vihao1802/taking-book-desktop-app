@@ -46,4 +46,12 @@ TB_DISABLE_GPU=1 npm start   # TB_DISABLE_GPU for VMs/containers
    `Taking Book/` Drive folder. Connect via the in-app "Connect Google Drive"
    flow (loopback OAuth); tokens are stored encrypted via Electron `safeStorage`
    and auto-refreshed on expiry.
+
+   To use your own Google Cloud OAuth client, copy
+   `packages/desktop/.env.example` to `packages/desktop/.env` and fill in your
+   `TB_GDRIVE_CLIENT_ID` / `TB_GDRIVE_CLIENT_SECRET` (or set them as env vars;
+   the token endpoint rejects requests without a client secret). The `.env`
+   file is gitignored; the Forge build bundles it into packaged apps'
+   `resources/` when present, so packaged builds resolve credentials without
+   committing them.
 5. **Phase 5 — React Native port** of the reader using `packages/core`.

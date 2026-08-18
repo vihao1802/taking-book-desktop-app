@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { reflowPage, type ReflowParagraph } from '@taking-book/core';
+import { filterBoilerplateParagraphs, reflowPage, type ReflowParagraph } from '@taking-book/core';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
 /** Text fragment shape from pdf.js getTextContent(), narrowed to what reflow needs. */
@@ -33,14 +33,17 @@ function toReflowItem(item: TextFragment) {
 
 export function useReflowDocument(pdf: PDFDocumentProxy | null): {
   paragraphs: ReflowParagraph[];
+  pageTexts: string[];
   error: string | null;
 } {
   const [paragraphs, setParagraphs] = useState<ReflowParagraph[]>([]);
+  const [pageTexts, setPageTexts] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!pdf) {
       setParagraphs([]);
+      setPageTexts([]);
       setError(null);
       return;
     }
@@ -48,16 +51,25 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
     (async () => {
       try {
         const all: ReflowParagraph[] = [];
+        const texts: string[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
           const items: ReturnType<typeof toReflowItem>[] = [];
+          let pageText = '';
           for (const it of content.items) {
-            if (isTextFragment(it)) items.push(toReflowItem(it));
+            if ('str' in it && typeof it.str === 'string') {
+              if (isTextFragment(it)) items.push(toReflowItem(it));
+              pageText += it.str;
+            }
           }
+          texts.push(pageText);
           all.push(...reflowPage(items, i - 1));
         }
-        if (!cancelled) setParagraphs(all);
+        if (!cancelled) {
+          setPageTexts(texts);
+          setParagraphs(filterBoilerplateParagraphs(all));
+        }
       } catch (err) {
         if (!cancelled) setError(String(err));
       }
@@ -67,5 +79,5 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
     };
   }, [pdf]);
 
-  return { paragraphs, error };
+  return { paragraphs, pageTexts, error };
 }

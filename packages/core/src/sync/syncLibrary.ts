@@ -38,8 +38,11 @@ function recordCounts(
       record.title !== prev.title ||
       record.status !== prev.status ||
       record.tags.join('|') !== prev.tags.join('|') ||
+      record.favorite !== prev.favorite ||
       record.lastPage !== prev.lastPage ||
       record.lastPosition !== prev.lastPosition ||
+      record.pageCount !== prev.pageCount ||
+      JSON.stringify(record.annotations) !== JSON.stringify(prev.annotations) ||
       record.deleted !== prev.deleted
     ) {
       updated += 1;

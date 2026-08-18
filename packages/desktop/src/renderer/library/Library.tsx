@@ -1,10 +1,41 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { BookOpen, Cloud, FolderSync, LayoutGrid, List, Star } from 'lucide-react';
+import { progressFraction } from '@taking-book/core';
 import type { BookFile, BookStatus } from '../../shared/types';
+import { Badge, badgeVariants } from '@/components/ui/badge';
+import { BookCover } from '@/components/BookCover';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { initials } from '@/lib/initials';
+import { STATUS_OPTIONS, statusBadgeVariant } from '@/lib/status';
+import { cn } from '@/lib/utils';
+import { useSearchShortcut } from '@/lib/useSearchShortcut';
+import { Progress } from '@/components/ui/progress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useLibrary } from './useLibrary';
 
-const STATUS_OPTIONS: BookStatus[] = ['unread', 'reading', 'finished'];
+function progressPercent(file: BookFile): number | null {
+  if (file.pageCount == null || file.lastPage == null) return null;
+  const fraction = progressFraction(
+    { page: file.lastPage, position: file.lastPosition ?? 0 },
+    file.pageCount,
+  );
+  return fraction == null ? null : Math.round(fraction * 100);
+}
 
-export function Library({ onOpen }: { onOpen: (file: BookFile) => void }) {
+export function Library({
+  onOpen,
+}: {
+  onOpen: (file: BookFile) => void;
+}) {
   const {
     files,
     error,
@@ -12,94 +43,189 @@ export function Library({ onOpen }: { onOpen: (file: BookFile) => void }) {
     account,
     connecting,
     sync,
-    addFile,
+    addFiles,
     setStatus,
     setTags,
+    setFavorite,
     removeFile,
     connectCloud,
     disconnectCloud,
     runSync,
   } = useLibrary();
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<BookStatus | 'all'>('all');
+  const [tagFilter, setTagFilter] = useState<string>('all');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState<BookFile | null>(null);
+  const [view, setView] = useState<'grid' | 'list'>('grid');
+  const searchRef = useRef<HTMLInputElement>(null);
+  useSearchShortcut(searchRef);
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const file of files) for (const tag of file.tags) set.add(tag);
+    return [...set].sort();
+  }, [files]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return files;
-    return files.filter(
-      (f) =>
+    return files.filter((f) => {
+      if (statusFilter !== 'all' && f.status !== statusFilter) return false;
+      if (tagFilter !== 'all' && !f.tags.includes(tagFilter)) return false;
+      if (favoritesOnly && !f.favorite) return false;
+      if (!q) return true;
+      return (
         f.title.toLowerCase().includes(q) ||
-        f.tags.some((tag) => tag.toLowerCase().includes(q)),
-    );
-  }, [files, query]);
+        f.tags.some((tag) => tag.toLowerCase().includes(q))
+      );
+    });
+  }, [files, query, statusFilter, tagFilter, favoritesOnly]);
 
   const handleOpen = async () => {
-    const file = await addFile();
-    if (file) onOpen(file);
+    const files = await addFiles();
+    if (files.length === 1) onOpen(files[0]);
+  };
+
+  const confirmRemove = async () => {
+    if (!pendingRemove) return;
+    await removeFile(pendingRemove.id);
+    setPendingRemove(null);
   };
 
   return (
-    <div className="library">
-      <header className="library-header">
-        <h1 className="library-title">Library</h1>
-        <div className="library-actions">
-          <input
-            className="library-search"
+    <div className="flex h-full flex-col gap-5 overflow-y-auto p-6 sm:p-8">
+      <header className="flex flex-wrap items-center gap-5">
+        <h1 className="flex-1 text-2xl font-semibold tracking-tight">Library</h1>
+        <div className="flex items-center gap-2.5">
+          <div className="border-border bg-secondary/50 flex items-center gap-0.5 rounded-full border p-0.5">
+            <button
+              type="button"
+              className={`flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors ${
+                view === 'grid' ? 'bg-ink text-card' : 'text-muted-foreground hover:text-ink'
+              }`}
+              onClick={() => setView('grid')}
+              aria-label="Grid view"
+              aria-pressed={view === 'grid'}
+            >
+              <LayoutGrid className="size-4" />
+            </button>
+            <button
+              type="button"
+              className={`flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors ${
+                view === 'list' ? 'bg-ink text-card' : 'text-muted-foreground hover:text-ink'
+              }`}
+              onClick={() => setView('list')}
+              aria-label="List view"
+              aria-pressed={view === 'list'}
+            >
+              <List className="size-4" />
+            </button>
+          </div>
+          <Input
+            ref={searchRef}
             type="search"
             placeholder="Search title or tag…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            className="min-w-52 rounded-full"
           />
-          <button className="library-add" onClick={handleOpen} disabled={busy}>
+          <Button onClick={handleOpen} disabled={busy}>
             {busy ? 'Adding…' : 'Add PDF'}
-          </button>
+          </Button>
         </div>
       </header>
 
-      <section className="sync-bar">
+      <section className="border-border flex flex-wrap items-center justify-between gap-4 rounded-lg border px-3.5 py-2.5">
         {account ? (
           <>
-            <div className="sync-bar-folder">
-              <span className="sync-bar-label">Google Drive:</span>
-              <span className="sync-bar-path" title={account.email}>
+            <div className="flex min-w-0 items-center gap-2">
+              <Cloud className="text-muted-foreground size-4 shrink-0" />
+              <span className="text-muted-foreground text-sm">Google Drive:</span>
+              <span className="max-w-80 truncate text-sm" title={account.email}>
                 {account.displayName}
                 {account.email ? ` (${account.email})` : ''}
               </span>
-              <button className="sync-folder-pick" onClick={disconnectCloud}>
+              <Button variant="ghost" size="sm" onClick={disconnectCloud}>
                 Disconnect
-              </button>
+              </Button>
             </div>
-            <button className="sync-run" onClick={runSync} disabled={sync.syncing}>
+            <Button size="sm" onClick={runSync} disabled={sync.syncing}>
+              <FolderSync className="size-4" />
               {sync.syncing ? 'Syncing…' : 'Sync now'}
-            </button>
+            </Button>
           </>
         ) : (
-          <div className="sync-bar-folder">
-            <span className="sync-bar-label">Sync:</span>
-            <span className="sync-bar-path">not connected</span>
-            <button className="sync-folder-pick" onClick={connectCloud} disabled={connecting}>
+          <div className="flex min-w-0 items-center gap-2">
+            <FolderSync className="text-muted-foreground size-4 shrink-0" />
+            <span className="text-muted-foreground text-sm">Sync:</span>
+            <span className="text-sm">not connected</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={connectCloud}
+              disabled={connecting}
+            >
               {connecting ? 'Connecting…' : 'Connect Google Drive'}
-            </button>
+            </Button>
           </div>
         )}
       </section>
 
-      {sync.error && <p className="sync-error">{sync.error}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookStatus | 'all')}>
+          <SelectTrigger className="h-8 rounded-full text-xs" aria-label="Filter by status">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {STATUS_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={tagFilter} onValueChange={setTagFilter}>
+          <SelectTrigger className="h-8 max-w-44 rounded-full text-xs" aria-label="Filter by tag">
+            <SelectValue placeholder="Tag" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All tags</SelectItem>
+            {allTags.map((tag) => (
+              <SelectItem key={tag} value={tag}>
+                {tag}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant={favoritesOnly ? 'default' : 'outline'}
+          size="sm"
+          className="h-8 cursor-pointer rounded-full text-xs"
+          onClick={() => setFavoritesOnly((v) => !v)}
+          aria-pressed={favoritesOnly}
+        >
+          <Star className={cn('size-4', favoritesOnly && 'fill-current')} />
+          Favorites
+        </Button>
+      </div>
+
+      {sync.error && <p className="text-destructive text-sm">{sync.error}</p>}
       {sync.last && (
-        <p className="sync-ok">
-          Synced: {sync.last.added} added, {sync.last.updated} updated, {sync.last.deleted} deleted,{' '}
-          {sync.last.uploaded} uploaded, {sync.last.downloaded} downloaded
+        <p className="text-muted-foreground text-sm">
+          Last sync: {sync.last.added} added, {sync.last.updated} updated, {sync.last.deleted} deleted
           {sync.last.warnings.length > 0 ? ` (${sync.last.warnings.length} warnings)` : ''}
         </p>
       )}
 
-      {error && <p className="library-error">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
       {visible.length === 0 ? (
-        <div className="library-empty">
+        <div className="text-muted-foreground flex flex-1 items-center justify-center">
           <p>{files.length === 0 ? 'No books yet. Add a PDF to get started.' : 'No matches.'}</p>
         </div>
-      ) : (
-        <ul className="library-grid">
+      ) : view === 'grid' ? (
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
           {visible.map((file) => (
             <BookCard
               key={file.id}
@@ -107,11 +233,46 @@ export function Library({ onOpen }: { onOpen: (file: BookFile) => void }) {
               onOpen={() => onOpen(file)}
               onSetStatus={(status) => setStatus(file.id, status)}
               onSetTags={(tags) => setTags(file.id, tags)}
-              onRemove={() => removeFile(file.id)}
+              onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
+              onRemove={() => setPendingRemove(file)}
+            />
+          ))}
+        </ul>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {visible.map((file) => (
+            <BookRow
+              key={file.id}
+              file={file}
+              onOpen={() => onOpen(file)}
+              onSetStatus={(status) => setStatus(file.id, status)}
+              onSetTags={(tags) => setTags(file.id, tags)}
+              onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
+              onRemove={() => setPendingRemove(file)}
             />
           ))}
         </ul>
       )}
+
+      <Dialog open={pendingRemove != null} onOpenChange={(open) => !open && setPendingRemove(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove from library?</DialogTitle>
+            <DialogDescription>
+              “{pendingRemove?.title}” will be removed from this library. Any synced copy on
+              other devices will also be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingRemove(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmRemove}>
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -121,12 +282,14 @@ function BookCard({
   onOpen,
   onSetStatus,
   onSetTags,
+  onToggleFavorite,
   onRemove,
 }: {
   file: BookFile;
   onOpen: () => void;
   onSetStatus: (status: BookStatus) => void;
   onSetTags: (tags: string[]) => void;
+  onToggleFavorite: () => void;
   onRemove: () => void;
 }) {
   const [draftTag, setDraftTag] = useState('');
@@ -137,67 +300,258 @@ function BookCard({
     if (tag && !file.tags.includes(tag)) onSetTags([...file.tags, tag]);
   };
 
+  const progress = progressPercent(file);
+
   return (
-    <li className="book-card">
-      <button className="book-card-open" onClick={onOpen}>
-        <span className="book-card-title">{file.title}</span>
-      </button>
-
-      <div className="book-card-meta">
-        <select
-          className="book-status"
-          value={file.status}
-          onChange={(e) => onSetStatus(e.target.value as BookStatus)}
-          aria-label={`Status for ${file.title}`}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="book-tags">
-        {file.tags.map((tag) => (
+    <li>
+      <Card
+        className="group h-full cursor-pointer transition-all hover:border-ink/25 hover:shadow-md"
+        onClick={onOpen}
+      >
+        <CardContent className="flex h-full flex-col gap-2.5 p-4">
+          <div className="relative">
+            <BookCover
+              file={file}
+              className="bg-secondary/60 aspect-2/3 w-full rounded-md text-xl font-semibold transition-transform duration-200 group-hover:scale-[1.02]"
+              fallback={<span>{initials(file.title)}</span>}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 size-8 cursor-pointer rounded-full bg-black/30 hover:bg-black/40"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite();
+              }}
+              aria-label={file.favorite ? `Remove ${file.title} from favorites` : `Add ${file.title} to favorites`}
+            >
+              <Star
+                className={`size-4 ${file.favorite ? 'fill-current text-amber-400' : 'text-white'}`}
+              />
+            </Button>
+          </div>
           <button
-            key={tag}
-            className="book-tag"
-            onClick={() => onSetTags(file.tags.filter((t) => t !== tag))}
-            title="Remove tag"
+            className="text-left text-base leading-snug font-semibold hover:underline cursor-pointer"
+            onClick={onOpen}
           >
-            {tag}
+            {file.title}
           </button>
-        ))}
-        <form
-          className="book-tag-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            commitTag();
-          }}
-        >
-          <input
-            className="book-tag-input"
-            value={draftTag}
-            placeholder="+ tag"
-            onChange={(e) => setDraftTag(e.target.value)}
-            aria-label={`Add tag to ${file.title}`}
-          />
-        </form>
-      </div>
 
-      <div className="book-card-footer">
-        <p className="book-added">
-          Added {new Date(file.createdAt.replace(' ', 'T') + 'Z').toLocaleDateString()}
-        </p>
-        <button
-          className="book-remove"
-          onClick={onRemove}
-          aria-label={`Remove ${file.title} from library`}
-        >
-          Remove
-        </button>
-      </div>
+          {file.status === 'reading' && progress != null && (
+            <Progress value={progress} aria-label={`Reading progress for ${file.title}`} />
+          )}
+
+          <Select value={file.status} onValueChange={(s) => onSetStatus(s as BookStatus)}>
+            <SelectTrigger
+              className={cn(
+                badgeVariants({ variant: statusBadgeVariant(file.status) }),
+                'h-7 cursor-pointer rounded-full px-3 text-xs',
+              )}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Status for ${file.title}`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {file.tags.map((tag) => (
+              <Badge
+                key={tag}
+                variant="secondary"
+                className="group cursor-pointer hover:line-through"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetTags(file.tags.filter((t) => t !== tag));
+                }}
+                title="Remove tag"
+              >
+                {tag}
+                <span className="text-muted-foreground hidden group-hover:inline" aria-hidden="true">
+                  ×
+                </span>
+              </Badge>
+            ))}
+            <form
+              className="inline-flex"
+              onClick={(e) => e.stopPropagation()}
+              onSubmit={(e) => {
+                e.preventDefault();
+                commitTag();
+              }}
+            >
+              <Input
+                value={draftTag}
+                placeholder="+ tag"
+                onChange={(e) => setDraftTag(e.target.value)}
+                className="h-6 w-16 rounded-full border-dashed text-xs"
+                aria-label={`Add tag to ${file.title}`}
+              />
+            </form>
+          </div>
+
+          <div className="mt-auto flex items-center justify-between gap-2.5 pt-2.5">
+            <p className="text-muted-foreground text-xs">
+              Added {new Date(file.createdAt.replace(' ', 'T') + 'Z').toLocaleDateString()}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              aria-label={`Remove ${file.title} from library`}
+            >
+              Remove
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </li>
+  );
+}
+
+function BookRow({
+  file,
+  onOpen,
+  onSetStatus,
+  onSetTags,
+  onToggleFavorite,
+  onRemove,
+}: {
+  file: BookFile;
+  onOpen: () => void;
+  onSetStatus: (status: BookStatus) => void;
+  onSetTags: (tags: string[]) => void;
+  onToggleFavorite: () => void;
+  onRemove: () => void;
+}) {
+  const [draftTag, setDraftTag] = useState('');
+
+  const commitTag = () => {
+    const tag = draftTag.trim();
+    setDraftTag('');
+    if (tag && !file.tags.includes(tag)) onSetTags([...file.tags, tag]);
+  };
+
+  const progress = progressPercent(file);
+
+  return (
+    <li>
+      <Card
+        className="group cursor-pointer transition-all hover:border-ink/25 hover:shadow-md"
+        onClick={onOpen}
+      >
+        <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+          <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
+            <span className="text-muted-foreground flex size-9 shrink-0 items-center justify-center">
+              <BookOpen className="size-5" />
+            </span>
+            <button
+              className="min-w-0 flex-1 truncate text-left text-sm leading-snug font-semibold hover:underline cursor-pointer"
+              onClick={onOpen}
+            >
+              {file.title}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite();
+              }}
+              aria-label={file.favorite ? `Remove ${file.title} from favorites` : `Add ${file.title} to favorites`}
+              className="text-amber-500 hover:text-amber-400 cursor-pointer"
+            >
+              <Star className={`size-4 ${file.favorite ? 'fill-current' : 'text-muted-foreground'}`} />
+            </button>
+          </div>
+
+          {file.status === 'reading' && progress != null && (
+            <Progress
+              value={progress}
+              aria-label={`Reading progress for ${file.title}`}
+              className="h-1.5 w-32"
+            />
+          )}
+
+          <Select value={file.status} onValueChange={(s) => onSetStatus(s as BookStatus)}>
+            <SelectTrigger
+              className={cn(
+                badgeVariants({ variant: statusBadgeVariant(file.status) }),
+                'h-7 cursor-pointer rounded-full px-3 text-xs',
+              )}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Status for ${file.title}`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {file.tags.map((tag) => (
+              <Badge
+                key={tag}
+                variant="secondary"
+                className="group cursor-pointer hover:line-through"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetTags(file.tags.filter((t) => t !== tag));
+                }}
+                title="Remove tag"
+              >
+                {tag}
+                <span className="text-muted-foreground hidden group-hover:inline" aria-hidden="true">
+                  ×
+                </span>
+              </Badge>
+            ))}
+            <form
+              className="inline-flex"
+              onClick={(e) => e.stopPropagation()}
+              onSubmit={(e) => {
+                e.preventDefault();
+                commitTag();
+              }}
+            >
+              <Input
+                value={draftTag}
+                placeholder="+ tag"
+                onChange={(e) => setDraftTag(e.target.value)}
+                className="h-6 w-16 rounded-full border-dashed text-xs"
+                aria-label={`Add tag to ${file.title}`}
+              />
+            </form>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-primary ml-auto h-auto px-1 py-0.5 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            aria-label={`Remove ${file.title} from library`}
+          >
+            Remove
+          </Button>
+        </CardContent>
+      </Card>
     </li>
   );
 }

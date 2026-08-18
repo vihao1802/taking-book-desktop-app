@@ -3,6 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import started from 'electron-squirrel-startup';
+import { config as loadEnv } from 'dotenv';
 import { getDriver } from './main/db';
 import { registerIpc } from './main/ipc';
 
@@ -10,7 +11,14 @@ if (started) {
   app.quit();
 }
 
-if (process.env.TB_DISABLE_GPU) {
+// Load the gitignored `.env` (repo root in dev; bundled into resources/ by
+// the Forge build for packaged apps) so the Google OAuth client id/secret
+// resolve from a local, uncommitted file. Must run before any IPC handler
+// reads those values.
+loadEnv();
+loadEnv({ path: path.join(process.resourcesPath, '.env'), override: false });
+
+if (process.env.TB_DISABLE_GPU || process.platform === 'linux') {
   app.disableHardwareAcceleration();
 }
 

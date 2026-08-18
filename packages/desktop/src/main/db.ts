@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import Database from 'better-sqlite3';
-import { filesSchema, migrateFilesSchema, settingsSchema } from '@taking-book/core';
+import { annotationsSchema, filesSchema, migrateFilesSchema, readingSessionsSchema, settingsSchema } from '@taking-book/core';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { SqlDriver } from '@taking-book/core';
@@ -20,7 +20,7 @@ export async function getDriver(): Promise<SqlDriver> {
   const db = new Database(path.join(dir, 'taking-book.db'));
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
-  db.exec(`${filesSchema()} ${settingsSchema()}`);
+  db.exec(`${filesSchema()} ${settingsSchema()} ${readingSessionsSchema()} ${annotationsSchema()}`);
   driver = createSqlDriver(db);
   await migrateFilesSchema(driver);
   return driver;

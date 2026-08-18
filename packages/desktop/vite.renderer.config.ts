@@ -1,13 +1,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 // https://vitejs.dev/config
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src/renderer'),
+      '@taking-book/core': path.resolve(__dirname, '../core/src/index.ts'),
+    },
+  },
   optimizeDeps: {
-    // `@taking-book/core` is rebuilt before every start; pre-bundling it would
-    // leave a stale cache (missing new exports) once its dist changes, which
-    // crashes the renderer with a blank window. Serve it from source instead.
     exclude: ['@taking-book/core'],
   },
 });

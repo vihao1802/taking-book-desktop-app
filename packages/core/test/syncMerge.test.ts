@@ -10,6 +10,7 @@ function record(hash: string, updatedAt: number, updatedBy: string, deleted = fa
     tags: [],
     lastPage: null,
     lastPosition: null,
+    annotations: [],
     updatedAt,
     updatedBy,
     deleted,

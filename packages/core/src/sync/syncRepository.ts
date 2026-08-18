@@ -1,3 +1,8 @@
+import {
+  applyRecordAnnotations,
+  listAnnotationsForSync,
+  tombstoneAnnotationsForFile,
+} from '../annotationsRepository';
 import type { BookStatus } from '../models';
 import type { Result } from '../result';
 import { err, ok } from '../result';
@@ -17,8 +22,10 @@ interface FileRow {
   title: string;
   status: string;
   tags: string;
+  favorite: number;
   last_page: number | null;
   last_position: number | null;
+  page_count: number | null;
   created_at: string;
   updated_at: number;
   updated_by: string;
@@ -42,8 +49,10 @@ function rowToRow(row: Record<string, SqlValue>): FileRow {
     title: String(row.title),
     status: String(row.status),
     tags: String(row.tags),
+    favorite: row.favorite == null ? 0 : Number(row.favorite),
     last_page: row.last_page == null ? null : Number(row.last_page),
     last_position: row.last_position == null ? null : Number(row.last_position),
+    page_count: row.page_count == null ? null : Number(row.page_count),
     created_at: String(row.created_at),
     updated_at: Number(row.updated_at ?? 0),
     updated_by: String(row.updated_by ?? ''),
@@ -57,8 +66,11 @@ function toSyncRecord(row: FileRow): SyncRecord {
     title: row.title,
     status: row.status as BookStatus,
     tags: parseTags(row.tags),
+    favorite: row.favorite === 1,
     lastPage: row.last_page,
     lastPosition: row.last_position,
+    pageCount: row.page_count,
+    annotations: [],
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
     deleted: row.deleted_at != null,
@@ -79,8 +91,10 @@ export function filesSchema(): string {
       title TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'unread',
       tags TEXT NOT NULL DEFAULT '[]',
+      favorite INTEGER NOT NULL DEFAULT 0,
       last_page INTEGER,
       last_position REAL,
+      page_count INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at INTEGER NOT NULL DEFAULT 0,
       updated_by TEXT NOT NULL DEFAULT '',
@@ -106,6 +120,8 @@ export async function migrateFilesSchema(db: SqlDriver): Promise<Result<void>> {
     if (!names.has('updated_at')) additions.push('updated_at INTEGER NOT NULL DEFAULT 0');
     if (!names.has('updated_by')) additions.push("updated_by TEXT NOT NULL DEFAULT ''");
     if (!names.has('deleted_at')) additions.push('deleted_at INTEGER');
+    if (!names.has('favorite')) additions.push('favorite INTEGER NOT NULL DEFAULT 0');
+    if (!names.has('page_count')) additions.push('page_count INTEGER');
     for (const column of additions) {
       await db.run(`ALTER TABLE files ADD COLUMN ${column}`);
     }
@@ -117,12 +133,20 @@ export async function migrateFilesSchema(db: SqlDriver): Promise<Result<void>> {
 
 /**
  * Lists every record for sync — including tombstoned ones, which the library
- * view must never show. Each record carries its LWW clock.
+ * view must never show. Each record carries its LWW clock and the book's
+ * annotations (with their own tombstones).
  */
 export async function listRecordsForSync(db: SqlDriver): Promise<Result<SyncRecord[]>> {
   try {
     const rows = await db.all('SELECT * FROM files');
-    return ok(rows.map((row) => toSyncRecord(rowToRow(row))));
+    const records: SyncRecord[] = [];
+    for (const row of rows) {
+      const record = toSyncRecord(rowToRow(row));
+      const annotations = await listAnnotationsForSync(db, record.hash);
+      if (annotations.ok) record.annotations = annotations.data;
+      records.push(record);
+    }
+    return ok(records);
   } catch (error) {
     return err(`Failed to list sync records: ${errorMessage(error)}`);
   }
@@ -153,21 +177,25 @@ export async function applySyncRecords(
         if (record.deleted) continue;
         const path = await resolvePath(record.hash);
         await db.run(
-          `INSERT INTO files (hash, path, title, status, tags, last_page, last_position, updated_at, updated_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO files (hash, path, title, status, tags, favorite, last_page, last_position, page_count, updated_at, updated_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             record.hash,
             path,
             record.title,
             record.status,
             JSON.stringify(record.tags),
+            record.favorite ? 1 : 0,
             record.lastPage,
             record.lastPosition,
+            record.pageCount,
             record.updatedAt,
             record.updatedBy,
           ],
         );
         counts.added += 1;
+        const applied = await applyRecordAnnotations(db, record.hash, record.annotations);
+        if (!applied.ok) return applied;
         continue;
       }
       const row = rowToRow(existing);
@@ -176,21 +204,25 @@ export async function applySyncRecords(
         row.title !== record.title ||
         row.status !== record.status ||
         parseTags(row.tags).join('|') !== record.tags.join('|') ||
+        row.favorite !== (record.favorite ? 1 : 0) ||
         row.last_page !== record.lastPage ||
         row.last_position !== record.lastPosition ||
+        row.page_count !== record.pageCount ||
         row.updated_at !== record.updatedAt ||
         row.updated_by !== record.updatedBy ||
         row.deleted_at != null !== deleted;
       if (!changed) continue;
       await db.run(
-        `UPDATE files SET title = ?, status = ?, tags = ?, last_page = ?, last_position = ?,
+        `UPDATE files SET title = ?, status = ?, tags = ?, favorite = ?, last_page = ?, last_position = ?, page_count = ?,
            updated_at = ?, updated_by = ?, deleted_at = ? WHERE id = ?`,
         [
           record.title,
           record.status,
           JSON.stringify(record.tags),
+          record.favorite ? 1 : 0,
           record.lastPage,
           record.lastPosition,
+          record.pageCount,
           record.updatedAt,
           record.updatedBy,
           deleted ? record.updatedAt : null,
@@ -199,6 +231,17 @@ export async function applySyncRecords(
       );
       if (deleted && row.deleted_at == null) counts.deleted += 1;
       else counts.updated += 1;
+
+      if (deleted) {
+        const tombstoned = await tombstoneAnnotationsForFile(db, record.hash, {
+          updatedAt: record.updatedAt,
+          updatedBy: record.updatedBy,
+        });
+        if (!tombstoned.ok) return tombstoned;
+      } else {
+        const applied = await applyRecordAnnotations(db, record.hash, record.annotations);
+        if (!applied.ok) return applied;
+      }
     }
     return ok(counts);
   } catch (error) {

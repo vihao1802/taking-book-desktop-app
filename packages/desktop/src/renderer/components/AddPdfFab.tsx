@@ -1,0 +1,27 @@
+import { Loader2, Plus } from 'lucide-react';
+import type { BookFile } from '../../shared/types';
+import { useLibrary } from '@/library/useLibrary';
+
+export function AddPdfFab({ onOpen }: { onOpen: (file: BookFile) => void }) {
+  const { addFiles, busy } = useLibrary();
+
+  const handleAdd = async () => {
+    const added = await addFiles();
+    if (added.length === 1) onOpen(added[0]);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleAdd}
+      disabled={busy}
+      aria-label="Add PDF"
+      className="group fixed right-6 bottom-6 z-10 flex h-14 cursor-pointer items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg outline-none transition-all duration-200 hover:px-6 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:border-ring disabled:pointer-events-none disabled:opacity-50"
+    >
+      {busy ? <Loader2 className="size-6 shrink-0 animate-spin" /> : <Plus className="size-6 shrink-0" />}
+      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover:max-w-32 group-hover:opacity-100 group-focus-visible:max-w-32 group-focus-visible:opacity-100">
+        {busy ? 'Adding…' : 'Add PDF'}
+      </span>
+    </button>
+  );
+}

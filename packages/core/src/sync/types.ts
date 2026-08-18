@@ -1,4 +1,4 @@
-import type { BookStatus } from '../models';
+import type { AnnotationColor, BookStatus } from '../models';
 import type { Result } from '../result';
 
 /**
@@ -11,6 +11,25 @@ export interface SyncStamp {
 }
 
 /**
+ * An annotation as it travels inside a sync record. Carries the same LWW clock
+ * as the file record so concurrent highlight edits on different devices can be
+ * merged per annotation instead of clobbering each other.
+ */
+export interface SyncAnnotation extends SyncStamp {
+  id: number;
+  page: number;
+  pageStart: number | null;
+  pageEnd: number | null;
+  quote: string;
+  color: AnnotationColor;
+  note: string | null;
+  paraIndex: number | null;
+  paraStart: number | null;
+  paraEnd: number | null;
+  deleted: boolean;
+}
+
+/**
  * A single library record as it appears in the sync manifest. Deleted records
  * are ordinary records with `deleted: true`, so a newer delete beats an older
  * edit and a newer edit resurrects a deleted book.
@@ -20,8 +39,12 @@ export interface SyncRecord extends SyncStamp {
   title: string;
   status: BookStatus;
   tags: string[];
+  favorite: boolean;
   lastPage: number | null;
   lastPosition: number | null;
+  pageCount: number | null;
+  /** Highlights/comments attached to this book; empty when there are none. */
+  annotations: SyncAnnotation[];
   deleted: boolean;
 }
 

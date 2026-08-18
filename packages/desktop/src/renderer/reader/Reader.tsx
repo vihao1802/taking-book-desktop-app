@@ -1,28 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isOk } from '@taking-book/core';
-import type { BookFile } from '../../shared/types';
+import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
+import { Button } from '@/components/ui/button';
 import { useTheme } from '../theme';
-import { Overlay } from './Overlay';
+import { Overlay, clampZoom } from './Overlay';
 import { fileUrl, useElementSize, usePageLayout, usePdfDocument } from './pdf';
 import { PdfPages, type PdfPagesHandle } from './PdfPages';
 import { ReflowReader } from './ReflowReader';
 import { useReflowDocument } from './useReflowDocument';
+import { useReadingSession } from './useReadingSession';
+import { useAnnotations } from './useAnnotations';
+import { findRangeIgnoringWhitespace } from './highlights';
+import type { PageTextSelection } from './PdfPageView';
 
 const HIDE_DELAY_MS = 2500;
 
 export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
   const { cycleTheme } = useTheme();
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
-  const { paragraphs, error: reflowError } = useReflowDocument(pdf);
+  const { paragraphs, pageTexts, error: reflowError } = useReflowDocument(pdf);
+  const { annotations, create, setNote, remove } = useAnnotations(file.hash);
+  useReadingSession(file.id);
 
   const [mode, setMode] = useState<'page' | 'reflow'>('page');
+  const [zoom, setZoom] = useState(1);
+  const [fitWidth, setFitWidth] = useState(true);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pagesRef = useRef<PdfPagesHandle>(null);
   const { width, height } = useElementSize(scrollRef);
-  const layout = usePageLayout(pdf, width);
+  const viewWidth = Math.max((fitWidth ? width : width * zoom), 1);
+  const layout = usePageLayout(pdf, viewWidth);
 
   const [initialPosition, setInitialPosition] = useState<number | undefined>(undefined);
+  const [restoreFraction, setRestoreFraction] = useState<number | undefined>(undefined);
+  const lastFractionRef = useRef(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const hideTimerRef = useRef<number>(0);
@@ -40,12 +52,19 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   }, [file.id]);
 
   useEffect(() => {
+    if (pdf && pdf.numPages > 0) {
+      window.api.setFilePageCount(file.id, pdf.numPages);
+    }
+  }, [pdf, file.id]);
+
+  useEffect(() => {
     positionRef.current.page = currentPage;
   }, [currentPage]);
 
   const savePosition = useCallback(
     (page: number, position: number) => {
       positionRef.current = { page, position };
+      lastFractionRef.current = position;
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = window.setTimeout(() => {
         window.api.saveLastPosition(file.id, positionRef.current.page, positionRef.current.position);
@@ -101,6 +120,40 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     return () => window.removeEventListener('keydown', onKey);
   }, [currentPage]);
 
+  // A highlight made in page view also gets a best-effort reflow anchor so it
+  // appears in reflow mode too (whitespace-insensitive search, since the two
+  // views join fragments differently).
+  const createFromPage = useCallback(
+    async (selection: PageTextSelection, color: AnnotationColor, note: string | null): Promise<Annotation | null> => {
+      let paraIndex: number | null = null;
+      let paraStart: number | null = null;
+      let paraEnd: number | null = null;
+      for (let i = 0; i < paragraphs.length; i++) {
+        if (paragraphs[i].pageIndex !== selection.page - 1) continue;
+        const range = findRangeIgnoringWhitespace(paragraphs[i].text, selection.quote);
+        if (range) {
+          paraIndex = i;
+          paraStart = range[0];
+          paraEnd = range[1];
+          break;
+        }
+      }
+      const input: CreateAnnotationInput = {
+        page: selection.page,
+        pageStart: selection.start,
+        pageEnd: selection.end,
+        quote: selection.quote,
+        color,
+        note,
+        paraIndex,
+        paraStart,
+        paraEnd,
+      };
+      return create(input);
+    },
+    [paragraphs, create],
+  );
+
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
 
   const error = pdfError;
@@ -113,37 +166,56 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
       <ReflowReader
         file={file}
         paragraphs={paragraphs}
+        pageTexts={pageTexts}
         error={reflowError}
         onClose={onClose}
-        onToggleMode={() => setMode('page')}
+        initialFraction={restoreFraction}
+        onScrollFraction={(frac) => {
+          lastFractionRef.current = frac;
+        }}
+        onToggleMode={() => {
+          setRestoreFraction(lastFractionRef.current);
+          setMode('page');
+        }}
+        zoom={zoom}
+        onZoomChange={setZoom}
+        annotations={annotations}
+        onCreate={create}
+        onSetNote={setNote}
+        onDelete={remove}
       />
     );
   }
 
   return (
-    <div className="reader-root" onMouseMove={reveal}>
+    <div className="bg-background fixed inset-0" onMouseMove={reveal}>
       {error ? (
-        <div className="reader-error">
+        <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
           <p>Could not open this document.</p>
-          <pre>{error}</pre>
-          <button onClick={onClose}>Back</button>
+          <pre className="text-muted-foreground max-w-[80%] text-xs whitespace-pre-wrap">{error}</pre>
+          <Button onClick={onClose}>Back</Button>
         </div>
       ) : (
-        <div className="pdf-viewport" ref={scrollRef} onClick={handleClick}>
+        <div className="absolute inset-0" ref={scrollRef} onClick={handleClick}>
           {ready ? (
             <PdfPages
               ref={pagesRef}
               pdf={pdf}
               layout={layout}
-              containerWidth={width}
+              containerWidth={viewWidth}
               containerHeight={height}
               dpr={dpr}
-              initialPosition={initialPosition}
+              initialPosition={restoreFraction ?? initialPosition}
               onScrollPosition={savePosition}
               onCurrentPage={setCurrentPage}
+              pageTexts={pageTexts}
+              annotations={annotations}
+              onCreate={createFromPage}
+              onSetNote={setNote}
+              onDelete={remove}
             />
           ) : (
-            <div className="reader-loading">
+            <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
               <p>Loading…</p>
             </div>
           )}
@@ -156,7 +228,20 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           page={currentPage}
           total={total}
           mode={mode}
-          onToggleMode={() => setMode(mode === 'page' ? 'reflow' : 'page')}
+          zoom={zoom}
+          fitWidth={fitWidth}
+          onFitWidth={() => {
+            setFitWidth(true);
+            setZoom(1);
+          }}
+          onZoomChange={(z) => {
+            setFitWidth(false);
+            setZoom(clampZoom(z));
+          }}
+          onToggleMode={() => {
+            setRestoreFraction(lastFractionRef.current);
+            setMode(mode === 'page' ? 'reflow' : 'page');
+          }}
           onClose={onClose}
           onSeek={(p) => pagesRef.current?.scrollToPage(p)}
           onCycleTheme={cycleTheme}

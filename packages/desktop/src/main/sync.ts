@@ -9,7 +9,6 @@ import { createFolderSyncStorage } from './syncStorage';
 
 const DEVICE_KEY = 'deviceId';
 const CLIENT_ID_KEY = 'googleDriveClientId';
-const DEFAULT_CLIENT_ID = '600959561990-on63p5pa0pn27njohftcd0nl326c4alj.apps.googleusercontent.com';
 
 /**
  * Desktop glue for the core sync engine. The remote is a cloud provider (the
@@ -32,8 +31,17 @@ export async function getGoogleClientId(db: SqlDriver): Promise<string | null> {
   const fromEnv = process.env.TB_GDRIVE_CLIENT_ID;
   if (fromEnv) return fromEnv;
   const stored = await getSetting(db, CLIENT_ID_KEY);
-  if (isOk(stored) && stored.data) return stored.data;
-  return DEFAULT_CLIENT_ID;
+  return isOk(stored) && stored.data ? stored.data : null;
+}
+
+/**
+ * Returns the Google OAuth client secret, or null when none is configured.
+ * Google's token endpoint rejects requests without a client secret (even for
+ * desktop-app clients), so a matching secret must be provided alongside the
+ * client id via the `TB_GDRIVE_CLIENT_SECRET` env var.
+ */
+export function getGoogleClientSecret(): string | null {
+  return process.env.TB_GDRIVE_CLIENT_SECRET ?? null;
 }
 
 /** Returns the local content-store directory (created on demand). */
@@ -81,10 +89,12 @@ export function createCloudProvider(
   db: SqlDriver,
   userDataDir: string,
   clientId: string,
+  clientSecret: string | null,
 ): CloudProvider {
   const tokenStore = createCloudTokenStore(db);
   return createGoogleDriveProvider({
     clientId,
+    clientSecret: clientSecret ?? undefined,
     tokenStore,
     openExternal: (url) => import('electron').then(({ shell }) => shell.openExternal(url)),
   });

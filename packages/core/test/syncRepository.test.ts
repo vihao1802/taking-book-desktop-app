@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  annotationsSchema,
   applySyncRecords,
+  createAnnotation,
   deleteFile,
   filesSchema,
   isOk,
+  listAnnotations,
   listFiles,
   listRecordsForSync,
   migrateFilesSchema,
@@ -19,8 +22,11 @@ function record(hash: string, overrides: Partial<SyncRecord> = {}): SyncRecord {
     title: 'Title',
     status: 'unread',
     tags: [],
+    favorite: false,
     lastPage: null,
     lastPosition: null,
+    pageCount: null,
+    annotations: [],
     updatedAt: 100,
     updatedBy: 'dev-a',
     deleted: false,
@@ -59,7 +65,7 @@ describe('migrateFilesSchema', () => {
 
   it('is a no-op on a fresh schema', async () => {
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     const migrated = await migrateFilesSchema(db);
     expect(isOk(migrated)).toBe(true);
   });
@@ -68,7 +74,7 @@ describe('migrateFilesSchema', () => {
 describe('listRecordsForSync', () => {
   it('includes tombstoned records so deletes propagate', async () => {
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     const created = await upsertFile(db, { filePath: '/a.pdf', hash: 'h', title: 'A' });
     expect(isOk(created)).toBe(true);
     if (!isOk(created)) return;
@@ -92,7 +98,7 @@ describe('listRecordsForSync', () => {
 describe('applySyncRecords', () => {
   it('inserts new live records with the resolved path', async () => {
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     const applied = await applySyncRecords(db, [record('h1')], (hash) => `/blobs/${hash}`);
     expect(isOk(applied)).toBe(true);
 
@@ -106,7 +112,7 @@ describe('applySyncRecords', () => {
 
   it('skips a tombstone with no local row', async () => {
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     const applied = await applySyncRecords(db, [record('ghost', { deleted: true })], (h) => h);
     expect(isOk(applied)).toBe(true);
 
@@ -117,7 +123,7 @@ describe('applySyncRecords', () => {
 
   it('updates an existing record and tombstones a winner', async () => {
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     const created = await upsertFile(db, { filePath: '/orig.pdf', hash: 'h', title: 'A' });
     expect(isOk(created)).toBe(true);
     if (!isOk(created)) return;
@@ -143,10 +149,71 @@ describe('applySyncRecords', () => {
   });
 });
 
+describe('annotations in sync records', () => {
+  it('includes annotations in listed records and applies them on sync', async () => {
+    const db = createMemoryDriver();
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
+    const created = await upsertFile(db, { filePath: '/a.pdf', hash: 'h', title: 'A' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+    const anno = await createAnnotation(
+      db,
+      'h',
+      { page: 4, pageStart: 5, pageEnd: 9, quote: 'text', color: 'green', note: 'look here', paraIndex: 2, paraStart: 1, paraEnd: 5 },
+      { updatedAt: 200, updatedBy: 'dev-a' },
+    );
+    expect(isOk(anno)).toBe(true);
+
+    const records = await listRecordsForSync(db);
+    expect(isOk(records)).toBe(true);
+    if (isOk(records)) {
+      expect(records.data[0].annotations).toHaveLength(1);
+      expect(records.data[0].annotations[0].note).toBe('look here');
+      expect(records.data[0].annotations[0].deleted).toBe(false);
+    }
+
+    const other = createMemoryDriver();
+    await other.exec(`${filesSchema()} ${annotationsSchema()}`);
+    const applied = await applySyncRecords(other, [records.data[0]], (h) => `/blobs/${h}`);
+    expect(isOk(applied)).toBe(true);
+
+    const listed = await listAnnotations(other, 'h');
+    expect(isOk(listed)).toBe(true);
+    if (isOk(listed)) {
+      expect(listed.data).toHaveLength(1);
+      expect(listed.data[0].quote).toBe('text');
+      expect(listed.data[0].color).toBe('green');
+    }
+  });
+
+  it('tombstones annotations when a deleted file record is applied', async () => {
+    const db = createMemoryDriver();
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
+    const created = await upsertFile(db, { filePath: '/a.pdf', hash: 'h', title: 'A' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+    await createAnnotation(
+      db,
+      'h',
+      { page: 1, pageStart: 0, pageEnd: 2, quote: 'hi', color: 'yellow', note: null, paraIndex: null, paraStart: null, paraEnd: null },
+    );
+
+    await applySyncRecords(db, [record('h', { deleted: true, updatedAt: 400 })], () => '/ignored');
+
+    const live = await listAnnotations(db, 'h');
+    expect(isOk(live)).toBe(true);
+    if (isOk(live)) expect(live.data).toHaveLength(0);
+
+    const records = await listRecordsForSync(db);
+    expect(isOk(records)).toBe(true);
+    if (isOk(records)) expect(records.data[0].annotations.every((a) => a.deleted)).toBe(true);
+  });
+});
+
 describe('mutators stamp records', () => {
   it('setFileStatus records the provided stamp', async () => {
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     const created = await upsertFile(db, { filePath: '/s.pdf', hash: 'h', title: 'S' });
     expect(isOk(created)).toBe(true);
     if (!isOk(created)) return;

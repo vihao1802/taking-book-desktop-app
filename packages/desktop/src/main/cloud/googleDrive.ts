@@ -1,9 +1,11 @@
 import { createServer, type Server } from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import {
   buildAuthorizationUrl,
+  deriveCodeChallenge,
   err,
   exchangeAuthorizationCode,
+  generateCodeVerifier,
   isOk,
   ok,
   refreshAccessToken,
@@ -29,6 +31,7 @@ const USER_INFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
 const REFRESH_SKEW_MS = 60_000;
+const OAuth_TIMEOUT_MS = 5 * 60_000;
 
 export interface GoogleDriveDeps {
   clientId: string;
@@ -201,9 +204,16 @@ async function runLoopbackOAuth(deps: LoopbackDeps): Promise<Result<{ account: C
   if (!port) return loopbackFailure('Could not resolve a local auth port. Try again.');
   const redirectUri = `http://127.0.0.1:${port}/`;
   const state = randomUUID();
+  // PKCE: the verifier lives only in this closure — generated before the
+  // browser opens and handed to the token exchange, never persisted. The
+  // challenge is derived via S256 and sent with the authorization request.
+  const codeVerifier = generateCodeVerifier((size) => new Uint8Array(randomBytes(size)));
+  const codeChallenge = deriveCodeChallenge(codeVerifier);
   const authUrl = buildAuthorizationUrl({ ...deps.oauthConfig, redirectUri }, state, {
     access_type: 'offline',
     prompt: 'consent',
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
   });
 
   const codePromise = new Promise<Result<string>>((resolve) => {
@@ -225,6 +235,16 @@ async function runLoopbackOAuth(deps: LoopbackDeps): Promise<Result<{ account: C
     });
   });
 
+  // If the user closes the browser or the consent screen is never completed,
+  // bail out after OAuth_TIMEOUT_MS so the Connect flow returns instead of
+  // hanging and leaving the loopback server running. The caller surfaces the
+  // error and the user can simply click Connect again.
+  const timedOut = withTimeout(
+    codePromise,
+    OAuth_TIMEOUT_MS,
+    err('Sign-in timed out; click Connect to try again.'),
+  );
+
   try {
     await deps.openExternal(authUrl);
   } catch (error) {
@@ -232,12 +252,17 @@ async function runLoopbackOAuth(deps: LoopbackDeps): Promise<Result<{ account: C
     return err(`Could not open the browser for sign-in: ${errorMessage(error)}`);
   }
 
-  const codeResult = await codePromise;
+  const codeResult = await timedOut;
   stop();
   if (!isOk(codeResult)) return codeResult;
 
   const http = postFormHttpClient(deps.fetchImpl);
-  const tokenResponse = await exchangeAuthorizationCode(http, { ...deps.oauthConfig, redirectUri }, codeResult.data);
+  const tokenResponse = await exchangeAuthorizationCode(
+    http,
+    { ...deps.oauthConfig, redirectUri },
+    codeResult.data,
+    codeVerifier,
+  );
   if (!isOk(tokenResponse)) return tokenResponse;
   const token = toCloudToken(tokenResponse.data);
   const accountResult = await deps.accountFromToken(token);
@@ -553,4 +578,21 @@ export function createGoogleDriveSyncStorage(deps: SyncStorageDeps): SyncStorage
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Resolves with the promise's value, or the fallback after `ms`. */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      },
+    );
+  });
 }

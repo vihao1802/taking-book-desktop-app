@@ -1,4 +1,5 @@
-import type { SyncManifest, SyncRecord } from './types';
+import type { AnnotationColor } from '../models';
+import type { SyncAnnotation, SyncManifest, SyncRecord } from './types';
 
 /**
  * Serialization for the on-disk manifest. Kept in its own module so corrupt or
@@ -7,6 +8,29 @@ import type { SyncManifest, SyncRecord } from './types';
  */
 
 const CURRENT_VERSION = 1;
+
+const COLORS: readonly string[] = ['yellow', 'green', 'blue', 'pink'];
+
+function isValidAnnotation(value: unknown): value is SyncAnnotation {
+  if (typeof value !== 'object' || value === null) return false;
+  const annotation = value as Record<string, unknown>;
+  return (
+    typeof annotation.id === 'number' &&
+    typeof annotation.page === 'number' &&
+    (annotation.pageStart == null || typeof annotation.pageStart === 'number') &&
+    (annotation.pageEnd == null || typeof annotation.pageEnd === 'number') &&
+    typeof annotation.quote === 'string' &&
+    typeof annotation.color === 'string' &&
+    COLORS.includes(annotation.color) &&
+    (annotation.note == null || typeof annotation.note === 'string') &&
+    (annotation.paraIndex == null || typeof annotation.paraIndex === 'number') &&
+    (annotation.paraStart == null || typeof annotation.paraStart === 'number') &&
+    (annotation.paraEnd == null || typeof annotation.paraEnd === 'number') &&
+    typeof annotation.updatedAt === 'number' &&
+    typeof annotation.updatedBy === 'string' &&
+    typeof annotation.deleted === 'boolean'
+  );
+}
 
 function isValidRecord(value: unknown): value is SyncRecord {
   if (typeof value !== 'object' || value === null) return false;
@@ -19,9 +43,26 @@ function isValidRecord(value: unknown): value is SyncRecord {
     typeof record.updatedAt === 'number' &&
     typeof record.updatedBy === 'string' &&
     typeof record.deleted === 'boolean' &&
+    (record.favorite == null || typeof record.favorite === 'boolean') &&
     (record.lastPage == null || typeof record.lastPage === 'number') &&
-    (record.lastPosition == null || typeof record.lastPosition === 'number')
+    (record.lastPosition == null || typeof record.lastPosition === 'number') &&
+    (record.pageCount == null || typeof record.pageCount === 'number') &&
+    (record.annotations == null || (Array.isArray(record.annotations) && record.annotations.every(isValidAnnotation)))
   );
+}
+
+/**
+ * Normalizes a parsed record so newer clients tolerate manifests written by
+ * older ones: missing fields (favorite, pageCount, annotations) fall back to
+ * defaults.
+ */
+function normalizeRecord(value: SyncRecord): SyncRecord {
+  return {
+    ...value,
+    favorite: value.favorite ?? false,
+    pageCount: value.pageCount ?? null,
+    annotations: value.annotations ?? [],
+  };
 }
 
 /** Serializes a manifest to its JSON string form. */
@@ -44,7 +85,7 @@ export function parseManifest(raw: string): SyncManifest | null {
   if (typeof parsed !== 'object' || parsed === null) return null;
   const obj = parsed as Record<string, unknown>;
   if (obj.version !== CURRENT_VERSION || !Array.isArray(obj.records)) return null;
-  const records = obj.records.filter(isValidRecord);
+  const records = obj.records.filter(isValidRecord).map(normalizeRecord);
   return { version: CURRENT_VERSION, records };
 }
 

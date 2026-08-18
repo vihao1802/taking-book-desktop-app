@@ -44,3 +44,6 @@ build/Release
 *.db
 *.db-shm
 *.db-wal
+
+# Local opencode config (may contain secrets)
+opencode.json

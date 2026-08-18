@@ -1,7 +1,8 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import type { Annotation, AnnotationColor } from '../../shared/types';
 import { pageFromOffset, type PageLayout } from './pdf';
-import { PageCanvas } from './PageCanvas';
+import { PdfPageView, type PageTextSelection } from './PdfPageView';
 
 export interface PdfPagesHandle {
   scrollToPage: (page: number) => void;
@@ -10,16 +11,40 @@ export interface PdfPagesHandle {
 interface PdfPagesProps {
   pdf: PDFDocumentProxy;
   layout: PageLayout;
+  /** Effective (zoom-scaled) page width in CSS pixels. */
   containerWidth: number;
   containerHeight: number;
   dpr: number;
   initialPosition: number;
   onScrollPosition: (page: number, position: number) => void;
   onCurrentPage: (page: number) => void;
+  pageTexts: string[];
+  annotations: Annotation[];
+  onCreate: (
+    selection: PageTextSelection,
+    color: AnnotationColor,
+    note: string | null,
+  ) => Promise<Annotation | null>;
+  onSetNote: (id: number, note: string | null) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
 }
 
 export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPages(
-  { pdf, layout, containerWidth, containerHeight, dpr, initialPosition, onScrollPosition, onCurrentPage },
+  {
+    pdf,
+    layout,
+    containerWidth,
+    containerHeight,
+    dpr,
+    initialPosition,
+    onScrollPosition,
+    onCurrentPage,
+    pageTexts,
+    annotations,
+    onCreate,
+    onSetNote,
+    onDelete,
+  },
   ref,
 ) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -86,17 +111,31 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
     slots.push(
       <div
         key={i}
-        className="pdf-page-slot"
+        className="absolute left-0"
         style={{ top: layout.offsets[i], width: containerWidth, height: layout.heights[i] }}
       >
-        <PageCanvas pdf={pdf} pageNumber={i + 1} cssScale={layout.scales[i]} dpr={dpr} />
+        <PdfPageView
+          pdf={pdf}
+          pageNumber={i + 1}
+          cssScale={layout.scales[i]}
+          dpr={dpr}
+          pageText={pageTexts[i] ?? ''}
+          annotations={annotations.filter((a) => a.page === i + 1)}
+          onCreate={onCreate}
+          onSetNote={onSetNote}
+          onDelete={onDelete}
+        />
       </div>,
     );
   }
 
   return (
-    <div className="pdf-scroll" ref={scrollRef} onScroll={handleScroll}>
-      <div className="pdf-pages" style={{ height: layout.totalHeight }}>
+    <div
+      className="absolute inset-0 overflow-x-auto overflow-y-auto"
+      ref={scrollRef}
+      onScroll={handleScroll}
+    >
+      <div className="relative" style={{ height: layout.totalHeight, width: containerWidth }}>
         {slots}
       </div>
     </div>

@@ -2,6 +2,7 @@ import type { BookFile, BookStatus, LastPosition } from './models';
 import type { Result } from './result';
 import { err, ok } from './result';
 import type { SqlDriver, SqlValue } from './sql';
+import { tombstoneAnnotationsForFile } from './annotationsRepository';
 import { defaultStamp, filesSchema as syncFilesSchema } from './sync/syncRepository';
 import type { SyncStamp } from './sync/types';
 
@@ -12,8 +13,10 @@ interface FileRow {
   title: string;
   status: string;
   tags: string;
+  favorite: number;
   last_page: number | null;
   last_position: number | null;
+  page_count: number | null;
   created_at: string;
 }
 
@@ -25,8 +28,10 @@ function toBookFile(row: FileRow): BookFile {
     title: row.title,
     status: row.status as BookStatus,
     tags: parseTags(row.tags),
+    favorite: row.favorite === 1,
     lastPage: row.last_page,
     lastPosition: row.last_position,
+    pageCount: row.page_count,
     createdAt: row.created_at,
   };
 }
@@ -50,8 +55,10 @@ function rowToRow(row: Record<string, SqlValue>): FileRow {
     title: String(row.title),
     status: String(row.status),
     tags: String(row.tags),
+    favorite: row.favorite == null ? 0 : Number(row.favorite),
     last_page: row.last_page == null ? null : Number(row.last_page),
     last_position: row.last_position == null ? null : Number(row.last_position),
+    page_count: row.page_count == null ? null : Number(row.page_count),
     created_at: String(row.created_at),
   };
 }
@@ -172,10 +179,52 @@ export async function setFileTags(
   }
 }
 
+/** Marks a file as a favorite (starred) or removes the mark. */
+export async function setFileFavorite(
+  db: SqlDriver,
+  id: number,
+  favorite: boolean,
+  stamp?: SyncStamp,
+): Promise<Result<void>> {
+  const clock = stamp ?? defaultStamp();
+  try {
+    const result = await db.run(
+      'UPDATE files SET favorite = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [favorite ? 1 : 0, clock.updatedAt, clock.updatedBy, id],
+    );
+    if (result.changes === 0) return err(`No file with id ${id}`);
+    return ok(undefined);
+  } catch (error) {
+    return err(`Failed to set favorite for file ${id}: ${errorMessage(error)}`);
+  }
+}
+
+/** Records the total page count, known once the reader opens the document. */
+export async function setFilePageCount(
+  db: SqlDriver,
+  id: number,
+  pageCount: number,
+  stamp?: SyncStamp,
+): Promise<Result<void>> {
+  const clock = stamp ?? defaultStamp();
+  try {
+    const result = await db.run(
+      'UPDATE files SET page_count = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [pageCount, clock.updatedAt, clock.updatedBy, id],
+    );
+    if (result.changes === 0) return err(`No file with id ${id}`);
+    return ok(undefined);
+  } catch (error) {
+    return err(`Failed to set page count for file ${id}: ${errorMessage(error)}`);
+  }
+}
+
 /**
  * Removes a file from the library by tombstoning it: the row stays so the
- * delete propagates to other devices, but the library view hides it. Returns
- * the stamp under which it was tombstoned so callers can sync the change.
+ * delete propagates to other devices, but the library view hides it. The
+ * book's annotations are tombstoned under the same clock so their deletes
+ * propagate too. Returns the stamp under which it was tombstoned so callers
+ * can sync the change.
  */
 export async function deleteFile(
   db: SqlDriver,
@@ -184,11 +233,15 @@ export async function deleteFile(
 ): Promise<Result<SyncStamp>> {
   const clock = stamp ?? defaultStamp();
   try {
+    const row = await db.get('SELECT hash FROM files WHERE id = ?', [id]);
+    if (!row) return err(`No file with id ${id}`);
     const result = await db.run(
       'UPDATE files SET deleted_at = ?, updated_at = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
       [clock.updatedAt, clock.updatedAt, clock.updatedBy, id],
     );
     if (result.changes === 0) return err(`No live file with id ${id}`);
+    const tombstoned = await tombstoneAnnotationsForFile(db, String(row.hash), clock);
+    if (!tombstoned.ok) return tombstoned;
     return ok(clock);
   } catch (error) {
     return err(`Failed to delete file ${id}: ${errorMessage(error)}`);

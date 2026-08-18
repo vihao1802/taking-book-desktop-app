@@ -117,11 +117,14 @@ export function parseTokenResponse(json: unknown): Result<OAuthTokenResponse> {
 /**
  * Exchanges an authorization code for a token pair. Kept in core so the
  * desktop flow and a future mobile client share the same request shape.
+ * `codeVerifier` is the PKCE value generated when the flow started; it is
+ * never persisted and sent only during this exchange.
  */
 export async function exchangeAuthorizationCode(
   http: OAuthHttpClient,
   config: OAuthClientConfig,
   code: string,
+  codeVerifier?: string,
 ): Promise<Result<OAuthTokenResponse>> {
   const response = await http.postForm(config.tokenUrl, {
     grant_type: 'authorization_code',
@@ -129,6 +132,7 @@ export async function exchangeAuthorizationCode(
     redirect_uri: config.redirectUri,
     client_id: config.clientId,
     ...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
+    ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
   });
   if (!response.ok) return response;
   if (response.data.status < 200 || response.data.status >= 300) {

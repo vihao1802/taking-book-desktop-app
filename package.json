@@ -14,7 +14,14 @@
     "typecheck": "npm run typecheck --workspace @taking-book/core && npm run typecheck --workspace @taking-book/desktop",
     "lint": "npm run lint --workspace @taking-book/desktop"
   },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4"
+  },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
   }
 }

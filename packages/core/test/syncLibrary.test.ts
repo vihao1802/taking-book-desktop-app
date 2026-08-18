@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  annotationsSchema,
   deleteFile,
   filesSchema,
   isOk,
@@ -51,7 +52,7 @@ function localStorageWith(hash: string): SyncStorage & { dump(): Map<string, Uin
 describe('syncLibrary', () => {
   it('uploads local books and manifest to an empty drive', async () => {
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     await addBook(db, 'abc', 'Alpha');
     const local = localStorageWith('abc');
     const remote = createMemoryStorage();
@@ -101,7 +102,7 @@ describe('syncLibrary', () => {
     await shared.writeFile('blobs/abc', new TextEncoder().encode('pdf-bytes'));
 
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     const local = createMemoryStorage();
 
     const result = await syncLibrary(db, {
@@ -127,7 +128,7 @@ describe('syncLibrary', () => {
   it('a remote edit wins when its clock is newer', async () => {
     const shared = createMemoryStorage();
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     await addBook(db, 'abc', 'Alpha');
 
     // Sync up, then the remote device renames the book with a newer clock.
@@ -165,7 +166,7 @@ describe('syncLibrary', () => {
   it('a local edit wins over an older remote copy', async () => {
     const shared = createMemoryStorage();
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     await addBook(db, 'abc', 'Alpha');
 
     await syncLibrary(db, {
@@ -203,7 +204,7 @@ describe('syncLibrary', () => {
   it('propagates a local delete to the remote manifest', async () => {
     const shared = createMemoryStorage();
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     await addBook(db, 'abc', 'Alpha');
 
     await syncLibrary(db, {
@@ -234,7 +235,7 @@ describe('syncLibrary', () => {
 
   it('leaves the local db untouched when the remote is unreachable', async () => {
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     await addBook(db, 'abc', 'Alpha');
 
     const brokenRemote: SyncStorage = {
@@ -269,11 +270,11 @@ describe('syncLibrary', () => {
     const shared = createMemoryStorage();
 
     const deviceA = createMemoryDriver();
-    await deviceA.exec(filesSchema());
+    await deviceA.exec(`${filesSchema()} ${annotationsSchema()}`);
     await addBook(deviceA, 'aaa', 'Book A');
 
     const deviceB = createMemoryDriver();
-    await deviceB.exec(filesSchema());
+    await deviceB.exec(`${filesSchema()} ${annotationsSchema()}`);
     await addBook(deviceB, 'bbb', 'Book B');
 
     await syncLibrary(deviceA, {
@@ -303,7 +304,7 @@ describe('syncLibrary', () => {
 
   it('records a missing remote read as a warning, not a failure', async () => {
     const db = createMemoryDriver();
-    await db.exec(filesSchema());
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     await addBook(db, 'abc', 'Alpha');
 
     const local = localStorageWith('abc');
