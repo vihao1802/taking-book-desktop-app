@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ReflowParagraph } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import { Button } from '@/components/ui/button';
@@ -60,8 +60,31 @@ export function ReflowReader({
   const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; x: number; y: number } | null>(null);
   const [activePopup, setActivePopup] = useState<{ annotation: Annotation; x: number; y: number } | null>(null);
   const hideTimerRef = useRef<number>(0);
+  const rafRef = useRef(0);
 
-  const baseSize = Math.max(...paragraphs.map((p) => p.fontSize).filter((f) => f > 0), 11);
+  // Body font size the zoom multiplier is relative to. Computed once per
+  // document instead of per render (and without a spread that can blow the
+  // argument limit on books with tens of thousands of paragraphs).
+  const baseSize = useMemo(() => {
+    let max = 0;
+    for (const para of paragraphs) if (para.fontSize > max) max = para.fontSize;
+    return Math.max(max, 11);
+  }, [paragraphs]);
+
+  // Highlights touching each paragraph, indexed once per annotation change so
+  // Paragraph renders stay O(their own marks) instead of filtering the whole
+  // list per paragraph.
+  const annotationsByPara = useMemo(() => {
+    const byPara = new Map<number, Annotation[]>();
+    for (const a of annotations) {
+      if (a.paraIndex == null || a.paraStart == null || a.paraEnd == null) continue;
+      const list = byPara.get(a.paraIndex);
+      if (list) list.push(a);
+      else byPara.set(a.paraIndex, [a]);
+    }
+    for (const list of byPara.values()) list.sort((a, b) => (a.paraStart ?? 0) - (b.paraStart ?? 0));
+    return byPara;
+  }, [annotations]);
   const total = paragraphs.length;
   const el = scrollRef.current;
   const scrollable = Math.max((el?.scrollHeight ?? 0) - (el?.clientHeight ?? 0), 0);
@@ -133,12 +156,19 @@ export function ReflowReader({
     });
   }, [startHideTimer]);
 
+  // Scroll updates are coalesced to one state write per frame; a raw setState
+  // per scroll event re-rendered the whole article on every tick.
   const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setScrollTop(el.scrollTop);
-    savePosition();
-  }, [savePosition, total]);
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      setScrollTop(el.scrollTop);
+      savePosition();
+    });
+  }, [savePosition]);
+
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
   useEffect(() => {
     if (restoredRef.current || paragraphs.length === 0 || initialFraction === undefined) return;
@@ -268,7 +298,13 @@ export function ReflowReader({
             onMouseUp={handleMouseUp}
           >
             {paragraphs.map((para, i) => (
-              <Paragraph key={i} index={i} paragraph={para} zoom={zoom} annotations={annotations} onOpen={setActivePopup} />
+              <Paragraph
+                key={i}
+                paragraph={para}
+                zoom={zoom}
+                marks={annotationsByPara.get(i) ?? EMPTY_MARKS}
+                onOpen={setActivePopup}
+              />
             ))}
           </article>
         </div>
@@ -325,24 +361,20 @@ export function ReflowReader({
  * Renders one reflow paragraph, splitting it around the highlights that
  * intersect it. Overlapping highlights render in order and clip at the
  * paragraph bounds; plain runs stay as raw text so selection keeps working.
+ * Memoized: with the whole document rendered at once, scroll-driven re-renders
+ * must skip untouched paragraphs.
  */
-function Paragraph({
-  index,
+const Paragraph = memo(function Paragraph({
   paragraph,
   zoom,
-  annotations,
+  marks,
   onOpen,
 }: {
-  index: number;
   paragraph: ReflowParagraph;
   zoom: number;
-  annotations: Annotation[];
+  marks: Annotation[];
   onOpen: (entry: { annotation: Annotation; x: number; y: number }) => void;
 }) {
-  const marks = annotations
-    .filter((a) => a.paraIndex === index && a.paraStart != null && a.paraEnd != null)
-    .sort((a, b) => a.paraStart! - b.paraStart!);
-
   const nodes: ReactNode[] = [];
   let cursor = 0;
   for (const mark of marks) {
@@ -380,7 +412,9 @@ function Paragraph({
       {nodes}
     </p>
   );
-}
+});
+
+const EMPTY_MARKS: Annotation[] = [];
 
 /** Maps global text offsets over the article back to per-paragraph ranges. */
 function selectionToParagraphs(
