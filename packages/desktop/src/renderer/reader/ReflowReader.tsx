@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ReflowParagraph } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
+import type { ReflowProgress } from './useReflowDocument';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '../theme';
 import { Overlay } from './Overlay';
@@ -23,6 +24,7 @@ interface ReflowReaderProps {
   paragraphs: ReflowParagraph[];
   pageTexts: string[];
   error: string | null;
+  progress: ReflowProgress | null;
   onClose: () => void;
   onToggleMode: () => void;
   initialFraction?: number;
@@ -40,6 +42,7 @@ export function ReflowReader({
   paragraphs,
   pageTexts,
   error,
+  progress,
   onClose,
   onToggleMode,
   initialFraction,
@@ -170,7 +173,10 @@ export function ReflowReader({
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
+  // Restoring the saved fraction needs the final article height, so wait
+  // until extraction is complete rather than trusting a partial render.
   useEffect(() => {
+    if (progress !== null) return;
     if (restoredRef.current || paragraphs.length === 0 || initialFraction === undefined) return;
     const el = scrollRef.current;
     if (!el || el.scrollHeight === 0) return;
@@ -178,7 +184,7 @@ export function ReflowReader({
     const scrollable = Math.max(el.scrollHeight - el.clientHeight, 0);
     el.scrollTop = initialFraction * scrollable;
     setScrollTop(el.scrollTop);
-  }, [paragraphs.length, initialFraction]);
+  }, [progress, paragraphs.length, initialFraction]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -282,7 +288,11 @@ export function ReflowReader({
         </div>
       ) : paragraphs.length === 0 ? (
         <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
-          <p>Reflowing…</p>
+          <p>
+            {progress
+              ? `Extracting page ${progress.done} of ${progress.total}…`
+              : 'Reflowing…'}
+          </p>
         </div>
       ) : (
         <div

@@ -18,7 +18,7 @@ const HIDE_DELAY_MS = 2500;
 export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
   const { cycleTheme } = useTheme();
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
-  const { paragraphs, pageTexts, error: reflowError } = useReflowDocument(pdf);
+  const { paragraphs, pageTexts, error: reflowError, progress: reflowProgress } = useReflowDocument(pdf);
   const { annotations, create, setNote, remove } = useAnnotations(file.hash);
   useReadingSession(file.id);
 
@@ -182,6 +182,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
         paragraphs={paragraphs}
         pageTexts={pageTexts}
         error={reflowError}
+        progress={reflowProgress}
         onClose={onClose}
         initialFraction={restoreFraction}
         onScrollFraction={(frac) => {

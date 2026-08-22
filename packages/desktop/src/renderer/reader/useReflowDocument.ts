@@ -31,23 +31,41 @@ function toReflowItem(item: TextFragment) {
   };
 }
 
+export interface ReflowProgress {
+  /** Pages fully extracted so far. */
+  done: number;
+  /** Total pages in the document. */
+  total: number;
+}
+
+const FLUSH_EVERY_PAGES = 10;
+
+/**
+ * Extracts the whole document into reflow paragraphs. Pages are processed
+ * sequentially but state is flushed in batches so the reader can paint and
+ * scroll early instead of freezing until every page is parsed.
+ */
 export function useReflowDocument(pdf: PDFDocumentProxy | null): {
   paragraphs: ReflowParagraph[];
   pageTexts: string[];
   error: string | null;
+  progress: ReflowProgress | null;
 } {
   const [paragraphs, setParagraphs] = useState<ReflowParagraph[]>([]);
   const [pageTexts, setPageTexts] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ReflowProgress | null>(null);
 
   useEffect(() => {
     if (!pdf) {
       setParagraphs([]);
       setPageTexts([]);
       setError(null);
+      setProgress(null);
       return;
     }
     let cancelled = false;
+    setProgress({ done: 0, total: pdf.numPages });
     (async () => {
       try {
         const all: ReflowParagraph[] = [];
@@ -65,13 +83,25 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
           }
           texts.push(pageText);
           all.push(...reflowPage(items, i - 1));
+          // Intermediate flushes show raw text as soon as possible; the final
+          // pass applies the boilerplate filter with the complete document so
+          // repeated headers/watermarks are judged against every page.
+          if (i % FLUSH_EVERY_PAGES === 0 && !cancelled) {
+            setPageTexts([...texts]);
+            setParagraphs([...all]);
+            setProgress({ done: i, total: pdf.numPages });
+          }
         }
         if (!cancelled) {
           setPageTexts(texts);
           setParagraphs(filterBoilerplateParagraphs(all));
+          setProgress(null);
         }
       } catch (err) {
-        if (!cancelled) setError(String(err));
+        if (!cancelled) {
+          setError(String(err));
+          setProgress(null);
+        }
       }
     })();
     return () => {
@@ -79,5 +109,5 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
     };
   }, [pdf]);
 
-  return { paragraphs, pageTexts, error };
+  return { paragraphs, pageTexts, error, progress };
 }
