@@ -58,28 +58,32 @@ export function registerIpc(db: SqlDriver): void {
       filters: [{ name: 'Documents', extensions: ['pdf'] }],
     });
     if (canceled || filePaths.length === 0) return { ok: true, data: null };
-    const files: BookFile[] = [];
     for (const filePath of filePaths) {
       if (extname(filePath).toLowerCase() !== '.pdf') {
         return { ok: false, error: `Only PDF files can be added to the library (skipped: ${basename(filePath)}).` };
       }
-      const hash = await sha256File(filePath);
-      const title = basename(filePath).replace(/\.[^.]+$/, '');
+    }
 
-      // Register the book with a content-addressed copy in the local store so
-      // its bytes are stable for sync regardless of the original location.
-      const blobDir = localBlobDir(app.getPath('userData'));
-      const blobPath = join(blobDir, hash);
+    // Hash and copy in parallel — each import is I/O bound and independent.
+    const blobDir = localBlobDir(app.getPath('userData'));
+    await mkdir(blobDir, { recursive: true });
+    const staged = await Promise.all(
+      filePaths.map(async (filePath) => ({
+        filePath,
+        hash: await sha256File(filePath),
+      })),
+    );
+    const files: BookFile[] = [];
+    for (const item of staged) {
       try {
-        await mkdir(blobDir, { recursive: true });
-        await copyFile(filePath, blobPath);
+        await copyFile(item.filePath, join(blobDir, item.hash));
       } catch (error) {
         return {
           ok: false,
           error: `File could not be copied into the local store: ${errorMessage(error)}`,
         };
       }
-      const registered = await upsertFile(db, { filePath: blobPath, hash, title }, await stamp());
+      const registered = await upsertFile(db, { filePath: join(blobDir, item.hash), hash: item.hash, title: basename(item.filePath).replace(/\.[^.]+$/, '') }, await stamp());
       if (!isOk(registered)) return registered;
       files.push(registered.data);
     }
@@ -89,9 +93,17 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('files:delete', async (_event, id: number) => {
     const result = await deleteFile(db, id, await stamp());
     if (!isOk(result)) return result;
-    const provider = await cloudProvider();
-    if (!isOk(provider)) return provider;
-    await runSync(db, userDataDir, provider.data);
+    // Sync in the background: a slow or offline cloud must never delay or
+    // fail the local delete; the next successful sync reconciles the
+    // tombstone. No provider configured is a normal local-only setup.
+    void (async () => {
+      const provider = await cloudProvider();
+      if (!isOk(provider)) return;
+      const summary = await runSync(db, userDataDir, provider.data);
+      if (!isOk(summary)) {
+        console.error(`Background sync after deleting file ${id} failed: ${summary.error}`);
+      }
+    })();
     return { ok: true, data: undefined };
   });
 
