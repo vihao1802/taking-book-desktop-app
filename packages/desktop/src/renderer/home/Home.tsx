@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Menu, Moon, Search, Sun, Sunrise } from 'lucide-react';
-import { progressFraction } from '@taking-book/core';
 import type { BookFile } from '../../shared/types';
 import { Badge } from '@/components/ui/badge';
 import { BookCover } from '@/components/BookCover';
@@ -15,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { initials } from '@/lib/initials';
+import { positionLabel, readingProgressPercent } from '@/lib/progress';
 import { statusBadgeVariant, statusLabel } from '@/lib/status';
 import { useSearchShortcut } from '@/lib/useSearchShortcut';
 import { Progress } from '@/components/ui/progress';
@@ -38,14 +38,6 @@ function greetingIconForHour(hour: number): typeof Sun {
 function TimeIcon(props: { className?: string }) {
   const Icon = greetingIconForHour(new Date().getHours());
   return <Icon {...props} />;
-}
-
-function readingProgress(file: BookFile): number | null {
-  if (file.pageCount == null || file.lastPage == null) return null;
-  return progressFraction(
-    { page: file.lastPage, position: file.lastPosition ?? 0 },
-    file.pageCount,
-  );
 }
 
 export function Home({
@@ -185,11 +177,11 @@ export function Home({
                     <Badge variant={statusBadgeVariant(featured.status)}>
                       {statusLabel(featured.status)}
                     </Badge>
-                    {featured.lastPage !== null && <span>Page {featured.lastPage}</span>}
+                    {positionLabel(featured) && <span>{positionLabel(featured)}</span>}
                   </div>
                   <div className="w-full max-w-72">
                     <Progress
-                      value={progressPercent(featured)}
+                      value={readingProgressPercent(featured) ?? 0}
                       aria-label={`Reading progress for ${featured.title}`}
                     />
                   </div>
@@ -282,10 +274,10 @@ function HomeSidePanel({
                         {file.title}
                       </span>
                       <span className="text-muted-foreground shrink-0 text-xs">
-                        {file.lastPage !== null ? `Page ${file.lastPage}` : 'Just started'}
+                        {positionLabel(file) ?? 'Just started'}
                       </span>
                     </div>
-                    <Progress value={progressPercent(file)} aria-hidden="true" />
+                    <Progress value={readingProgressPercent(file) ?? 0} aria-hidden="true" />
                   </div>
                 </li>
               ))}
@@ -317,11 +309,6 @@ function HomeSidePanel({
       </Card>
     </>
   );
-}
-
-function progressPercent(file: BookFile): number {
-  const fraction = readingProgress(file);
-  return fraction == null ? 0 : Math.round(fraction * 100);
 }
 
 function BookPick({

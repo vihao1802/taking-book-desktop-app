@@ -1,4 +1,4 @@
-import type { BookFile, BookStatus, LastPosition } from './models';
+import type { BookFile, BookStatus, LastPosition, ReadMode } from './models';
 import type { Result } from './result';
 import { err, ok } from './result';
 import type { SqlDriver, SqlValue } from './sql';
@@ -16,6 +16,7 @@ interface FileRow {
   favorite: number;
   last_page: number | null;
   last_position: number | null;
+  last_mode: string | null;
   page_count: number | null;
   created_at: string;
 }
@@ -31,6 +32,7 @@ function toBookFile(row: FileRow): BookFile {
     favorite: row.favorite === 1,
     lastPage: row.last_page,
     lastPosition: row.last_position,
+    lastMode: parseMode(row.last_mode),
     pageCount: row.page_count,
     createdAt: row.created_at,
   };
@@ -58,6 +60,7 @@ function rowToRow(row: Record<string, SqlValue>): FileRow {
     favorite: row.favorite == null ? 0 : Number(row.favorite),
     last_page: row.last_page == null ? null : Number(row.last_page),
     last_position: row.last_position == null ? null : Number(row.last_position),
+    last_mode: row.last_mode == null ? null : String(row.last_mode),
     page_count: row.page_count == null ? null : Number(row.page_count),
     created_at: String(row.created_at),
   };
@@ -120,9 +123,13 @@ export async function upsertFile(
 /** Returns the resume position for a file, or null if it was never opened. */
 export async function getLastPosition(db: SqlDriver, id: number): Promise<Result<LastPosition | null>> {
   try {
-    const row = await db.get('SELECT last_page, last_position FROM files WHERE id = ?', [id]);
+    const row = await db.get('SELECT last_page, last_position, last_mode FROM files WHERE id = ?', [id]);
     if (!row || row.last_page == null) return ok(null);
-    return ok({ page: Number(row.last_page), position: Number(row.last_position ?? 0) });
+    return ok({
+      page: Number(row.last_page),
+      position: Number(row.last_position ?? 0),
+      mode: parseMode(row.last_mode == null ? null : String(row.last_mode)),
+    });
   } catch (error) {
     return err(`Failed to read last position for file ${id}: ${errorMessage(error)}`);
   }
@@ -248,27 +255,32 @@ export async function deleteFile(
   }
 }
 
-/** Persists the resume position for a file. */
+/**
+ * Persists the resume position for a file. The mode records which reader view
+ * the measurement came from, so reopening restores the same view instead of
+ * letting one mode's coordinates clobber the other's.
+ */
 export async function saveLastPosition(
   db: SqlDriver,
   id: number,
-  page: number,
-  position: number,
+  pos: LastPosition,
   stamp?: SyncStamp,
 ): Promise<Result<void>> {
   const clock = stamp ?? defaultStamp();
   try {
-    await db.run('UPDATE files SET last_page = ?, last_position = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
-      page,
-      position,
-      clock.updatedAt,
-      clock.updatedBy,
-      id,
-    ]);
+    await db.run(
+      'UPDATE files SET last_page = ?, last_position = ?, last_mode = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [pos.page, pos.position, pos.mode, clock.updatedAt, clock.updatedBy, id],
+    );
     return ok(undefined);
   } catch (error) {
     return err(`Failed to save last position for file ${id}: ${errorMessage(error)}`);
   }
+}
+
+/** Interprets a stored last_mode value; legacy/unknown values read as 'page'. */
+function parseMode(raw: string | null): ReadMode {
+  return raw === 'reflow' ? 'reflow' : 'page';
 }
 
 function errorMessage(error: unknown): string {

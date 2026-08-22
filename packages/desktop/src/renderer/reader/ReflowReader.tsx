@@ -84,14 +84,14 @@ export function ReflowReader({
     onScrollFractionRef.current?.(frac);
     window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
-      window.api.saveLastPosition(file.id, 1, position.current.position);
+      window.api.saveLastPosition(file.id, 1, position.current.position, 'reflow');
     }, 400);
   }, [file.id]);
 
   useEffect(() => {
     const saveNow = () => {
       window.clearTimeout(saveTimerRef.current);
-      window.api.saveLastPosition(file.id, 1, position.current.position);
+      window.api.saveLastPosition(file.id, 1, position.current.position, 'reflow');
     };
     window.addEventListener('beforeunload', saveNow);
     return () => {

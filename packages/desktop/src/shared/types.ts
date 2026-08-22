@@ -1,11 +1,11 @@
-import type { Annotation, AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, OpenFileResult, ReadingStats, Result, SyncSummary, Theme } from '@taking-book/core';
+import type { Annotation, AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, OpenFileResult, ReadMode, ReadingStats, Result, SyncSummary, Theme } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
   openFile(): Promise<Result<OpenFileResult | null>>;
   deleteFile(id: number): Promise<Result<void>>;
   getLastPosition(id: number): Promise<Result<LastPosition | null>>;
-  saveLastPosition(id: number, page: number, position: number): Promise<Result<void>>;
+  saveLastPosition(id: number, page: number, position: number, mode: ReadMode): Promise<Result<void>>;
   setFilePageCount(id: number, pageCount: number): Promise<Result<void>>;
   listFiles(): Promise<Result<BookFile[]>>;
   setFileStatus(id: number, status: BookStatus): Promise<Result<void>>;
@@ -25,4 +25,4 @@ export interface ReaderApi {
   runSync(): Promise<Result<SyncSummary>>;
 }
 
-export type { Annotation, AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, OpenFileResult, ReadingStats, Result, SyncSummary, Theme };
+export type { Annotation, AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, OpenFileResult, ReadMode, ReadingStats, Result, SyncSummary, Theme };

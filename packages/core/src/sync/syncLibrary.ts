@@ -41,6 +41,7 @@ function recordCounts(
       record.favorite !== prev.favorite ||
       record.lastPage !== prev.lastPage ||
       record.lastPosition !== prev.lastPosition ||
+      record.lastMode !== prev.lastMode ||
       record.pageCount !== prev.pageCount ||
       JSON.stringify(record.annotations) !== JSON.stringify(prev.annotations) ||
       record.deleted !== prev.deleted

@@ -3,7 +3,7 @@ import {
   listAnnotationsForSync,
   tombstoneAnnotationsForFile,
 } from '../annotationsRepository';
-import type { BookStatus } from '../models';
+import type { BookStatus, ReadMode } from '../models';
 import type { Result } from '../result';
 import { err, ok } from '../result';
 import type { SqlDriver, SqlValue } from '../sql';
@@ -25,6 +25,7 @@ interface FileRow {
   favorite: number;
   last_page: number | null;
   last_position: number | null;
+  last_mode: string | null;
   page_count: number | null;
   created_at: string;
   updated_at: number;
@@ -52,6 +53,7 @@ function rowToRow(row: Record<string, SqlValue>): FileRow {
     favorite: row.favorite == null ? 0 : Number(row.favorite),
     last_page: row.last_page == null ? null : Number(row.last_page),
     last_position: row.last_position == null ? null : Number(row.last_position),
+    last_mode: row.last_mode == null ? null : String(row.last_mode),
     page_count: row.page_count == null ? null : Number(row.page_count),
     created_at: String(row.created_at),
     updated_at: Number(row.updated_at ?? 0),
@@ -69,6 +71,7 @@ function toSyncRecord(row: FileRow): SyncRecord {
     favorite: row.favorite === 1,
     lastPage: row.last_page,
     lastPosition: row.last_position,
+    lastMode: row.last_mode === 'reflow' ? 'reflow' : row.last_mode === 'page' ? 'page' : null,
     pageCount: row.page_count,
     annotations: [],
     updatedAt: row.updated_at,
@@ -94,6 +97,7 @@ export function filesSchema(): string {
       favorite INTEGER NOT NULL DEFAULT 0,
       last_page INTEGER,
       last_position REAL,
+      last_mode TEXT,
       page_count INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at INTEGER NOT NULL DEFAULT 0,
@@ -122,6 +126,7 @@ export async function migrateFilesSchema(db: SqlDriver): Promise<Result<void>> {
     if (!names.has('deleted_at')) additions.push('deleted_at INTEGER');
     if (!names.has('favorite')) additions.push('favorite INTEGER NOT NULL DEFAULT 0');
     if (!names.has('page_count')) additions.push('page_count INTEGER');
+    if (!names.has('last_mode')) additions.push('last_mode TEXT');
     for (const column of additions) {
       await db.run(`ALTER TABLE files ADD COLUMN ${column}`);
     }
@@ -177,8 +182,8 @@ export async function applySyncRecords(
         if (record.deleted) continue;
         const path = await resolvePath(record.hash);
         await db.run(
-          `INSERT INTO files (hash, path, title, status, tags, favorite, last_page, last_position, page_count, updated_at, updated_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO files (hash, path, title, status, tags, favorite, last_page, last_position, last_mode, page_count, updated_at, updated_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             record.hash,
             path,
@@ -188,6 +193,7 @@ export async function applySyncRecords(
             record.favorite ? 1 : 0,
             record.lastPage,
             record.lastPosition,
+            record.lastMode,
             record.pageCount,
             record.updatedAt,
             record.updatedBy,
@@ -207,13 +213,14 @@ export async function applySyncRecords(
         row.favorite !== (record.favorite ? 1 : 0) ||
         row.last_page !== record.lastPage ||
         row.last_position !== record.lastPosition ||
+        (row.last_mode ?? null) !== record.lastMode ||
         row.page_count !== record.pageCount ||
         row.updated_at !== record.updatedAt ||
         row.updated_by !== record.updatedBy ||
         row.deleted_at != null !== deleted;
       if (!changed) continue;
       await db.run(
-        `UPDATE files SET title = ?, status = ?, tags = ?, favorite = ?, last_page = ?, last_position = ?, page_count = ?,
+        `UPDATE files SET title = ?, status = ?, tags = ?, favorite = ?, last_page = ?, last_position = ?, last_mode = ?, page_count = ?,
            updated_at = ?, updated_by = ?, deleted_at = ? WHERE id = ?`,
         [
           record.title,
@@ -222,6 +229,7 @@ export async function applySyncRecords(
           record.favorite ? 1 : 0,
           record.lastPage,
           record.lastPosition,
+          record.lastMode,
           record.pageCount,
           record.updatedAt,
           record.updatedBy,

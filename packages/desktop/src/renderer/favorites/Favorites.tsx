@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { Star } from 'lucide-react';
-import { progressFraction } from '@taking-book/core';
 import type { BookFile } from '../../shared/types';
 import { Badge } from '@/components/ui/badge';
 import { BookCover } from '@/components/BookCover';
@@ -8,17 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { initials } from '@/lib/initials';
+import { readingProgressPercent } from '@/lib/progress';
 import { statusBadgeVariant, statusLabel } from '@/lib/status';
 import { useLibrary } from '../library/useLibrary';
-
-function progressPercent(file: BookFile): number | null {
-  if (file.pageCount == null || file.lastPage == null) return null;
-  const fraction = progressFraction(
-    { page: file.lastPage, position: file.lastPosition ?? 0 },
-    file.pageCount,
-  );
-  return fraction == null ? null : Math.round(fraction * 100);
-}
 
 export function Favorites({
   onOpen,
@@ -51,7 +42,7 @@ export function Favorites({
       ) : (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
           {favorites.map((file) => {
-            const progress = progressPercent(file);
+            const progress = readingProgressPercent(file);
             return (
               <li key={file.id}>
                 <Card

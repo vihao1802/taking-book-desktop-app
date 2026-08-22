@@ -11,6 +11,7 @@ function record(hash: string): SyncRecord {
     favorite: true,
     lastPage: 3,
     lastPosition: 0.5,
+    lastMode: 'page',
     pageCount: 100,
     annotations: [],
     updatedAt: 123,

@@ -4,6 +4,13 @@ export type Theme = 'light' | 'dark' | 'sepia' | 'system';
 /** Reader status of a book. */
 export type BookStatus = 'unread' | 'reading' | 'finished';
 
+/**
+ * The reader view a book was last read in. Page positions and reflow scroll
+ * fractions are measured differently, so the saved position is only
+ * interpretable together with its mode.
+ */
+export type ReadMode = 'page' | 'reflow';
+
 /** A document registered in the library, keyed by content hash. */
 export interface BookFile {
   id: number;
@@ -15,6 +22,8 @@ export interface BookFile {
   favorite: boolean;
   lastPage: number | null;
   lastPosition: number | null;
+  /** Reader view the saved position was measured in; 'page' for legacy rows. */
+  lastMode: ReadMode;
   /** Total pages of the document, known once the reader opens it. */
   pageCount: number | null;
   createdAt: string;
@@ -44,6 +53,8 @@ export interface ReadingStats {
 export interface LastPosition {
   page: number;
   position: number;
+  /** The reader view this position was measured in. */
+  mode: ReadMode;
 }
 
 /** Payload returned when the user opens one or more files. */

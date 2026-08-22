@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
 import { BookOpen, Cloud, FolderSync, LayoutGrid, List, Star } from 'lucide-react';
-import { progressFraction } from '@taking-book/core';
 import type { BookFile, BookStatus } from '../../shared/types';
 import { Badge, badgeVariants } from '@/components/ui/badge';
 import { BookCover } from '@/components/BookCover';
@@ -9,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { initials } from '@/lib/initials';
+import { readingProgressPercent } from '@/lib/progress';
 import { STATUS_OPTIONS, statusBadgeVariant } from '@/lib/status';
 import { cn } from '@/lib/utils';
 import { useSearchShortcut } from '@/lib/useSearchShortcut';
@@ -21,15 +21,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useLibrary } from './useLibrary';
-
-function progressPercent(file: BookFile): number | null {
-  if (file.pageCount == null || file.lastPage == null) return null;
-  const fraction = progressFraction(
-    { page: file.lastPage, position: file.lastPosition ?? 0 },
-    file.pageCount,
-  );
-  return fraction == null ? null : Math.round(fraction * 100);
-}
 
 export function Library({
   onOpen,
@@ -300,7 +291,7 @@ function BookCard({
     if (tag && !file.tags.includes(tag)) onSetTags([...file.tags, tag]);
   };
 
-  const progress = progressPercent(file);
+  const progress = readingProgressPercent(file);
 
   return (
     <li>
@@ -443,7 +434,7 @@ function BookRow({
     if (tag && !file.tags.includes(tag)) onSetTags([...file.tags, tag]);
   };
 
-  const progress = progressPercent(file);
+  const progress = readingProgressPercent(file);
 
   return (
     <li>

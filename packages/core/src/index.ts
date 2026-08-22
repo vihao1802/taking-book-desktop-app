@@ -1,4 +1,4 @@
-export type { BookFile, Annotation, AnnotationColor, BookStatus, CreateAnnotationInput, DayMinutes, LastPosition, OpenFileResult, ReadingStats, Theme } from './models';
+export type { BookFile, Annotation, AnnotationColor, BookStatus, CreateAnnotationInput, DayMinutes, LastPosition, OpenFileResult, ReadMode, ReadingStats, Theme } from './models';
 export { err, isErr, isOk, ok, unwrapOr, type Result } from './result';
 export type { SqlDriver, SqlRunResult, SqlValue } from './sql';
 export { deleteFile, filesSchema, getLastPosition, listFiles, saveLastPosition, setFileFavorite, setFilePageCount, setFileStatus, setFileTags, upsertFile, type UpsertFileInput } from './filesRepository';

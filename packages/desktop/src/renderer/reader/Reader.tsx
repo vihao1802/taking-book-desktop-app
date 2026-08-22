@@ -38,13 +38,17 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const [currentPage, setCurrentPage] = useState(1);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const hideTimerRef = useRef<number>(0);
-  const positionRef = useRef({ page: 1, position: 0 });
+  const positionRef = useRef({ page: 1, position: 0, mode: 'page' as 'page' | 'reflow' });
   const saveTimerRef = useRef<number>(0);
 
   useEffect(() => {
     let cancelled = false;
     window.api.getLastPosition(file.id).then((pos) => {
-      if (!cancelled && isOk(pos)) setInitialPosition(pos.data?.position ?? 0);
+      if (cancelled || !isOk(pos) || !pos.data) return;
+      setInitialPosition(pos.data.position);
+      // Reopen in the view the book was last read in so a reflow session
+      // never overwrites the page-mode position (or vice versa).
+      setMode(pos.data.mode);
     });
     return () => {
       cancelled = true;
@@ -62,12 +66,17 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   }, [currentPage]);
 
   const savePosition = useCallback(
-    (page: number, position: number) => {
-      positionRef.current = { page, position };
+    (page: number, position: number, mode: 'page' | 'reflow' = 'page') => {
+      positionRef.current = { page, position, mode };
       lastFractionRef.current = position;
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = window.setTimeout(() => {
-        window.api.saveLastPosition(file.id, positionRef.current.page, positionRef.current.position);
+        window.api.saveLastPosition(
+          file.id,
+          positionRef.current.page,
+          positionRef.current.position,
+          positionRef.current.mode,
+        );
       }, 400);
     },
     [file.id],
@@ -76,7 +85,12 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   useEffect(() => {
     const saveNow = () => {
       window.clearTimeout(saveTimerRef.current);
-      window.api.saveLastPosition(file.id, positionRef.current.page, positionRef.current.position);
+      window.api.saveLastPosition(
+        file.id,
+        positionRef.current.page,
+        positionRef.current.position,
+        positionRef.current.mode,
+      );
     };
     window.addEventListener('beforeunload', saveNow);
     return () => {

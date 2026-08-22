@@ -88,14 +88,36 @@ describe('filesRepository', () => {
     expect(isOk(created)).toBe(true);
     if (!isOk(created)) return;
 
-    const saved = await saveLastPosition(db, created.data.id, 42, 0.5);
+    const saved = await saveLastPosition(db, created.data.id, { page: 42, position: 0.5, mode: 'page' });
     expect(isOk(saved)).toBe(true);
 
     const loaded = await getLastPosition(db, created.data.id);
     expect(isOk(loaded)).toBe(true);
     if (isOk(loaded)) {
-      expect(loaded.data).toEqual({ page: 42, position: 0.5 });
+      expect(loaded.data).toEqual({ page: 42, position: 0.5, mode: 'page' });
     }
+  });
+
+  it('round-trips the reflow mode and defaults legacy rows to page mode', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/b.pdf', hash: 'h2', title: 'B' });
+    if (!isOk(created)) return;
+
+    const saved = await saveLastPosition(db, created.data.id, { page: 1, position: 0.75, mode: 'reflow' });
+    expect(isOk(saved)).toBe(true);
+
+    const loaded = await getLastPosition(db, created.data.id);
+    expect(isOk(loaded) && loaded.data?.mode === 'reflow').toBe(true);
+
+    // A row written before last_mode existed reads as page mode.
+    const raw = createMemoryDriver();
+    await raw.exec(filesSchema());
+    await raw.run("INSERT INTO files (hash, path, title, last_page, last_position) VALUES ('h9', '/x.pdf', 'X', 5, 0.2)", []);
+    const legacy = await raw.all('SELECT last_mode FROM files', []);
+    expect(legacy[0]?.last_mode ?? null).toBeNull();
+    const listed = await listFiles(raw);
+    if (isOk(listed)) expect(listed.data[0]?.lastMode).toBe('page');
   });
 
   it('returns null position for a file that was never opened', async () => {

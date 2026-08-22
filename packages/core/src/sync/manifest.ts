@@ -46,6 +46,7 @@ function isValidRecord(value: unknown): value is SyncRecord {
     (record.favorite == null || typeof record.favorite === 'boolean') &&
     (record.lastPage == null || typeof record.lastPage === 'number') &&
     (record.lastPosition == null || typeof record.lastPosition === 'number') &&
+    (record.lastMode == null || record.lastMode === 'page' || record.lastMode === 'reflow') &&
     (record.pageCount == null || typeof record.pageCount === 'number') &&
     (record.annotations == null || (Array.isArray(record.annotations) && record.annotations.every(isValidAnnotation)))
   );
@@ -61,6 +62,7 @@ function normalizeRecord(value: SyncRecord): SyncRecord {
     ...value,
     favorite: value.favorite ?? false,
     pageCount: value.pageCount ?? null,
+    lastMode: value.lastMode ?? null,
     annotations: value.annotations ?? [],
   };
 }

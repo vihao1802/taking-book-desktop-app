@@ -13,7 +13,7 @@ export function normalizePosition(
   if (!pos) return null;
   const page = Math.min(Math.max(1, Math.round(pos.page)), Math.max(1, pageCount));
   const position = pos.position < 0 ? 0 : pos.position;
-  return { page, position };
+  return { page, position, mode: pos.mode };
 }
 
 /** Progress as a fraction (0..1) across the whole document, or null if never read. */

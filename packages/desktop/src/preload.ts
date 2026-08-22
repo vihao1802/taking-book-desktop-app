@@ -5,8 +5,8 @@ const api: ReaderApi = {
   openFile: () => ipcRenderer.invoke('files:open'),
   deleteFile: (id) => ipcRenderer.invoke('files:delete', id),
   getLastPosition: (id) => ipcRenderer.invoke('files:last-position:get', id),
-  saveLastPosition: (id, page, position) =>
-    ipcRenderer.invoke('files:last-position:set', id, page, position),
+  saveLastPosition: (id, page, position, mode) =>
+    ipcRenderer.invoke('files:last-position:set', id, page, position, mode),
   setFilePageCount: (id, pageCount) => ipcRenderer.invoke('files:page-count:set', id, pageCount),
   listFiles: () => ipcRenderer.invoke('files:list'),
   setFileStatus: (id, status) => ipcRenderer.invoke('files:status:set', id, status),

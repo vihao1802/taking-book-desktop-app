@@ -1,4 +1,4 @@
-import type { AnnotationColor, BookStatus } from '../models';
+import type { AnnotationColor, BookStatus, ReadMode } from '../models';
 import type { Result } from '../result';
 
 /**
@@ -42,6 +42,8 @@ export interface SyncRecord extends SyncStamp {
   favorite: boolean;
   lastPage: number | null;
   lastPosition: number | null;
+  /** Reader view the position was measured in; null on manifests written before modes existed. */
+  lastMode: ReadMode | null;
   pageCount: number | null;
   /** Highlights/comments attached to this book; empty when there are none. */
   annotations: SyncAnnotation[];

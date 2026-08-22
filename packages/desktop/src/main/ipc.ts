@@ -20,7 +20,7 @@ import {
   setTheme,
   upsertFile,
 } from '@taking-book/core';
-import type { BookFile, BookStatus, CloudAccount, CreateAnnotationInput, Result, SqlDriver, SyncStamp } from '@taking-book/core';
+import type { BookFile, BookStatus, CloudAccount, CreateAnnotationInput, ReadMode, Result, SqlDriver, SyncStamp } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
 import { copyFile, mkdir } from 'node:fs/promises';
 import { sha256File } from './hash';
@@ -97,8 +97,10 @@ export function registerIpc(db: SqlDriver): void {
 
   ipcMain.handle('files:last-position:get', (_event, id: number) => getLastPosition(db, id));
 
-  ipcMain.handle('files:last-position:set', async (_event, id: number, page: number, position: number) =>
-    saveLastPosition(db, id, page, position, await stamp()),
+  ipcMain.handle(
+    'files:last-position:set',
+    async (_event, id: number, page: number, position: number, mode: ReadMode) =>
+      saveLastPosition(db, id, { page, position, mode }, await stamp()),
   );
 
   ipcMain.handle('files:page-count:set', async (_event, id: number, pageCount: number) =>
