@@ -135,7 +135,10 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
       ref={scrollRef}
       onScroll={handleScroll}
     >
-      <div className="relative" style={{ height: layout.totalHeight, width: containerWidth }}>
+      <div
+        className="relative"
+        style={{ height: layout.totalHeight, width: containerWidth, marginInline: 'auto' }}
+      >
         {slots}
       </div>
     </div>
