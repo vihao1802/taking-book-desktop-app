@@ -187,11 +187,27 @@ export function ReflowReader({
   }, [progress, paragraphs.length, initialFraction]);
 
   useEffect(() => {
+    // Keyboard paging mirrors the page view so scrolling reflow text feels the
+    // same: PageDown/PageUp advance by a screen, arrows nudge, Space pages down.
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setSelectionToolbar(null);
         setActivePopup(null);
+        return;
       }
+      const el = scrollRef.current;
+      if (!el) return;
+      const step = Math.max(el.clientHeight * 0.9, 1);
+      let target: number | null = null;
+      if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) target = el.scrollTop + step;
+      else if (e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) target = el.scrollTop - step;
+      else if (e.key === 'ArrowDown') target = el.scrollTop + 48;
+      else if (e.key === 'ArrowUp') target = el.scrollTop - 48;
+      else if (e.key === 'Home') target = 0;
+      else if (e.key === 'End') target = el.scrollHeight;
+      if (target === null) return;
+      e.preventDefault();
+      el.scrollTo({ top: target, behavior: 'smooth' });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

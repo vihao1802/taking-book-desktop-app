@@ -125,6 +125,21 @@ export async function runSync(
   });
 }
 
+/**
+ * Runs a sync pass only when a cloud account is configured and connected.
+ * Used by the background scheduler; no-ops (and never throws) when there is
+ * nothing to sync, so a quiet machine never logs noise.
+ */
+export async function syncIfConnected(db: SqlDriver, userDataDir: string): Promise<void> {
+  const clientId = await getGoogleClientId(db);
+  if (!clientId) return;
+  const provider = createCloudProvider(db, userDataDir, clientId, getGoogleClientSecret());
+  const account = await provider.getAccount();
+  if (!isOk(account) || !account.data) return;
+  const summary = await runSync(db, userDataDir, provider);
+  if (!isOk(summary)) console.warn(`[sync] background sync failed: ${summary.error}`);
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

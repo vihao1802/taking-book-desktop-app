@@ -6,6 +6,7 @@ import started from 'electron-squirrel-startup';
 import { config as loadEnv } from 'dotenv';
 import { getDriver } from './main/db';
 import { registerIpc } from './main/ipc';
+import { startBackgroundSync } from './main/syncScheduler';
 
 if (started) {
   app.quit();
@@ -100,6 +101,9 @@ app.whenReady().then(async () => {
   const db = await getDriver();
   registerIpc(db);
   createWindow();
+  // Pull cloud changes on launch and periodically while the app runs; safe to
+  // run even with no account connected (it no-ops).
+  startBackgroundSync(db, app.getPath('userData'));
 });
 
 app.on('window-all-closed', () => {
