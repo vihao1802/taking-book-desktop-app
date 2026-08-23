@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Cloud, FolderSync, LayoutGrid, List, Star } from 'lucide-react';
 import type { BookFile, BookStatus } from '../../shared/types';
 import { Badge, badgeVariants } from '@/components/ui/badge';
@@ -37,6 +37,7 @@ export function Library({
     addFiles,
     setStatus,
     setTags,
+    setTitle,
     setFavorite,
     removeFile,
     connectCloud,
@@ -226,6 +227,7 @@ export function Library({
               onSetTags={(tags) => setTags(file.id, tags)}
               onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
               onRemove={() => setPendingRemove(file)}
+              onRename={(title) => setTitle(file.id, title)}
             />
           ))}
         </ul>
@@ -240,6 +242,7 @@ export function Library({
               onSetTags={(tags) => setTags(file.id, tags)}
               onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
               onRemove={() => setPendingRemove(file)}
+              onRename={(title) => setTitle(file.id, title)}
             />
           ))}
         </ul>
@@ -275,6 +278,7 @@ function BookCard({
   onSetTags,
   onToggleFavorite,
   onRemove,
+  onRename,
 }: {
   file: BookFile;
   onOpen: () => void;
@@ -282,8 +286,11 @@ function BookCard({
   onSetTags: (tags: string[]) => void;
   onToggleFavorite: () => void;
   onRemove: () => void;
+  onRename: (title: string) => void;
 }) {
   const [draftTag, setDraftTag] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(file.title);
 
   const commitTag = () => {
     const tag = draftTag.trim();
@@ -392,22 +399,105 @@ function BookCard({
             <p className="text-muted-foreground text-xs">
               Added {new Date(file.createdAt.replace(' ', 'T') + 'Z').toLocaleDateString()}
             </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              aria-label={`Remove ${file.title} from library`}
-            >
-              Remove
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDraftTitle(file.title);
+                  setRenaming(true);
+                }}
+                aria-label={`Rename ${file.title}`}
+              >
+                Rename
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                aria-label={`Remove ${file.title} from library`}
+              >
+                Remove
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
+      <RenameDialog
+        open={renaming}
+        initialTitle={draftTitle}
+        onOpenChange={setRenaming}
+        onSubmit={(title) => {
+          onRename(title);
+          setRenaming(false);
+        }}
+      />
     </li>
+  );
+}
+
+function RenameDialog({
+  open,
+  initialTitle,
+  onOpenChange,
+  onSubmit,
+}: {
+  open: boolean;
+  initialTitle: string;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (title: string) => void;
+}) {
+  const [title, setTitle] = useState(initialTitle);
+
+  useEffect(() => {
+    if (open) setTitle(initialTitle);
+  }, [open, initialTitle]);
+
+  const submit = () => {
+    const trimmed = title.trim();
+    if (trimmed.length === 0) return;
+    onSubmit(trimmed);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Rename book</DialogTitle>
+          <DialogDescription>
+            Update the title shown in your library.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Book title"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={title.trim().length === 0}>
+              Save
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -418,6 +508,7 @@ function BookRow({
   onSetTags,
   onToggleFavorite,
   onRemove,
+  onRename,
 }: {
   file: BookFile;
   onOpen: () => void;
@@ -425,8 +516,11 @@ function BookRow({
   onSetTags: (tags: string[]) => void;
   onToggleFavorite: () => void;
   onRemove: () => void;
+  onRename: (title: string) => void;
 }) {
   const [draftTag, setDraftTag] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(file.title);
 
   const commitTag = () => {
     const tag = draftTag.trim();
@@ -529,20 +623,44 @@ function BookRow({
             </form>
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-primary ml-auto h-auto px-1 py-0.5 text-xs"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-            aria-label={`Remove ${file.title} from library`}
-          >
-            Remove
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDraftTitle(file.title);
+                setRenaming(true);
+              }}
+              aria-label={`Rename ${file.title}`}
+            >
+              Rename
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              aria-label={`Remove ${file.title} from library`}
+            >
+              Remove
+            </Button>
+          </div>
         </CardContent>
       </Card>
+      <RenameDialog
+        open={renaming}
+        initialTitle={draftTitle}
+        onOpenChange={setRenaming}
+        onSubmit={(title) => {
+          onRename(title);
+          setRenaming(false);
+        }}
+      />
     </li>
   );
 }

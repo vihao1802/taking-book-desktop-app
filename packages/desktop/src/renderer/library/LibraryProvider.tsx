@@ -93,6 +93,15 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, tags } : f)));
   }, []);
 
+  const setTitle = useCallback(async (id: number, title: string) => {
+    const result = await window.api.setFileTitle(id, title);
+    if (!isOk(result)) {
+      setError(result.error);
+      return;
+    }
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, title } : f)));
+  }, []);
+
   const setFavorite = useCallback(async (id: number, favorite: boolean) => {
     const result = await window.api.setFileFavorite(id, favorite);
     if (!isOk(result)) {
@@ -132,6 +141,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     addFiles,
     setStatus,
     setTags,
+    setTitle,
     setFavorite,
     removeFile,
     connectCloud,

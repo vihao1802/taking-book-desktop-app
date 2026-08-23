@@ -11,6 +11,7 @@ const api: ReaderApi = {
   listFiles: () => ipcRenderer.invoke('files:list'),
   setFileStatus: (id, status) => ipcRenderer.invoke('files:status:set', id, status),
   setFileTags: (id, tags) => ipcRenderer.invoke('files:tags:set', id, tags),
+  setFileTitle: (id, title) => ipcRenderer.invoke('files:title:set', id, title),
   setFileFavorite: (id, favorite) => ipcRenderer.invoke('files:favorite:set', id, favorite),
   recordReadingSession: (fileId, minutes) => ipcRenderer.invoke('sessions:record', fileId, minutes),
   getReadingStats: () => ipcRenderer.invoke('stats:get'),

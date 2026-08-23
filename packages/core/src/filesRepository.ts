@@ -165,6 +165,26 @@ export async function setFileStatus(
   }
 }
 
+/** Renames a file's display title. */
+export async function setFileTitle(
+  db: SqlDriver,
+  id: number,
+  title: string,
+  stamp?: SyncStamp,
+): Promise<Result<void>> {
+  const clock = stamp ?? defaultStamp();
+  try {
+    const result = await db.run(
+      'UPDATE files SET title = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [title, clock.updatedAt, clock.updatedBy, id],
+    );
+    if (result.changes === 0) return err(`No file with id ${id}`);
+    return ok(undefined);
+  } catch (error) {
+    return err(`Failed to rename file ${id}: ${errorMessage(error)}`);
+  }
+}
+
 /** Replaces the tag list for a file (duplicates removed, order preserved). */
 export async function setFileTags(
   db: SqlDriver,

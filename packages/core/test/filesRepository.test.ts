@@ -7,6 +7,7 @@ import {
   saveLastPosition,
   setFileStatus,
   setFileTags,
+  setFileTitle,
   upsertFile,
 } from '../src';
 import { isOk } from '../src';
@@ -186,5 +187,27 @@ describe('filesRepository', () => {
     const list = await listFiles(db);
     expect(isOk(list)).toBe(true);
     if (isOk(list)) expect(list.data[0].tags).toEqual(['work', 'fiction']);
+  });
+
+  it('renames a file title', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/f.pdf', hash: 'h-f', title: 'Old Title' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const renamed = await setFileTitle(db, created.data.id, 'New Title');
+    expect(isOk(renamed)).toBe(true);
+
+    const list = await listFiles(db);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) expect(list.data[0].title).toBe('New Title');
+  });
+
+  it('errors when renaming a missing file', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const result = await setFileTitle(db, 404, 'X');
+    expect(result.ok).toBe(false);
   });
 });

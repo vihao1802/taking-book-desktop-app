@@ -71,11 +71,17 @@ export function Home({
     setFeaturedIndex((i) => (i + delta + featuredCandidates.length) % featuredCandidates.length);
   };
 
-  const picks = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const scoped = q ? files.filter((f) => f.title.toLowerCase().includes(q)) : files;
-    return scoped.slice(0, 4);
-  }, [files, query]);
+  // A live query swaps the home cards for filtered results; an explicit empty
+  // state tells the user the search matched nothing instead of leaving the
+  // continue-reading card untouched.
+  const trimmedQuery = query.trim().toLowerCase();
+  const searching = trimmedQuery.length > 0;
+  const results = useMemo(
+    () => (searching ? files.filter((f) => f.title.toLowerCase().includes(trimmedQuery)) : []),
+    [files, searching, trimmedQuery],
+  );
+
+  const picks = useMemo(() => files.slice(0, 4), [files]);
 
   const handleAdd = async () => {
     const added = await addFiles();
@@ -123,6 +129,29 @@ export function Home({
           </div>
         </header>
 
+        {searching ? (
+          <Card>
+            <CardContent className="flex flex-col gap-4 p-6">
+              <h3 className="text-lg font-semibold">Search results</h3>
+              {results.length === 0 ? (
+                <p className="text-muted-foreground py-10 text-center">
+                  No books match “{query}”. Try a different title.
+                </p>
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
+                  {results.map((file, i) => (
+                    <BookPick
+                      key={file.id}
+                      file={file}
+                      accent={AVATAR_COLORS[i % AVATAR_COLORS.length]}
+                      onOpen={() => onOpen(file)}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
         <Card className="group transition-all hover:border-ink/25 hover:shadow-md">
           <CardContent
             className="flex cursor-pointer gap-6 p-6 flex-col md:flex-row"
@@ -209,11 +238,13 @@ export function Home({
             )}
           </CardContent>
         </Card>
+        )}
 
+        {!searching && (
         <Card>
           <CardContent className="flex flex-col gap-4 p-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Top picks for you</h3>
+              <h3 className="text-lg font-semibold">Recently added</h3>
               <Button variant="link" className="text-muted-foreground h-auto p-0" onClick={() => onNavigate('library')}>
                 Browse more
               </Button>
@@ -230,6 +261,7 @@ export function Home({
             </div>
           </CardContent>
         </Card>
+        )}
       </div>
 
       <aside className="bg-rail hidden w-80 shrink-0 flex-col gap-6 overflow-y-auto border-l border-border p-6 xl:flex">

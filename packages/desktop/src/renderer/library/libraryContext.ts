@@ -17,6 +17,7 @@ export interface LibraryContextValue {
   addFiles: () => Promise<BookFile[]>;
   setStatus: (id: number, status: BookStatus) => Promise<void>;
   setTags: (id: number, tags: string[]) => Promise<void>;
+  setTitle: (id: number, title: string) => Promise<void>;
   setFavorite: (id: number, favorite: boolean) => Promise<void>;
   removeFile: (id: number) => Promise<void>;
   connectCloud: () => Promise<void>;

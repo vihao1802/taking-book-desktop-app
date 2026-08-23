@@ -17,6 +17,7 @@ import {
   setFilePageCount,
   setFileStatus,
   setFileTags,
+  setFileTitle,
   setTheme,
   upsertFile,
 } from '@taking-book/core';
@@ -127,6 +128,10 @@ export function registerIpc(db: SqlDriver): void {
 
   ipcMain.handle('files:tags:set', async (_event, id: number, tags: string[]) =>
     setFileTags(db, id, tags, await stamp()),
+  );
+
+  ipcMain.handle('files:title:set', async (_event, id: number, title: string) =>
+    setFileTitle(db, id, title, await stamp()),
   );
 
   ipcMain.handle('files:favorite:set', async (_event, id: number, favorite: boolean) =>

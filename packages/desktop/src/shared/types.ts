@@ -10,6 +10,7 @@ export interface ReaderApi {
   listFiles(): Promise<Result<BookFile[]>>;
   setFileStatus(id: number, status: BookStatus): Promise<Result<void>>;
   setFileTags(id: number, tags: string[]): Promise<Result<void>>;
+  setFileTitle(id: number, title: string): Promise<Result<void>>;
   setFileFavorite(id: number, favorite: boolean): Promise<Result<void>>;
   recordReadingSession(fileId: number, minutes: number): Promise<Result<void>>;
   getReadingStats(): Promise<Result<ReadingStats>>;
