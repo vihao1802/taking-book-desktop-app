@@ -368,7 +368,7 @@ function BookPick({
     >
       <BookCover
         file={file}
-        className={`aspect-2/3 rounded-md text-xl font-semibold transition-transform duration-200 group-hover:scale-[1.03] ${accent}`}
+        className={`aspect-2/3 w-full rounded-md text-xl font-semibold transition-transform duration-200 group-hover:scale-[1.03] ${accent}`}
         fallback={<span>{initials(file.title)}</span>}
       />
       <h4 className="line-clamp-2 text-sm font-semibold leading-tight group-hover:underline">

@@ -23,7 +23,7 @@ import {
 } from '@taking-book/core';
 import type { BookFile, BookStatus, CloudAccount, CreateAnnotationInput, ReadMode, Result, SqlDriver, SyncStamp } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { sha256File } from './hash';
 import {
   createCloudProvider,
@@ -119,6 +119,33 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('files:page-count:set', async (_event, id: number, pageCount: number) =>
     setFilePageCount(db, id, pageCount, await stamp()),
   );
+
+  // Cover thumbnails are cached as JPEG files keyed by content hash so the
+  // renderer can show them instantly on later launches instead of re-rendering
+  // the PDF's first page every time.
+
+  const coverFile = (hash: string) => join(app.getPath('userData'), 'covers', `${hash}.jpg`);
+
+  ipcMain.handle('covers:get', async (_event, hash: string): Promise<Result<string | null>> => {
+    try {
+      const bytes = await readFile(coverFile(hash));
+      return { ok: true, data: `data:image/jpeg;base64,${bytes.toString('base64')}` };
+    } catch {
+      return { ok: true, data: null };
+    }
+  });
+
+  ipcMain.handle('covers:save', async (_event, hash: string, dataUrl: string): Promise<Result<void>> => {
+    try {
+      const base64 = dataUrl.split(',')[1];
+      if (!base64) return { ok: true, data: undefined };
+      await mkdir(join(app.getPath('userData'), 'covers'), { recursive: true });
+      await writeFile(coverFile(hash), Buffer.from(base64, 'base64'));
+      return { ok: true, data: undefined };
+    } catch (error) {
+      return { ok: false, error: `Failed to cache cover: ${errorMessage(error)}` };
+    }
+  });
 
   ipcMain.handle('files:list', () => listFiles(db));
 

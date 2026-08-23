@@ -38,6 +38,13 @@ export interface ReflowProgress {
   total: number;
 }
 
+/**
+ * Below this many extractable characters a document is treated as image-based
+ * (scanned) with no useful text to reflow. The threshold keeps the reflow
+ * toggle on for real books while hiding it for scan-only PDFs.
+ */
+export const MIN_REFLOW_CHARS = 400;
+
 const FLUSH_EVERY_PAGES = 10;
 
 /**
@@ -50,11 +57,16 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
   pageTexts: string[];
   error: string | null;
   progress: ReflowProgress | null;
+  /** True when the document has enough extractable text to reflow. */
+  hasText: boolean;
 } {
   const [paragraphs, setParagraphs] = useState<ReflowParagraph[]>([]);
   const [pageTexts, setPageTexts] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ReflowProgress | null>(null);
+  // Optimistically true so the reflow toggle isn't spuriously disabled while
+  // extraction is still running; it's settled once the full document is parsed.
+  const [hasText, setHasText] = useState(true);
 
   useEffect(() => {
     if (!pdf) {
@@ -62,6 +74,7 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
       setPageTexts([]);
       setError(null);
       setProgress(null);
+      setHasText(true);
       return;
     }
     let cancelled = false;
@@ -93,13 +106,17 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
           }
         }
         if (!cancelled) {
+          const filtered = filterBoilerplateParagraphs(all);
+          const chars = filtered.reduce((sum, para) => sum + para.text.length, 0);
           setPageTexts(texts);
-          setParagraphs(filterBoilerplateParagraphs(all));
+          setParagraphs(filtered);
+          setHasText(chars >= MIN_REFLOW_CHARS);
           setProgress(null);
         }
       } catch (err) {
         if (!cancelled) {
           setError(String(err));
+          setHasText(true);
           setProgress(null);
         }
       }
@@ -109,5 +126,5 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
     };
   }, [pdf]);
 
-  return { paragraphs, pageTexts, error, progress };
+  return { paragraphs, pageTexts, error, progress, hasText };
 }

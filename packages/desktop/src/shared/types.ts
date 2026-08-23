@@ -6,6 +6,8 @@ export interface ReaderApi {
   deleteFile(id: number): Promise<Result<void>>;
   getLastPosition(id: number): Promise<Result<LastPosition | null>>;
   saveLastPosition(id: number, page: number, position: number, mode: ReadMode): Promise<Result<void>>;
+  getCoverData(hash: string): Promise<Result<string | null>>;
+  saveCoverData(hash: string, dataUrl: string): Promise<Result<void>>;
   setFilePageCount(id: number, pageCount: number): Promise<Result<void>>;
   listFiles(): Promise<Result<BookFile[]>>;
   setFileStatus(id: number, status: BookStatus): Promise<Result<void>>;

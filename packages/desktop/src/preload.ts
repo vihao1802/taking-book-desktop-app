@@ -7,6 +7,8 @@ const api: ReaderApi = {
   getLastPosition: (id) => ipcRenderer.invoke('files:last-position:get', id),
   saveLastPosition: (id, page, position, mode) =>
     ipcRenderer.invoke('files:last-position:set', id, page, position, mode),
+  getCoverData: (hash) => ipcRenderer.invoke('covers:get', hash),
+  saveCoverData: (hash, dataUrl) => ipcRenderer.invoke('covers:save', hash, dataUrl),
   setFilePageCount: (id, pageCount) => ipcRenderer.invoke('files:page-count:set', id, pageCount),
   listFiles: () => ipcRenderer.invoke('files:list'),
   setFileStatus: (id, status) => ipcRenderer.invoke('files:status:set', id, status),

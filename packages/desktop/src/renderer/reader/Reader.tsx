@@ -18,7 +18,13 @@ const HIDE_DELAY_MS = 2500;
 export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
   const { cycleTheme } = useTheme();
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
-  const { paragraphs, pageTexts, error: reflowError, progress: reflowProgress } = useReflowDocument(pdf);
+  const {
+    paragraphs,
+    pageTexts,
+    error: reflowError,
+    progress: reflowProgress,
+    hasText,
+  } = useReflowDocument(pdf);
   const { annotations, create, setNote, remove } = useAnnotations(file.hash);
   useReadingSession(file.id);
 
@@ -168,6 +174,14 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     [paragraphs, create],
   );
 
+  // A document with no extractable text (e.g. scanned pages) can only be read
+  // as page images; never land or stay in reflow mode for it.
+  useEffect(() => {
+    if (mode === 'reflow' && !hasText && reflowProgress === null) {
+      setMode('page');
+    }
+  }, [mode, hasText, reflowProgress]);
+
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
 
   const error = pdfError;
@@ -253,6 +267,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
             setFitWidth(false);
             setZoom(clampZoom(z));
           }}
+          reflowDisabled={!hasText}
           onToggleMode={() => {
             setRestoreFraction(lastFractionRef.current);
             setMode(mode === 'page' ? 'reflow' : 'page');

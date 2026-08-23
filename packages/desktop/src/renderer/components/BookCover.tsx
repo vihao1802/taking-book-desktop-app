@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
+import { isOk } from '@taking-book/core';
 import * as pdfjs from 'pdfjs-dist';
 // eslint-disable-next-line import/no-unresolved
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
@@ -39,13 +40,24 @@ async function renderCover(file: BookFile): Promise<string> {
   }
 }
 
-/** Returns a cached cover URL for a file, sharing one load across callers. */
+/**
+ * Returns a cover URL for a file, sharing one load across callers. Prefers the
+ * on-disk cache (rendered once, reused on later launches); only when nothing is
+ * cached does it render the PDF's first page, then persists the result so the
+ * next session loads it instantly.
+ */
 function loadCover(file: BookFile): Promise<string> {
   const cached = coverCache.get(file.hash);
   if (cached) return Promise.resolve(cached);
   const running = inFlight.get(file.hash);
   if (running) return running;
-  const promise = renderCover(file)
+  const promise = (async () => {
+    const onDisk = await window.api.getCoverData(file.hash);
+    if (isOk(onDisk) && onDisk.data) return onDisk.data;
+    const dataUrl = await renderCover(file);
+    void window.api.saveCoverData(file.hash, dataUrl).catch(() => undefined);
+    return dataUrl;
+  })()
     .then((dataUrl) => {
       coverCache.set(file.hash, dataUrl);
       inFlight.delete(file.hash);
@@ -105,13 +117,20 @@ export function BookCover({ file, className, fallback }: BookCoverProps) {
     >
       {cover ? (
         <img src={cover} alt={`Cover of ${file.title}`} className="h-full w-full object-cover" />
-      ) : loading ? (
-        <Loader2
-          className="size-8 animate-spin text-card opacity-80"
-          aria-label={`Loading cover for ${file.title}`}
-        />
       ) : (
-        <span>{fallback}</span>
+        // Fill the whole cover box so the loading state never collapses to the
+        // icon's size; the caller's className (e.g. aspect-2/3 + w-full) defines
+        // the dimensions and this layer always fills them.
+        <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+          {loading ? (
+            <Loader2
+              className="size-8 animate-spin text-card opacity-80"
+              aria-label={`Loading cover for ${file.title}`}
+            />
+          ) : (
+            <span>{fallback}</span>
+          )}
+        </div>
       )}
     </div>
   );

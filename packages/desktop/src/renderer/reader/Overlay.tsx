@@ -20,6 +20,8 @@ interface OverlayProps {
   mode: 'page' | 'reflow';
   zoom: number;
   fitWidth: boolean;
+  /** When true, the reflow toggle is disabled because the document has no extractable text. */
+  reflowDisabled?: boolean;
   onFitWidth: () => void;
   onZoomChange: (zoom: number) => void;
   onToggleMode: () => void;
@@ -36,6 +38,7 @@ export function Overlay({
   mode,
   zoom,
   fitWidth,
+  reflowDisabled = false,
   onFitWidth,
   onZoomChange,
   onToggleMode,
@@ -96,8 +99,15 @@ export function Overlay({
             variant="ghost"
             size="icon"
             onClick={onToggleMode}
+            disabled={reflowDisabled}
             aria-label="Toggle reflow"
-            title={mode === 'reflow' ? 'Page view' : 'Reflow (continuous text)'}
+            title={
+              reflowDisabled
+                ? 'This book is image-based and has no extractable text'
+                : mode === 'reflow'
+                  ? 'Page view'
+                  : 'Reflow (continuous text)'
+            }
           >
             <Type className="size-4" />
           </Button>
