@@ -69,6 +69,12 @@ This file defines conventions any coding agent (or contributor) must follow when
   - Forge's system check trips on this shell's `npm_config_user_agent=npm/undefined`; `~/.skip-forge-system-check` is the workaround — do not delete it.
 - Smoke tests: end-to-end verification in this environment is done by temporarily instrumenting `packages/desktop/src/main.ts` with a `TB_SMOKE_EXIT_MS` hook that exercises IPC/core and then exits. The hook is removed before committing; never leave it in.
 
+## Auto-Approved Commands
+
+- The permission rules in `opencode.json` auto-approve a fixed set of routine commands (cat, grep, ls, find, awk, sed, node/python one-liners, `npm run build|typecheck|lint|test`, `npx vitest`, `git status|log|diff|add|commit|show`, and `rm -f`/`rm -rf` under `/tmp`). You still may run them freely; they are not destructive and were repeatedly authorized in prior sessions.
+- **Alert, don't ask:** before running any command covered by those auto-approve rules, prefix a one-line alert with `***` (e.g. `*** running npm run typecheck`) so the user can see it happening, then proceed without waiting for approval. Do not open a permission question for these.
+- Still ask for anything NOT in the allow list (e.g. `sudo`, `rm -rf` outside `/tmp`, `git push`, installing random binaries) — those keep prompting deliberately.
+
 ## Git & Commits
 
 - One logical change per commit; commit messages describe intent (`Add last-read-position tracking by file hash`), not mechanics (`update files`).
@@ -80,3 +86,17 @@ This file defines conventions any coding agent (or contributor) must follow when
 
 - Favor readability over cleverness — this is a small/solo-maintained codebase; optimize for "understandable in six months," not "fewest lines."
 - If a rule in this file conflicts with a specific instruction given during a task, the explicit instruction wins — but flag the conflict rather than silently picking one.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on vihao1802/taking-book-desktop-app, managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: the five canonical role names used as-is (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
