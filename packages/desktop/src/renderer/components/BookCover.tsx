@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
 import * as pdfjs from 'pdfjs-dist';
 // eslint-disable-next-line import/no-unresolved
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
@@ -71,16 +72,24 @@ export interface BookCoverProps {
  */
 export function BookCover({ file, className, fallback }: BookCoverProps) {
   const [cover, setCover] = useState<string | null>(() => coverCache.get(file.hash) ?? null);
+  const [loading, setLoading] = useState(() => !coverCache.has(file.hash));
 
   useEffect(() => {
     if (cover) return;
+    setLoading(true);
     let cancelled = false;
     loadCover(file)
       .then((dataUrl) => {
-        if (!cancelled) setCover(dataUrl);
+        if (!cancelled) {
+          setCover(dataUrl);
+          setLoading(false);
+        }
       })
       .catch((error: unknown) => {
-        if (!cancelled) console.error(`Failed to load cover for "${file.title}"`, error);
+        if (!cancelled) {
+          setLoading(false);
+          console.error(`Failed to load cover for "${file.title}"`, error);
+        }
       });
     return () => {
       cancelled = true;
@@ -90,24 +99,19 @@ export function BookCover({ file, className, fallback }: BookCoverProps) {
   return (
     <div
       className={cn(
-        'relative flex items-center justify-center overflow-hidden border-2 border-border shadow-sm',
+        'relative flex items-center justify-center overflow-hidden border-2 border-border',
         className,
       )}
     >
       {cover ? (
-        <>
-          <img src={cover} alt={`Cover of ${file.title}`} className="h-full w-full object-cover" />
-          {/* Printed-book sheen, spine, and vignette over the rendered page. */}
-          <div className="tb-cover-sheen pointer-events-none absolute inset-0" aria-hidden="true" />
-          <div className="tb-cover-spine pointer-events-none absolute inset-0" aria-hidden="true" />
-          <div className="tb-cover-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
-        </>
+        <img src={cover} alt={`Cover of ${file.title}`} className="h-full w-full object-cover" />
+      ) : loading ? (
+        <Loader2
+          className="size-8 animate-spin text-card opacity-80"
+          aria-label={`Loading cover for ${file.title}`}
+        />
       ) : (
-        <>
-          {/* Gradient backdrop behind the initials while the cover loads. */}
-          <div className="tb-cover-fallback absolute inset-0" aria-hidden="true" />
-          <span className="relative z-10">{fallback}</span>
-        </>
+        <span>{fallback}</span>
       )}
     </div>
   );

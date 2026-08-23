@@ -160,8 +160,9 @@ export function Home({
             {featured ? (
               <>
                 <BookCover
+                  key={featured.id}
                   file={featured}
-                  className="bg-ink text-card h-67.5 w-45 shrink-0 rounded-md shadow-lg transition-transform duration-200 group-hover:scale-[1.02] group-hover:shadow-xl"
+                  className="bg-ink text-card h-67.5 w-45 shrink-0 rounded-md shadow-sm transition-transform duration-200 group-hover:scale-[1.02]"
                   fallback={<span className="text-3xl font-semibold">{initials(featured.title)}</span>}
                 />
                 <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
