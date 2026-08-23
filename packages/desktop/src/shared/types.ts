@@ -9,6 +9,8 @@ export interface ReaderApi {
   getCoverData(hash: string): Promise<Result<string | null>>;
   saveCoverData(hash: string, dataUrl: string): Promise<Result<void>>;
   setFilePageCount(id: number, pageCount: number): Promise<Result<void>>;
+  getFileZoom(id: number): Promise<Result<number | null>>;
+  setFileZoom(id: number, zoom: number): Promise<Result<void>>;
   listFiles(): Promise<Result<BookFile[]>>;
   setFileStatus(id: number, status: BookStatus): Promise<Result<void>>;
   setFileTags(id: number, tags: string[]): Promise<Result<void>>;

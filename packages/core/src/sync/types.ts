@@ -45,6 +45,8 @@ export interface SyncRecord extends SyncStamp {
   /** Reader view the position was measured in; null on manifests written before modes existed. */
   lastMode: ReadMode | null;
   pageCount: number | null;
+  /** The zoom multiplier the book was last read at; null until the user zooms. */
+  zoom: number | null;
   /** Highlights/comments attached to this book; empty when there are none. */
   annotations: SyncAnnotation[];
   deleted: boolean;

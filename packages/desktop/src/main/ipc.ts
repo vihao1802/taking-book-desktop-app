@@ -5,6 +5,7 @@ import {
   deleteAnnotation,
   deleteFile,
   getDailyReadingMinutes,
+  getFileZoom,
   getLastPosition,
   getTheme,
   isOk,
@@ -16,6 +17,7 @@ import {
   setFileFavorite,
   setFilePageCount,
   setFileStatus,
+  setFileZoom,
   setFileTags,
   setFileTitle,
   setTheme,
@@ -118,6 +120,12 @@ export function registerIpc(db: SqlDriver): void {
 
   ipcMain.handle('files:page-count:set', async (_event, id: number, pageCount: number) =>
     setFilePageCount(db, id, pageCount, await stamp()),
+  );
+
+  ipcMain.handle('files:zoom:get', (_event, id: number) => getFileZoom(db, id));
+
+  ipcMain.handle('files:zoom:set', async (_event, id: number, zoom: number) =>
+    setFileZoom(db, id, zoom, await stamp()),
   );
 
   // Cover thumbnails are cached as JPEG files keyed by content hash so the

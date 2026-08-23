@@ -31,6 +31,8 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const [mode, setMode] = useState<'page' | 'reflow'>('page');
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(true);
+  const zoomLoadedRef = useRef(false);
+  const zoomSaveTimerRef = useRef<number>(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pagesRef = useRef<PdfPagesHandle>(null);
@@ -66,6 +68,31 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
       window.api.setFilePageCount(file.id, pdf.numPages);
     }
   }, [pdf, file.id]);
+
+  // Restore the zoom level this book was last read at, so reopening doesn't
+  // reset to 100% and force the reader to re-zoom.
+  useEffect(() => {
+    let cancelled = false;
+    window.api.getFileZoom(file.id).then((res) => {
+      if (cancelled || !isOk(res) || res.data == null) return;
+      zoomLoadedRef.current = true;
+      setZoom(clampZoom(res.data));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [file.id]);
+
+  // Persist zoom changes (debounced) once the saved value has been restored;
+  // the initial load must not immediately overwrite what was just read.
+  useEffect(() => {
+    if (!zoomLoadedRef.current) return;
+    window.clearTimeout(zoomSaveTimerRef.current);
+    zoomSaveTimerRef.current = window.setTimeout(() => {
+      window.api.setFileZoom(file.id, zoom);
+    }, 400);
+    return () => window.clearTimeout(zoomSaveTimerRef.current);
+  }, [zoom, file.id]);
 
   useEffect(() => {
     positionRef.current.page = currentPage;

@@ -18,6 +18,7 @@ interface FileRow {
   last_position: number | null;
   last_mode: string | null;
   page_count: number | null;
+  zoom: number | null;
   created_at: string;
 }
 
@@ -34,6 +35,7 @@ function toBookFile(row: FileRow): BookFile {
     lastPosition: row.last_position,
     lastMode: parseMode(row.last_mode),
     pageCount: row.page_count,
+    zoom: row.zoom,
     createdAt: row.created_at,
   };
 }
@@ -62,6 +64,7 @@ function rowToRow(row: Record<string, SqlValue>): FileRow {
     last_position: row.last_position == null ? null : Number(row.last_position),
     last_mode: row.last_mode == null ? null : String(row.last_mode),
     page_count: row.page_count == null ? null : Number(row.page_count),
+    zoom: row.zoom == null ? null : Number(row.zoom),
     created_at: String(row.created_at),
   };
 }
@@ -223,6 +226,38 @@ export async function setFileFavorite(
     return ok(undefined);
   } catch (error) {
     return err(`Failed to set favorite for file ${id}: ${errorMessage(error)}`);
+  }
+}
+
+/** Returns the saved zoom multiplier for a file, or null if the user never zoomed. */
+export async function getFileZoom(db: SqlDriver, id: number): Promise<Result<number | null>> {
+  try {
+    const row = await db.get('SELECT zoom FROM files WHERE id = ?', [id]);
+    return ok(row && row.zoom != null ? Number(row.zoom) : null);
+  } catch (error) {
+    return err(`Failed to read zoom for file ${id}: ${errorMessage(error)}`);
+  }
+}
+
+/**
+ * Persists the zoom multiplier a book was last read at so reopening restores
+ * the same text/page size instead of resetting to 1.
+ */
+export async function setFileZoom(
+  db: SqlDriver,
+  id: number,
+  zoom: number,
+  stamp?: SyncStamp,
+): Promise<Result<void>> {
+  const clock = stamp ?? defaultStamp();
+  try {
+    await db.run(
+      'UPDATE files SET zoom = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [zoom, clock.updatedAt, clock.updatedBy, id],
+    );
+    return ok(undefined);
+  } catch (error) {
+    return err(`Failed to save zoom for file ${id}: ${errorMessage(error)}`);
   }
 }
 

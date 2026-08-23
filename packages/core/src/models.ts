@@ -26,6 +26,8 @@ export interface BookFile {
   lastMode: ReadMode;
   /** Total pages of the document, known once the reader opens it. */
   pageCount: number | null;
+  /** The zoom multiplier the book was last read at; null until the user zooms. */
+  zoom: number | null;
   createdAt: string;
 }
 

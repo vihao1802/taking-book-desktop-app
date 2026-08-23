@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   deleteFile,
   filesSchema,
+  getFileZoom,
   getLastPosition,
   listFiles,
   saveLastPosition,
   setFileStatus,
   setFileTags,
   setFileTitle,
+  setFileZoom,
   upsertFile,
 } from '../src';
 import { isOk } from '../src';
@@ -119,6 +121,35 @@ describe('filesRepository', () => {
     expect(legacy[0]?.last_mode ?? null).toBeNull();
     const listed = await listFiles(raw);
     if (isOk(listed)) expect(listed.data[0]?.lastMode).toBe('page');
+  });
+
+  it('saves and reads back the zoom level, returning null before it is set', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/z.pdf', hash: 'h-z', title: 'Z' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const before = await getFileZoom(db, created.data.id);
+    expect(isOk(before) && before.data === null).toBe(true);
+
+    const saved = await setFileZoom(db, created.data.id, 1.5);
+    expect(isOk(saved)).toBe(true);
+
+    const after = await getFileZoom(db, created.data.id);
+    expect(isOk(after) && after.data).toBe(1.5);
+
+    // The zoom also round-trips through the library listing.
+    const list = await listFiles(db);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) expect(list.data[0].zoom).toBe(1.5);
+  });
+
+  it('returns null zoom for an unknown file id', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const loaded = await getFileZoom(db, 999);
+    expect(isOk(loaded) && loaded.data === null).toBe(true);
   });
 
   it('returns null position for a file that was never opened', async () => {

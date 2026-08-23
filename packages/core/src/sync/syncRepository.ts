@@ -27,6 +27,7 @@ interface FileRow {
   last_position: number | null;
   last_mode: string | null;
   page_count: number | null;
+  zoom: number | null;
   created_at: string;
   updated_at: number;
   updated_by: string;
@@ -55,6 +56,7 @@ function rowToRow(row: Record<string, SqlValue>): FileRow {
     last_position: row.last_position == null ? null : Number(row.last_position),
     last_mode: row.last_mode == null ? null : String(row.last_mode),
     page_count: row.page_count == null ? null : Number(row.page_count),
+    zoom: row.zoom == null ? null : Number(row.zoom),
     created_at: String(row.created_at),
     updated_at: Number(row.updated_at ?? 0),
     updated_by: String(row.updated_by ?? ''),
@@ -73,6 +75,7 @@ function toSyncRecord(row: FileRow): SyncRecord {
     lastPosition: row.last_position,
     lastMode: row.last_mode === 'reflow' ? 'reflow' : row.last_mode === 'page' ? 'page' : null,
     pageCount: row.page_count,
+    zoom: row.zoom,
     annotations: [],
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
@@ -99,6 +102,7 @@ export function filesSchema(): string {
       last_position REAL,
       last_mode TEXT,
       page_count INTEGER,
+      zoom REAL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at INTEGER NOT NULL DEFAULT 0,
       updated_by TEXT NOT NULL DEFAULT '',
@@ -127,6 +131,7 @@ export async function migrateFilesSchema(db: SqlDriver): Promise<Result<void>> {
     if (!names.has('favorite')) additions.push('favorite INTEGER NOT NULL DEFAULT 0');
     if (!names.has('page_count')) additions.push('page_count INTEGER');
     if (!names.has('last_mode')) additions.push('last_mode TEXT');
+    if (!names.has('zoom')) additions.push('zoom REAL');
     for (const column of additions) {
       await db.run(`ALTER TABLE files ADD COLUMN ${column}`);
     }
@@ -182,8 +187,8 @@ export async function applySyncRecords(
         if (record.deleted) continue;
         const path = await resolvePath(record.hash);
         await db.run(
-          `INSERT INTO files (hash, path, title, status, tags, favorite, last_page, last_position, last_mode, page_count, updated_at, updated_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO files (hash, path, title, status, tags, favorite, last_page, last_position, last_mode, page_count, zoom, updated_at, updated_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             record.hash,
             path,
@@ -195,6 +200,7 @@ export async function applySyncRecords(
             record.lastPosition,
             record.lastMode,
             record.pageCount,
+            record.zoom,
             record.updatedAt,
             record.updatedBy,
           ],
@@ -215,12 +221,13 @@ export async function applySyncRecords(
         row.last_position !== record.lastPosition ||
         (row.last_mode ?? null) !== record.lastMode ||
         row.page_count !== record.pageCount ||
+        row.zoom !== record.zoom ||
         row.updated_at !== record.updatedAt ||
         row.updated_by !== record.updatedBy ||
         row.deleted_at != null !== deleted;
       if (!changed) continue;
       await db.run(
-        `UPDATE files SET title = ?, status = ?, tags = ?, favorite = ?, last_page = ?, last_position = ?, last_mode = ?, page_count = ?,
+        `UPDATE files SET title = ?, status = ?, tags = ?, favorite = ?, last_page = ?, last_position = ?, last_mode = ?, page_count = ?, zoom = ?,
            updated_at = ?, updated_by = ?, deleted_at = ? WHERE id = ?`,
         [
           record.title,
@@ -231,6 +238,7 @@ export async function applySyncRecords(
           record.lastPosition,
           record.lastMode,
           record.pageCount,
+          record.zoom,
           record.updatedAt,
           record.updatedBy,
           deleted ? record.updatedAt : null,

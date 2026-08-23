@@ -121,6 +121,28 @@ describe('applySyncRecords', () => {
     if (isOk(files)) expect(files.data).toHaveLength(0);
   });
 
+  it('round-trips zoom through list and apply', async () => {
+    const db = createMemoryDriver();
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
+    await upsertFile(db, { filePath: '/z.pdf', hash: 'h', title: 'A' });
+    await applySyncRecords(db, [record('h', { zoom: 1.6, updatedAt: 200 })], () => '/ignored');
+
+    const files = await listFiles(db);
+    expect(isOk(files)).toBe(true);
+    if (isOk(files)) expect(files.data[0].zoom).toBe(1.6);
+
+    const records = await listRecordsForSync(db);
+    expect(isOk(records)).toBe(true);
+    if (isOk(records)) expect(records.data[0].zoom).toBe(1.6);
+
+    const other = createMemoryDriver();
+    await other.exec(`${filesSchema()} ${annotationsSchema()}`);
+    await applySyncRecords(other, [records.data[0]], () => '/blobs/h');
+    const synced = await listFiles(other);
+    expect(isOk(synced)).toBe(true);
+    if (isOk(synced)) expect(synced.data[0].zoom).toBe(1.6);
+  });
+
   it('updates an existing record and tombstones a winner', async () => {
     const db = createMemoryDriver();
     await db.exec(`${filesSchema()} ${annotationsSchema()}`);
