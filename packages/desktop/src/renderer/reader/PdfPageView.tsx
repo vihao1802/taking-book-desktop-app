@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { TextLayer } from 'pdfjs-dist';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import type { Annotation, AnnotationColor } from '../../shared/types';
@@ -194,7 +194,11 @@ export function PdfPageView({
       onMouseUp={handleMouseUp}
     >
       <canvas ref={canvasRef} className="block bg-white shadow-[0_1px_4px_rgba(0,0,0,0.14)]" />
-      <div ref={textLayerRef} className="tb-text-layer" />
+      <div
+        ref={textLayerRef}
+        className="tb-text-layer"
+        style={{ '--total-scale-factor': cssScale } as CSSProperties}
+      />
       {Array.from(highlightRects.entries()).flatMap(([id, rects]) =>
         (annotations.find((a) => a.id === id) ? rects : []).map((rect, i) => (
           <div

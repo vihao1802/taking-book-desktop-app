@@ -227,7 +227,10 @@
   transform-origin: 0 0;
   caret-color: CanvasText;
   z-index: 10;
-  --total-scale-factor: 1;
+  /* --total-scale-factor is set inline per page (the viewport scale) and
+     --min-font-size is set by pdf.js TextLayer; mirrors pdf_viewer.css. */
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
   user-select: text;
 }
 
@@ -244,10 +247,10 @@
 .tb-text-layer .markedContent span:not(.markedContent) {
   z-index: 1;
   --font-height: 0;
-  font-size: calc(1 * var(--font-height));
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
   --scale-x: 1;
   --rotate: 0deg;
-  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(1);
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
 }
 
 .tb-text-layer ::selection {
