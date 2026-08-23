@@ -88,11 +88,26 @@ export function BookCover({ file, className, fallback }: BookCoverProps) {
   }, [file, cover]);
 
   return (
-    <div className={cn('relative flex items-center justify-center overflow-hidden border-2 border-border', className)}>
+    <div
+      className={cn(
+        'relative flex items-center justify-center overflow-hidden border-2 border-border shadow-sm',
+        className,
+      )}
+    >
       {cover ? (
-        <img src={cover} alt={`Cover of ${file.title}`} className="h-full w-full object-cover" />
+        <>
+          <img src={cover} alt={`Cover of ${file.title}`} className="h-full w-full object-cover" />
+          {/* Printed-book sheen, spine, and vignette over the rendered page. */}
+          <div className="tb-cover-sheen pointer-events-none absolute inset-0" aria-hidden="true" />
+          <div className="tb-cover-spine pointer-events-none absolute inset-0" aria-hidden="true" />
+          <div className="tb-cover-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
+        </>
       ) : (
-        fallback
+        <>
+          {/* Gradient backdrop behind the initials while the cover loads. */}
+          <div className="tb-cover-fallback absolute inset-0" aria-hidden="true" />
+          <span className="relative z-10">{fallback}</span>
+        </>
       )}
     </div>
   );

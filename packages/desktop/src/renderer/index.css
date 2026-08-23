@@ -183,6 +183,45 @@
   }
 }
 
+/* ---------- Book cover presentation ---------- */
+
+/* Soft highlight sweeping the upper-left of a cover, so it reads as printed. */
+.tb-cover-sheen {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(255, 255, 255, 0.06) 28%,
+    rgba(255, 255, 255, 0) 46%
+  );
+}
+
+/* Subtle spine shadow on the left edge to suggest a bound book. */
+.tb-cover-spine {
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.28) 0%,
+    rgba(0, 0, 0, 0.09) 22%,
+    rgba(0, 0, 0, 0) 38%
+  );
+}
+
+/* Faint vignette grounding the cover against the card. */
+.tb-cover-vignette {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.18) 0%,
+    rgba(0, 0, 0, 0.05) 24%,
+    rgba(0, 0, 0, 0) 42%
+  );
+}
+
+/* Gradient placeholder behind the initials while a cover loads. */
+.tb-cover-fallback {
+  background:
+    radial-gradient(120% 140% at 15% 0%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(160deg, var(--avatar-a) 0%, var(--avatar-b) 100%);
+}
+
 /* ---------- Reader overlay transitions ---------- */
 
 .overlay {
