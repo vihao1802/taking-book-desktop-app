@@ -255,4 +255,6 @@
 
 .tb-text-layer ::selection {
   background: rgba(0, 102, 255, 0.35);
+  /* The canvas already shows the text; keep the overlay glyphs invisible. */
+  color: transparent;
 }
