@@ -57,13 +57,20 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       if (isOk(result)) {
         setAccount(result.data);
         setSync({ syncing: false, last: null, error: null });
+        const syncResult = await window.api.runSync();
+        if (isOk(syncResult)) {
+          setSync({ syncing: false, last: syncResult.data, error: null });
+          await refresh();
+        } else {
+          setSync({ syncing: false, last: null, error: syncResult.error });
+        }
       } else {
         setSync({ syncing: false, last: null, error: result.error });
       }
     } finally {
       setConnecting(false);
     }
-  }, []);
+  }, [refresh]);
 
   const disconnectCloud = useCallback(async () => {
     const result = await window.api.disconnectCloud();

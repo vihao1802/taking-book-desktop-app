@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Cloud, FolderSync, LayoutGrid, List, Star } from 'lucide-react';
+import { AlertCircle, BookOpen, Cloud, FolderSync, LayoutGrid, List, Star } from 'lucide-react';
 import type { BookFile, BookStatus } from '../../shared/types';
 import { Badge, badgeVariants } from '@/components/ui/badge';
 import { BookCover } from '@/components/BookCover';
@@ -84,6 +84,13 @@ export function Library({
     setPendingRemove(null);
   };
 
+  const isReconnectNeeded = Boolean(
+    sync.error &&
+      (sync.error.toLowerCase().includes('reconnect') ||
+        sync.error.toLowerCase().includes('expired') ||
+        sync.error.toLowerCase().includes('invalid_grant')),
+  );
+
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-6 sm:p-8">
       <header className="flex flex-wrap items-center gap-5">
@@ -130,13 +137,24 @@ export function Library({
       <section className="border-border flex flex-wrap items-center justify-between gap-4 rounded-lg border px-3.5 py-2.5">
         {account ? (
           <>
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Cloud className="text-muted-foreground size-4 shrink-0" />
               <span className="text-muted-foreground text-sm">Google Drive:</span>
               <span className="max-w-80 truncate text-sm" title={account.email}>
                 {account.displayName}
                 {account.email ? ` (${account.email})` : ''}
               </span>
+              {isReconnectNeeded && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={connectCloud}
+                  disabled={connecting}
+                >
+                  {connecting ? 'Connecting…' : 'Reconnect'}
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={disconnectCloud}>
                 Disconnect
               </Button>
@@ -202,7 +220,25 @@ export function Library({
         </Button>
       </div>
 
-      {sync.error && <p className="text-destructive text-sm">{sync.error}</p>}
+      {sync.error && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-sm text-destructive">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="size-4 shrink-0" />
+            <span>{sync.error}</span>
+          </div>
+          {isReconnectNeeded && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7 text-xs"
+              onClick={connectCloud}
+              disabled={connecting}
+            >
+              {connecting ? 'Connecting…' : 'Reconnect account'}
+            </Button>
+          )}
+        </div>
+      )}
       {sync.last && (
         <p className="text-muted-foreground text-sm">
           Last sync: {sync.last.added} added, {sync.last.updated} updated, {sync.last.deleted} deleted

@@ -90,10 +90,10 @@ function postFormHttpClient(fetchImpl: typeof fetch): OAuthHttpClient {
   };
 }
 
-function toCloudToken(response: OAuthTokenResponse): CloudToken {
+function toCloudToken(response: OAuthTokenResponse, existingRefreshToken?: string | null): CloudToken {
   return {
     accessToken: response.accessToken,
-    refreshToken: response.refreshToken,
+    refreshToken: response.refreshToken ?? existingRefreshToken ?? null,
     expiresAt: Date.now() + response.expiresInSeconds * 1000,
   };
 }
@@ -319,8 +319,13 @@ async function freshToken(
   if (token.expiresAt - REFRESH_SKEW_MS > Date.now()) return ok(token);
   if (!token.refreshToken) return err('Google session expired; reconnect your account.');
   const response = await refreshAccessToken(http, oauthConfig, token.refreshToken);
-  if (!isOk(response)) return err(`Could not refresh Google session: ${response.error}`);
-  const refreshed = toCloudToken(response.data);
+  if (!isOk(response)) {
+    if (response.error.includes('invalid_grant')) {
+      return err('Google session expired; reconnect your account.');
+    }
+    return err(`Could not refresh Google session: ${response.error}`);
+  }
+  const refreshed = toCloudToken(response.data, token.refreshToken);
   const saved = await tokenStore.setAuth({ token: refreshed, account: stored.data.account });
   if (!isOk(saved)) return saved;
   return ok(refreshed);
@@ -379,8 +384,13 @@ function createDriveRestClient(input: {
     if (!isOk(stored)) return stored;
     if (!stored.data?.token.refreshToken) return err('Google session expired; reconnect your account.');
     const response = await refreshAccessToken(http, flowConfig(''), stored.data.token.refreshToken);
-    if (!isOk(response)) return err(`Could not refresh Google session: ${response.error}`);
-    const refreshed = toCloudToken(response.data);
+    if (!isOk(response)) {
+      if (response.error.includes('invalid_grant')) {
+        return err('Google session expired; reconnect your account.');
+      }
+      return err(`Could not refresh Google session: ${response.error}`);
+    }
+    const refreshed = toCloudToken(response.data, stored.data.token.refreshToken);
     const saved = await tokenStore.setAuth({ token: refreshed, account: stored.data.account });
     if (!isOk(saved)) return saved;
     return ok(refreshed);
