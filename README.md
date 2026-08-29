@@ -65,6 +65,15 @@ tagged release triggers a GitHub Actions workflow
 
 ### Cutting a release
 
+Follow [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`
+(e.g. `1.2.3`). Each released change bumps the version accordingly:
+
+- **PATCH** — bug fixes and backwards-compatible small changes (e.g. `1.2.3` → `1.2.4`).
+- **MINOR** — new backwards-compatible features (e.g. `1.2.3` → `1.3.0`).
+- **MAJOR** — breaking changes (e.g. `1.2.3` → `2.0.0`).
+
+Steps:
+
 1. Bump the version in `packages/desktop/package.json` and commit.
 2. Push a tag named `v<version>` (matching the `package.json` version), e.g.:
 
