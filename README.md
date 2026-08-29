@@ -55,3 +55,38 @@ TB_DISABLE_GPU=1 npm start   # TB_DISABLE_GPU for VMs/containers
    `resources/` when present, so packaged builds resolve credentials without
    committing them.
 5. **Phase 5 — React Native port** of the reader using `packages/core`.
+
+## Releases
+
+End users download the app from the **GitHub Releases** page of this repo. A
+tagged release triggers a GitHub Actions workflow
+(`.github/workflows/release.yml`) that builds a `.deb` (Linux) and a `.exe`
+(Windows) and attaches them to the release.
+
+### Cutting a release
+
+1. Bump the version in `packages/desktop/package.json` and commit.
+2. Push a tag named `v<version>` (matching the `package.json` version), e.g.:
+
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+   The workflow builds both platforms and publishes the release notes
+   automatically from the commits since the last tag.
+3. Verify the release at `https://github.com/vihao1802/taking-book-desktop-app/releases`.
+
+Notes:
+
+- **Google OAuth credentials** are injected from the `TB_GDRIVE_CLIENT_ID` /
+  `TB_GDRIVE_CLIENT_SECRET` repository secrets at build time. They must be
+  set in the repo's *Settings → Secrets*; the publisher's (verified) client is
+  used for end users. Without them the app builds but cloud sync is disabled.
+- **Windows build** (Squirrel `.exe`) is unsigned — SmartScreen will warn users
+  "Unknown publisher". Signing needs a code-signing certificate; see
+  `.github/workflows/release.yml` if that becomes necessary.
+- **macOS**: a `.dmg`/`.app` must be built and notarized on a Mac (GitHub
+  `macos-latest` runners) and requires an Apple Developer account. Not wired
+  up yet — Linux and Windows are the current release targets.
+- Install the Linux package with `sudo apt install ./taking-book-desktop-app_*.deb`.

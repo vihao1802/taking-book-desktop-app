@@ -30,7 +30,10 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ['darwin']),
-    new MakerDeb({}),
+    // The npm package name is scoped (@taking-book/desktop) but the packaged
+    // binary is named from productName; the deb maker defaults its bin to the
+    // package name, so pin it to the real binary or packaging fails.
+    new MakerDeb({ options: { bin: 'taking-book-desktop-app' } }),
   ],
   plugins: [
     new AutoUnpackNativesPlugin({}),
