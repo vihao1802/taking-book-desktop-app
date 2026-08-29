@@ -1,3 +1,7 @@
+const AUTO_CLOSE_MS = 3000;
+const SUCCESS_TITLE = 'Connected to Google Drive';
+const ERROR_TITLE = 'Connection failed';
+
 export type OAuthLandingState = 'success' | 'error';
 
 export interface OAuthLandingPageInput {
@@ -81,7 +85,10 @@ export function renderOAuthResultPage(input: OAuthLandingPageInput): string {
     ? '<svg class="icon icon-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
     : '<svg class="icon icon-error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
   const autoClose = isSuccess
-    ? '<script>setTimeout(function () { window.close(); }, 3000);</script>'
+    // The tab is opened by the system browser, not by this page's script, so
+    // browsers may block window.close(); the button and subtitle are the
+    // reliable fallback, this is just a best-effort convenience.
+    ? `<script>setTimeout(function () { window.close(); }, ${AUTO_CLOSE_MS});</script>`
     : '';
 
   return `<!doctype html>
@@ -89,13 +96,13 @@ export function renderOAuthResultPage(input: OAuthLandingPageInput): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${isSuccess ? 'Connected to Google Drive' : 'Connection failed'} — Taking Book</title>
+  <title>${isSuccess ? SUCCESS_TITLE : ERROR_TITLE} — Taking Book</title>
   <style>${PAGE_STYLE}</style>
 </head>
 <body>
   <main class="card" role="status" aria-live="polite">
     ${icon}
-    <h1>${isSuccess ? 'Connected to Google Drive' : 'Connection failed'}</h1>
+    <h1>${isSuccess ? SUCCESS_TITLE : ERROR_TITLE}</h1>
     <p>${message}</p>
     <button onclick="window.close()">Close this tab</button>
   </main>

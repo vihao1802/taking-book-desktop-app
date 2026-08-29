@@ -28,9 +28,9 @@ sequenceDiagram
     Google-->>Browser: 302 redirect to loopback with code and state
 
     Browser->>App: HTTP GET code and state to loopback server
-    App->>App: render success/error landing page, close server, extract code
     App->>App: validate state === expected state (else error)
     App->>App: extract authorization code
+    App->>App: render success/error landing page
     App->>App: close loopback server (success path)
 
     App->>Google: POST /token with code, redirect_uri, client_id, client_secret, code_verifier
@@ -83,3 +83,9 @@ sequenceDiagram
   desktop client secrets as non-confidential (they ship in the app).
 - **`code_verifier` is ephemeral**: generated per flow, held in the
   `runLoopbackOAuth` closure, never written to disk, discarded after exchange.
+- **Registered redirect URI must match**: the Google Cloud Console OAuth
+  client must authorize a loopback URI with **no trailing slash** (e.g.
+  `http://127.0.0.1` or `http://localhost`) — the port is ignored for Desktop
+  clients, but the path must match the `redirectUri` built in `googleDrive.ts`
+  (`http://127.0.0.1:<port>`). A registered `.../` path will cause
+  `redirect_uri_mismatch`.
