@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspace @taking-book/core",
-    "test": "npm run test --workspace @taking-book/core",
+    "test": "npm run test --workspace @taking-book/core && npm run test --workspace @taking-book/desktop",
     "typecheck": "npm run typecheck --workspace @taking-book/core && npm run typecheck --workspace @taking-book/desktop",
     "lint": "npm run lint --workspace @taking-book/desktop"
   },

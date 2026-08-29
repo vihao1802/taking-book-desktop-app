@@ -2,9 +2,11 @@
 
 Actual flow implemented in `packages/desktop/src/main/cloud/googleDrive.ts`
 (`runLoopbackOAuth`) and `packages/core/src/sync/cloud.ts`. The loopback
-server binds to `http://127.0.0.1:<random-port>/`; the `code_verifier` is
-generated in the main-process closure before the browser opens and is never
-persisted — it exists only for the duration of the exchange.
+server binds to `http://127.0.0.1:<random-port>` (loopback IP literal per
+RFC 8252 §7.3, so any port is accepted); the `code_verifier` is generated in
+the main-process closure before the browser opens and is never persisted — it
+exists only for the duration of the exchange. The redirect target page is
+rendered by `packages/desktop/src/main/cloud/oauthLandingPage.ts`.
 
 ```mermaid
 sequenceDiagram
@@ -26,7 +28,8 @@ sequenceDiagram
     Google-->>Browser: 302 redirect to loopback with code and state
 
     Browser->>App: HTTP GET code and state to loopback server
-    App->>App: validate state === expected state (else error, close server)
+    App->>App: render success/error landing page, close server, extract code
+    App->>App: validate state === expected state (else error)
     App->>App: extract authorization code
     App->>App: close loopback server (success path)
 

@@ -15,10 +15,16 @@ import path from 'node:path';
 // app falls back to env vars / settings / the bundled default client id.
 const bundledEnv = existsSync(path.join(__dirname, '.env')) ? ['.env'] : [];
 
+// The Linux window icon is copied into resources/ so the packaged app can set
+// it on the BrowserWindow at runtime (it is not bundled into the asar, which
+// only contains the vite output).
+const bundledIcon = [path.join(__dirname, 'build', 'icon.png')];
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    extraResource: bundledEnv,
+    extraResource: [...bundledEnv, ...bundledIcon],
+    icon: path.join(__dirname, 'build', 'icon'),
   },
   rebuildConfig: {},
   makers: [

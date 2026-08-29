@@ -18,6 +18,7 @@ import {
   type SyncStorage,
 } from '@taking-book/core';
 import type { CloudTokenStore } from './tokenStore';
+import { renderOAuthResultPage } from './oauthLandingPage';
 
 const DEFAULT_SCOPES = [
   'openid',
@@ -99,8 +100,8 @@ function toCloudToken(response: OAuthTokenResponse): CloudToken {
 
 /**
  * Google Drive provider. `connect()` runs the loopback OAuth flow (opens a
- * browser at Google's consent screen, catches the redirect on 127.0.0.1),
- * stores the token encrypted, and `createSyncStorage()` hands back a
+ * browser at Google's consent screen, catches the redirect on a loopback
+ * address), stores the token encrypted, and `createSyncStorage()` hands back a
  * {@link SyncStorage} over the Drive REST API.
  */
 export function createGoogleDriveProvider(deps: GoogleDriveDeps): CloudProvider {
@@ -202,7 +203,7 @@ async function runLoopbackOAuth(deps: LoopbackDeps): Promise<Result<{ account: C
   const { server, port, stop } = await listenLoopback();
   if (!server) return loopbackFailure('Could not start the local auth server. Try again.');
   if (!port) return loopbackFailure('Could not resolve a local auth port. Try again.');
-  const redirectUri = `http://127.0.0.1:${port}/`;
+  const redirectUri = `http://127.0.0.1:${port}`;
   const state = randomUUID();
   // PKCE: the verifier lives only in this closure — generated before the
   // browser opens and handed to the token exchange, never persisted. The
@@ -218,20 +219,26 @@ async function runLoopbackOAuth(deps: LoopbackDeps): Promise<Result<{ account: C
 
   const codePromise = new Promise<Result<string>>((resolve) => {
     server.on('request', (req, res) => {
-      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
       const url = new URL(req.url ?? '/', redirectUri);
       const returnedState = url.searchParams.get('state');
       const code = url.searchParams.get('code');
-      res.end('<html><body><p>You can close this tab now.</p></body></html>');
+      let outcome: Result<string>;
       if (returnedState !== state) {
-        resolve(err('OAuth state mismatch; try again.'));
-        return;
+        outcome = err('OAuth state mismatch; try again.');
+      } else if (!code) {
+        outcome = err('Google did not return an authorization code.');
+      } else {
+        outcome = ok(code);
       }
-      if (!code) {
-        resolve(err('Google did not return an authorization code.'));
-        return;
-      }
-      resolve(ok(code));
+      res.end(
+        renderOAuthResultPage(
+          isOk(outcome)
+            ? { state: 'success' }
+            : { state: 'error', message: outcome.error },
+        ),
+      );
+      resolve(outcome);
     });
   });
 

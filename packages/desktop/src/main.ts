@@ -77,6 +77,11 @@ const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1100,
     height: 800,
+    // Packaged builds read the icon from resources/ (shipped by extraResource);
+    // in dev it lives next to the source in build/.
+    icon: app.isPackaged
+      ? path.join(process.resourcesPath, 'icon.png')
+      : path.join(__dirname, '..', '..', 'build', 'icon.png'),
     backgroundColor: '#faf9f7',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
