@@ -410,8 +410,14 @@ function createDriveRestClient(input: {
     }
   }
 
+  function escapeDriveQueryValue(value: string): string {
+    return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+
   async function fileIdByName(folderId: string, name: string): Promise<Result<string | null>> {
-    const q = encodeURIComponent(`name = '${name}' and '${folderId}' in parents and trashed = false`);
+    const q = encodeURIComponent(
+      `name = '${escapeDriveQueryValue(name)}' and '${folderId}' in parents and trashed = false`,
+    );
     const json = await apiJson(`/files?q=${q}&fields=files(id,name)&pageSize=1000`);
     if (!isOk(json)) return json;
     if (!json.data) return ok(null);
@@ -421,9 +427,9 @@ function createDriveRestClient(input: {
 
   return {
     async ensureFolder(name: string, parentId: string | null): Promise<Result<string>> {
-      const parentQ = parentId ? `'${parentId}' in parents and ` : 'root in parents and ';
+      const parentQ = parentId ? `'${parentId}' in parents and ` : "'root' in parents and ";
       const q = encodeURIComponent(
-        `${parentQ}name = '${name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        `${parentQ}name = '${escapeDriveQueryValue(name)}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
       );
       const existing = await apiJson(`/files?q=${q}&fields=files(id,name)`);
       if (!isOk(existing)) return existing;

@@ -197,4 +197,127 @@ describe('createGoogleDriveProvider', () => {
       expect(storageResult.error).toBe('Google session expired; reconnect your account.');
     }
   });
+
+  it('queries root folder using valid Drive API syntax when accessing sync storage', async () => {
+    const { store } = createMockTokenStore({
+      token: {
+        accessToken: 'valid-access-token',
+        refreshToken: 'valid-refresh-token',
+        expiresAt: Date.now() + 3600_000,
+      },
+      account: mockAccount,
+    });
+
+    const requestedUrls: string[] = [];
+    const mockFetch: typeof fetch = async (url) => {
+      const urlStr = String(url);
+      requestedUrls.push(urlStr);
+
+      const parsedUrl = new URL(urlStr);
+      const q = parsedUrl.searchParams.get('q');
+      if (q) {
+        // Drive API rejects unquoted root in parents queries with HTTP 400 Invalid Value
+        if (q.includes('root in parents')) {
+          return new Response(
+            JSON.stringify({
+              error: {
+                code: 400,
+                message: 'Invalid Value',
+                errors: [
+                  {
+                    message: 'Invalid Value',
+                    domain: 'global',
+                    reason: 'invalid',
+                    location: 'q',
+                    locationType: 'parameter',
+                  },
+                ],
+              },
+            }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+      }
+
+      if (urlStr.includes('/files?q=')) {
+        return new Response(JSON.stringify({ files: [{ id: 'folder-root-id', name: 'Taking Book' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (urlStr.includes('/files/folder-root-id?alt=media')) {
+        return new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        });
+      }
+
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+
+    const provider = createGoogleDriveProvider({
+      clientId: 'test-client-id',
+      tokenStore: store,
+      openExternal: () => undefined,
+      fetchImpl: mockFetch,
+    });
+
+    const storageResult = await provider.createSyncStorage();
+    expect(isOk(storageResult)).toBe(true);
+    if (isOk(storageResult)) {
+      const manifestResult = await storageResult.data.readFile('manifest.json');
+      expect(manifestResult).toEqual(ok(new Uint8Array([1, 2, 3])));
+    }
+  });
+
+  it('escapes single quotes and special characters in folder and file queries', async () => {
+    const { store } = createMockTokenStore({
+      token: {
+        accessToken: 'valid-access-token',
+        refreshToken: 'valid-refresh-token',
+        expiresAt: Date.now() + 3600_000,
+      },
+      account: mockAccount,
+    });
+
+    const queries: string[] = [];
+    const mockFetch: typeof fetch = async (url) => {
+      const urlStr = String(url);
+      const parsedUrl = new URL(urlStr);
+      const q = parsedUrl.searchParams.get('q');
+      if (q) queries.push(q);
+
+      if (urlStr.includes('/files?q=')) {
+        return new Response(JSON.stringify({ files: [{ id: 'app-folder-id', name: "O'Reilly Books" }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (urlStr.includes('/files/app-folder-id?alt=media')) {
+        return new Response(new Uint8Array([4, 5, 6]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        });
+      }
+
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+
+    const provider = createGoogleDriveProvider({
+      clientId: 'test-client-id',
+      appFolderName: "O'Reilly Books",
+      tokenStore: store,
+      openExternal: () => undefined,
+      fetchImpl: mockFetch,
+    });
+
+    const storageResult = await provider.createSyncStorage();
+    expect(isOk(storageResult)).toBe(true);
+    if (isOk(storageResult)) {
+      await storageResult.data.readFile('manifest.json');
+      expect(queries.some((q) => q.includes("'root' in parents and name = 'O\\'Reilly Books'"))).toBe(true);
+    }
+  });
 });
