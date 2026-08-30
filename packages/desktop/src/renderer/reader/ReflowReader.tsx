@@ -195,6 +195,12 @@ export function ReflowReader({
         setActivePopup(null);
         return;
       }
+      const targetEl = e.target as HTMLElement | null;
+      const typing =
+        targetEl?.tagName === 'INPUT' ||
+        targetEl?.tagName === 'TEXTAREA' ||
+        targetEl?.isContentEditable;
+      if (typing) return;
       const el = scrollRef.current;
       if (!el) return;
       const step = Math.max(el.clientHeight * 0.9, 1);

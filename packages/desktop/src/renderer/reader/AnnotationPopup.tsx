@@ -36,9 +36,6 @@ export function AnnotationPopup({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <p className="text-muted-foreground max-h-16 overflow-y-auto text-xs italic">
-        “{annotation.quote}”
-      </p>
       <Input
         value={draft}
         onChange={(e) => setDraft(e.target.value)}

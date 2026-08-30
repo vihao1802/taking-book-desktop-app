@@ -163,6 +163,12 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable;
+      if (typing) return;
       if (e.key === 'PageDown' || e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
         pagesRef.current?.scrollToPage(currentPage + 1);
