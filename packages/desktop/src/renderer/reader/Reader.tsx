@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { isOk } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import { Button } from '@/components/ui/button';
-import { useTheme } from '../theme';
 import { Overlay, clampZoom } from './Overlay';
 import { fileUrl, getScrollbarWidth, useElementSize, usePageLayout, usePdfDocument } from './pdf';
 import { PdfPages, type PdfPagesHandle } from './PdfPages';
@@ -16,7 +15,6 @@ import type { PageTextSelection } from './PdfPageView';
 const HIDE_DELAY_MS = 2500;
 
 export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
-  const { cycleTheme } = useTheme();
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
   const {
     paragraphs,
@@ -78,13 +76,18 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   }, [pdf, file.id]);
 
   // Restore the zoom level this book was last read at, so reopening doesn't
-  // reset to 100% and force the reader to re-zoom.
+  // reset to 100% and force the reader to re-zoom. A saved zoom of exactly 100%
+  // means the book was left in fit-to-width; anything else means it was zoomed,
+  // so fit-to-width must be off or the toolbar would show a zoom the layout
+  // isn't applying.
   useEffect(() => {
     let cancelled = false;
     window.api.getFileZoom(file.id).then((res) => {
       if (cancelled || !isOk(res) || res.data == null) return;
       zoomLoadedRef.current = true;
-      setZoom(clampZoom(res.data));
+      const restored = clampZoom(res.data);
+      setZoom(restored);
+      setFitWidth(restored === 1);
     });
     return () => {
       cancelled = true;
@@ -140,10 +143,23 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     };
   }, [file.id]);
 
+  // The overlay must not disappear while the user is typing (e.g. the custom
+  // zoom field): focus in an editable element means an active editing session,
+  // not a paused one.
+  const isEditingText = useCallback(() => {
+    const target = document.activeElement as HTMLElement | null;
+    return (
+      target?.tagName === 'INPUT' ||
+      target?.tagName === 'TEXTAREA' ||
+      target?.isContentEditable
+    );
+  }, []);
+
   const startHideTimer = useCallback(() => {
     window.clearTimeout(hideTimerRef.current);
+    if (isEditingText()) return;
     hideTimerRef.current = window.setTimeout(() => setOverlayVisible(false), HIDE_DELAY_MS);
-  }, []);
+  }, [isEditingText]);
 
   const reveal = useCallback(() => {
     setOverlayVisible(true);
@@ -315,7 +331,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           }}
           onClose={onClose}
           onSeek={(p) => pagesRef.current?.scrollToPage(p)}
-          onCycleTheme={cycleTheme}
+          onInteract={reveal}
         />
       )}
     </div>

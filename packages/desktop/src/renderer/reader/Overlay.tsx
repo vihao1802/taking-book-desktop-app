@@ -1,15 +1,13 @@
-import { ArrowLeft, Frame, SunMoon, Type, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, Frame, Type } from 'lucide-react';
+import { clampZoomPercent } from '@taking-book/core';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { ZoomControl } from './ZoomControl';
 
-const ZOOM_STEP = 0.15;
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 3;
-
-/** Clamps a zoom value into the supported range. */
+/** Clamps a zoom multiplier (1 = 100%) into the supported range. */
 export function clampZoom(value: number): number {
-  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value));
+  return clampZoomPercent(value * 100) / 100;
 }
 
 interface OverlayProps {
@@ -27,7 +25,8 @@ interface OverlayProps {
   onToggleMode: () => void;
   onClose: () => void;
   onSeek: (page: number) => void;
-  onCycleTheme: () => void;
+  /** Called when an interaction needs the parent to keep the overlay visible. */
+  onInteract?: () => void;
 }
 
 export function Overlay({
@@ -44,10 +43,8 @@ export function Overlay({
   onToggleMode,
   onClose,
   onSeek,
-  onCycleTheme,
+  onInteract,
 }: OverlayProps) {
-  const clamp = (value: number) => clampZoom(value);
-
   return (
     <div className="pointer-events-none absolute inset-0 z-10" onPointerDown={(e) => e.stopPropagation()}>
       <div className={cn('overlay overlay-top', !visible && 'overlay-hidden')}>
@@ -59,42 +56,19 @@ export function Overlay({
           {mode === 'page' && (
             <Button
               variant="ghost"
-              size="icon"
-              className={cn(fitWidth && 'bg-accent text-accent-foreground')}
+              className={cn(
+                'px-2.5',
+                fitWidth && 'bg-accent text-accent-foreground',
+              )}
               onClick={onFitWidth}
-              aria-label="Fit to container width"
-              title="Fit to container width"
+              aria-label="Fit to width"
+              title="Fit to width"
             >
               <Frame className="size-4" />
+              <span>Fit</span>
             </Button>
           )}
-          <div className="flex items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onZoomChange(clamp(zoom - ZOOM_STEP))}
-              aria-label="Zoom out"
-            >
-              <ZoomOut className="size-4" />
-            </Button>
-            <button
-              type="button"
-              className="text-muted-foreground w-10 cursor-pointer text-xs tabular-nums"
-              onClick={() => onZoomChange(1)}
-              title="Reset zoom"
-              aria-label="Reset zoom"
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onZoomChange(clamp(zoom + ZOOM_STEP))}
-              aria-label="Zoom in"
-            >
-              <ZoomIn className="size-4" />
-            </Button>
-          </div>
+          <ZoomControl zoom={zoom} onZoomChange={onZoomChange} onInteract={onInteract} />
           <Button
             variant="ghost"
             size="icon"
@@ -110,9 +84,6 @@ export function Overlay({
             }
           >
             <Type className="size-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={onCycleTheme} aria-label="Theme">
-            <SunMoon className="size-4" />
           </Button>
         </div>
       </div>

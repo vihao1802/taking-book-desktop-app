@@ -25,6 +25,15 @@ export { getSetting, getTheme, setSetting, setTheme, settingsSchema } from './se
 export { createSha256Hasher, sha256Hex, type Sha256Hasher } from './sha256';
 export { normalizePosition, progressFraction } from './position';
 export {
+  ZOOM_PRESETS,
+  clampZoomPercent,
+  multiplierToPercent,
+  nextPresetPercent,
+  parseCustomZoomPercent,
+  percentToMultiplier,
+  previousPresetPercent,
+} from './zoom';
+export {
   extractLines,
   filterBoilerplateParagraphs,
   paragraphsFromLines,

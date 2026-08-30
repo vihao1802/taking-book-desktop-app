@@ -2,13 +2,10 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { isOk } from '@taking-book/core';
 import type { Theme } from '../shared/types';
 
-const THEME_ORDER: Theme[] = ['light', 'dark', 'sepia', 'system'];
-
 interface ThemeContextValue {
   theme: Theme;
   resolved: 'light' | 'dark';
   setTheme: (theme: Theme) => void;
-  cycleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -56,13 +53,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme, resolved]);
 
   const setTheme = (next: Theme) => setThemeState(next);
-  const cycleTheme = () => {
-    const idx = THEME_ORDER.indexOf(theme);
-    setThemeState(THEME_ORDER[(idx + 1) % THEME_ORDER.length]);
-  };
 
   return (
-    <ThemeContext.Provider value={{ theme, resolved, setTheme, cycleTheme }}>
+    <ThemeContext.Provider value={{ theme, resolved, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

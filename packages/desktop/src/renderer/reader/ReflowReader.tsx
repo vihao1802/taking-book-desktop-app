@@ -3,7 +3,6 @@ import type { ReflowParagraph } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import type { ReflowProgress } from './useReflowDocument';
 import { Button } from '@/components/ui/button';
-import { useTheme } from '../theme';
 import { Overlay } from './Overlay';
 import { AnnotationPopup } from './AnnotationPopup';
 import { SelectionToolbar } from './SelectionToolbar';
@@ -54,7 +53,6 @@ export function ReflowReader({
   onSetNote,
   onDelete,
 }: ReflowReaderProps) {
-  const { cycleTheme } = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const restoredRef = useRef(false);
@@ -126,10 +124,23 @@ export function ReflowReader({
     };
   }, [file.id]);
 
+  // The overlay must not disappear while the user is typing (e.g. the custom
+  // zoom field): focus in an editable element means an active editing session,
+  // not a paused one.
+  const isEditingText = useCallback(() => {
+    const target = document.activeElement as HTMLElement | null;
+    return (
+      target?.tagName === 'INPUT' ||
+      target?.tagName === 'TEXTAREA' ||
+      target?.isContentEditable
+    );
+  }, []);
+
   const startHideTimer = useCallback(() => {
     window.clearTimeout(hideTimerRef.current);
+    if (isEditingText()) return;
     hideTimerRef.current = window.setTimeout(() => setOverlayVisible(false), HIDE_DELAY_MS);
-  }, []);
+  }, [isEditingText]);
 
   const reveal = useCallback(() => {
     setOverlayVisible(true);
@@ -382,7 +393,7 @@ export function ReflowReader({
             const target = ((n - 1) / Math.max(total - 1, 1)) * scrollable;
             el.scrollTo({ top: target, behavior: 'smooth' });
           }}
-          onCycleTheme={cycleTheme}
+          onInteract={reveal}
         />
       )}
     </div>
