@@ -242,6 +242,8 @@ export function Library({
       {sync.last && (
         <p className="text-muted-foreground text-sm">
           Last sync: {sync.last.added} added, {sync.last.updated} updated, {sync.last.deleted} deleted
+          {sync.last.uploaded > 0 ? `, ${sync.last.uploaded} uploaded` : ''}
+          {sync.last.downloaded > 0 ? `, ${sync.last.downloaded} downloaded` : ''}
           {sync.last.warnings.length > 0 ? ` (${sync.last.warnings.length} warnings)` : ''}
         </p>
       )}
