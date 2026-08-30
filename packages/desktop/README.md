@@ -44,8 +44,10 @@ src/
         Reader.tsx          chrome-less reader + auto-hiding overlay
         PdfPages.tsx        windowed scroll renderer (fit-to-width)
         PageCanvas.tsx      single-page pdf.js rasterization
-        ReflowReader.tsx    flowing reflow view (Phase 3 prototype)
-        useReflowDocument.ts pdf.js getTextContent → core reflow pipeline
+        ReflowReader.tsx    flowing reflow view (figures + page separators)
+        ReflowFigure.tsx    lazy figure block (IntersectionObserver + URL cache)
+        useReflowDocument.ts pdf.js getTextContent/operator-list → core reflow pipeline
+        reflowImages.ts     operator-list image scan, decoder interface, LRU cache
         Overlay.tsx         thin control overlay (back, page/reflow toggle, theme)
         pdf.ts              pdf.js setup, hooks, page layout math
     shared/types.ts         ReaderApi (window.api) contract
@@ -86,8 +88,17 @@ normally (plain `file://` fetch is blocked in the renderer).
 
 - The overlay's ¶ button toggles between page (rasterized) and reflow views.
 - Reflow extracts text with pdf.js `getTextContent`, feeds fragments into the
-  core reflow engine, and renders flowing paragraphs at a narrow measure —
-  the reading experience a mobile client will target.
+  core reflow engine, and re-wraps the text to the full viewport width, so zoom
+  scales the font and the number of words per line follows. It renders the
+  document's PDF figures as blocks in the reading flow (each kept at its PDF
+  size, scaled down only when wider than the viewport, never up) and inserts a
+  thin rule with a small page number wherever the PDF page changes.
+- Figures are extracted from each page's pdf.js operator list and anchored
+  between paragraphs by position; the pixel data is decoded lazily (an
+  `ImageDecoder` interface, `ImageBitmap` only for now) as figures near the
+  viewport, with a bounded LRU cache of decoded object URLs so image-heavy
+  books don't hold every figure in memory. The paragraph list is never
+  reordered, so saved highlight anchors stay valid.
 
 ## Sync (Phase 4)
 

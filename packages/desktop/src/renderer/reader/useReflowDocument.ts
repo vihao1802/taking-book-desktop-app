@@ -1,6 +1,14 @@
-import { useEffect, useState } from 'react';
-import { filterBoilerplateParagraphs, reflowPage, type ReflowParagraph } from '@taking-book/core';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  assignImagePositions,
+  filterBoilerplateParagraphs,
+  reflowPage,
+  type PositionedReflowImage,
+  type ReflowImage,
+  type ReflowParagraph,
+} from '@taking-book/core';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { extractImagesFromOperatorList, tryGetObject } from './reflowImages';
 
 /** Text fragment shape from pdf.js getTextContent(), narrowed to what reflow needs. */
 interface TextFragment {
@@ -47,18 +55,35 @@ export const MIN_REFLOW_CHARS = 400;
 
 const FLUSH_EVERY_PAGES = 10;
 
+export interface ReflowImageOptions {
+  /** Fraction of the page area a background image must not cover to be kept. */
+  maxPageAreaRatio?: number;
+}
+
 /**
- * Extracts the whole document into reflow paragraphs. Pages are processed
- * sequentially but state is flushed in batches so the reader can paint and
- * scroll early instead of freezing until every page is parsed.
+ * Extracts the whole document into reflow paragraphs and, when `runImages` is
+ * set, the figures placed between them. Pages are processed sequentially but
+ * state is flushed in batches so the reader can paint and scroll early instead
+ * of freezing until every page is parsed. Image positions are collected from
+ * each page's operator list; the pixel data itself is decoded lazily through
+ * `getImageData` so off-screen figures cost no decoded memory.
  */
-export function useReflowDocument(pdf: PDFDocumentProxy | null): {
+export function useReflowDocument(
+  pdf: PDFDocumentProxy | null,
+  runImages: boolean,
+  imageOptions: ReflowImageOptions = {},
+): {
   paragraphs: ReflowParagraph[];
   pageTexts: string[];
   error: string | null;
   progress: ReflowProgress | null;
   /** True when the document has enough extractable text to reflow. */
   hasText: boolean;
+  images: PositionedReflowImage[];
+  /** True once the image position pass has finished (or failed) for this document. */
+  imagesReady: boolean;
+  /** Resolves a figure's pdf.js image object, re-parsing its page on demand. */
+  getImageData: (pageIndex: number, ref: string) => Promise<unknown>;
 } {
   const [paragraphs, setParagraphs] = useState<ReflowParagraph[]>([]);
   const [pageTexts, setPageTexts] = useState<string[]>([]);
@@ -67,6 +92,8 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
   // Optimistically true so the reflow toggle isn't spuriously disabled while
   // extraction is still running; it's settled once the full document is parsed.
   const [hasText, setHasText] = useState(true);
+  const [rawImages, setRawImages] = useState<ReflowImage[]>([]);
+  const [imagesReady, setImagesReady] = useState(false);
 
   useEffect(() => {
     if (!pdf) {
@@ -126,5 +153,84 @@ export function useReflowDocument(pdf: PDFDocumentProxy | null): {
     };
   }, [pdf]);
 
-  return { paragraphs, pageTexts, error, progress, hasText };
+  useEffect(() => {
+    if (!pdf || !runImages) {
+      setRawImages([]);
+      setImagesReady(false);
+      return;
+    }
+    let cancelled = false;
+    setImagesReady(false);
+    (async () => {
+      try {
+        const collected: ReflowImage[] = [];
+        const seenPlacements = new Set<string>();
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 1 });
+          const pageArea = viewport.width * viewport.height;
+          const opList = await page.getOperatorList();
+          const found = extractImagesFromOperatorList(opList, i - 1, pageArea, {
+            maxPageAreaRatio: imageOptions.maxPageAreaRatio,
+          });
+          for (const image of found) {
+            // Running headers, footers, and watermarks sit at the same spot on
+            // every page; keep only the first instance of each placement.
+            const key = `${image.x.toFixed(1)}|${image.y.toFixed(1)}|${image.width.toFixed(1)}|${image.height.toFixed(1)}`;
+            if (seenPlacements.has(key)) continue;
+            seenPlacements.add(key);
+            collected.push(image);
+          }
+          if (!cancelled && i % FLUSH_EVERY_PAGES === 0) {
+            setRawImages([...collected]);
+          }
+        }
+        if (cancelled) return;
+        setRawImages([...collected]);
+        setImagesReady(true);
+        // getOperatorList transfers every page's image bitmaps eagerly; release
+        // them once positions are known. getImageData re-parses per page.
+        await pdf.cleanup();
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('Reflow image extraction failed:', err);
+          setImagesReady(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, runImages, imageOptions.maxPageAreaRatio]);
+
+  const images = useMemo(() => assignImagePositions(paragraphs, rawImages), [paragraphs, rawImages]);
+
+  const getImageData = useCallback(
+    async (pageIndex: number, ref: string): Promise<unknown> => {
+      if (!pdf) return undefined;
+      const page = await pdf.getPage(pageIndex + 1);
+      const fromPage = tryGetObject(page.objs, ref);
+      if (fromPage !== undefined) return fromPage;
+      const fromCommon = tryGetObject(page.commonObjs, ref);
+      if (fromCommon !== undefined) return fromCommon;
+      // The object was released by the cleanup after extraction; re-parse this
+      // page on demand so only the pages actually in view are re-decoded.
+      await page.getOperatorList();
+      const again = tryGetObject(page.objs, ref);
+      if (again !== undefined) return again;
+      return tryGetObject(page.commonObjs, ref);
+    },
+    [pdf],
+  );
+
+  return {
+    paragraphs,
+    pageTexts,
+    error,
+    progress,
+    hasText,
+    images,
+    imagesReady,
+    getImageData,
+  };
 }

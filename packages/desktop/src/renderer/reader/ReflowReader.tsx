@@ -1,14 +1,22 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { ReflowParagraph } from '@taking-book/core';
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { PositionedReflowImage, ReflowParagraph } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import type { ReflowProgress } from './useReflowDocument';
 import { Button } from '@/components/ui/button';
 import { Overlay } from './Overlay';
 import { AnnotationPopup } from './AnnotationPopup';
 import { SelectionToolbar } from './SelectionToolbar';
+import { ReflowFigure } from './ReflowFigure';
 import { findRangeIgnoringWhitespace, HIGHLIGHT_FILL, rangeGlobalOffsets, selectionRect } from './highlights';
 
 const HIDE_DELAY_MS = 2500;
+
+/** One block in the reflow flow: a text paragraph or a figure. */
+type FlowItem = { kind: 'para'; para: ReflowParagraph; index: number } | { kind: 'image'; image: PositionedReflowImage };
+
+function flowItemPage(item: FlowItem): number {
+  return item.kind === 'image' ? item.image.pageIndex : item.para.pageIndex;
+}
 
 /** One contiguous stretch of selected text inside a single reflow paragraph. */
 interface ReflowSelection {
@@ -21,6 +29,7 @@ interface ReflowSelection {
 interface ReflowReaderProps {
   file: BookFile;
   paragraphs: ReflowParagraph[];
+  images: PositionedReflowImage[];
   pageTexts: string[];
   error: string | null;
   progress: ReflowProgress | null;
@@ -34,11 +43,13 @@ interface ReflowReaderProps {
   onCreate: (input: CreateAnnotationInput) => Promise<Annotation | null>;
   onSetNote: (id: number, note: string | null) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  getImageData: (pageIndex: number, ref: string) => Promise<unknown>;
 }
 
 export function ReflowReader({
   file,
   paragraphs,
+  images,
   pageTexts,
   error,
   progress,
@@ -52,6 +63,7 @@ export function ReflowReader({
   onCreate,
   onSetNote,
   onDelete,
+  getImageData,
 }: ReflowReaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
@@ -86,6 +98,25 @@ export function ReflowReader({
     for (const list of byPara.values()) list.sort((a, b) => (a.paraStart ?? 0) - (b.paraStart ?? 0));
     return byPara;
   }, [annotations]);
+
+  // The visual flow interleaves figures with paragraphs: each figure renders
+  // just before the paragraph it was anchored to. Figures sorted by the core
+  // engine keep their top-to-bottom order when grouped by anchor.
+  const flowItems = useMemo(() => {
+    const byAnchor = new Map<number, PositionedReflowImage[]>();
+    for (const image of images) {
+      const list = byAnchor.get(image.beforeParagraphIndex);
+      if (list) list.push(image);
+      else byAnchor.set(image.beforeParagraphIndex, [image]);
+    }
+    const items: FlowItem[] = [];
+    for (let i = 0; i <= paragraphs.length; i++) {
+      for (const image of byAnchor.get(i) ?? []) items.push({ kind: 'image', image });
+      if (i < paragraphs.length) items.push({ kind: 'para', para: paragraphs[i], index: i });
+    }
+    return items;
+  }, [paragraphs, images]);
+
   const total = paragraphs.length;
   const el = scrollRef.current;
   const scrollable = Math.max((el?.scrollHeight ?? 0) - (el?.clientHeight ?? 0), 0);
@@ -336,19 +367,34 @@ export function ReflowReader({
         >
           <article
             ref={articleRef}
-            className="text-foreground w-[min(68ch,100%)] max-w-full leading-[1.65]"
+            className="text-foreground w-full max-w-full leading-[1.65]"
             style={{ fontSize: baseSize * zoom }}
             onMouseUp={handleMouseUp}
           >
-            {paragraphs.map((para, i) => (
-              <Paragraph
-                key={i}
-                paragraph={para}
-                zoom={zoom}
-                marks={annotationsByPara.get(i) ?? EMPTY_MARKS}
-                onOpen={setActivePopup}
-              />
-            ))}
+            {flowItems.map((item, i) => {
+              const isNewPage = i === 0 || flowItemPage(item) !== flowItemPage(flowItems[i - 1]);
+              const key = item.kind === 'image' ? `image-${item.image.ref}` : `para-${item.index}`;
+              return (
+                <Fragment key={key}>
+                  {isNewPage && <PageSeparator page={flowItemPage(item) + 1} />}
+                  {item.kind === 'image' ? (
+                    <ReflowFigure
+                      image={item.image}
+                      zoom={zoom}
+                      fileHash={file.hash}
+                      getImageData={getImageData}
+                    />
+                  ) : (
+                    <Paragraph
+                      paragraph={item.para}
+                      zoom={zoom}
+                      marks={annotationsByPara.get(item.index) ?? EMPTY_MARKS}
+                      onOpen={setActivePopup}
+                    />
+                  )}
+                </Fragment>
+              );
+            })}
           </article>
         </div>
       )}
@@ -458,6 +504,17 @@ const Paragraph = memo(function Paragraph({
 });
 
 const EMPTY_MARKS: Annotation[] = [];
+
+/** Thin rule with a small page number marking a page boundary in reflow text. */
+function PageSeparator({ page }: { page: number }) {
+  return (
+    <div className="flex items-center justify-center gap-3 py-6 select-none" aria-hidden>
+      <span className="bg-muted h-px w-12" />
+      <span className="text-muted-foreground text-xs tabular-nums">{page}</span>
+      <span className="bg-muted h-px w-12" />
+    </div>
+  );
+}
 
 /** Maps global text offsets over the article back to per-paragraph ranges. */
 function selectionToParagraphs(

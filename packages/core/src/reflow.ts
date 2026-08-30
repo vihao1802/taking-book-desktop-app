@@ -31,6 +31,32 @@ export interface ReflowParagraph {
   fontSize: number;
   indent: boolean;
   pageIndex: number;
+  /** Baseline y of the first line (PDF user space, y grows downward), used to interleave images. */
+  y: number;
+}
+
+/**
+ * A figure extracted from a PDF page, positioned in PDF user space. The renderer
+ * decodes the pixel data through the `ref` handle, which is opaque here so core
+ * stays platform-agnostic (desktop resolves it against pdf.js page objects).
+ */
+export interface ReflowImage {
+  pageIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Opaque handle a platform uses to resolve the image's pixel data. */
+  ref: string;
+}
+
+/** A figure assigned a place in the paragraph flow. */
+export interface PositionedReflowImage extends ReflowImage {
+  /**
+   * Index of the paragraph this image renders before. Ranges over
+   * [0, paragraphs.length]; an end value means "after the last paragraph".
+   */
+  beforeParagraphIndex: number;
 }
 
 export interface ReflowOptions {
@@ -155,7 +181,7 @@ export function paragraphsFromLines(
     const prev = paragraphs[paragraphs.length - 1];
 
     if (!prev || !lastLine) {
-      paragraphs.push({ text: line.text, fontSize: line.fontSize, indent: false, pageIndex });
+      paragraphs.push({ text: line.text, fontSize: line.fontSize, indent: false, pageIndex, y: line.y });
       return;
     }
 
@@ -170,7 +196,7 @@ export function paragraphsFromLines(
       indent;
 
     if (startsNew) {
-      paragraphs.push({ text: line.text, fontSize: line.fontSize, indent, pageIndex });
+      paragraphs.push({ text: line.text, fontSize: line.fontSize, indent, pageIndex, y: line.y });
     } else {
       prev.text += ' ' + line.text;
     }
@@ -187,6 +213,29 @@ export function paragraphsFromLines(
 export function reflowPage(items: ReflowTextItem[], pageIndex: number, options?: ReflowOptions): ReflowParagraph[] {
   const lines = extractLines(items, options);
   return paragraphsFromLines(lines, pageIndex, options);
+}
+
+/**
+ * Places each image before the first paragraph whose top sits at or below the
+ * image's y on the same page (so a figure beside text collapses to image-first,
+ * with the co-located text flowing after it), or before the first paragraph of
+ * the next page when nothing on its own page qualifies. Returns a new array;
+ * the paragraph list and its indices are left untouched so reflow annotation
+ * anchors stay stable.
+ */
+export function assignImagePositions(
+  paragraphs: ReflowParagraph[],
+  images: ReflowImage[],
+): PositionedReflowImage[] {
+  const sorted = [...images].sort((a, b) => a.pageIndex - b.pageIndex || a.y - b.y);
+  return sorted.map((image) => {
+    const index = paragraphs.findIndex(
+      (para) =>
+        para.pageIndex > image.pageIndex ||
+        (para.pageIndex === image.pageIndex && para.y >= image.y),
+    );
+    return { ...image, beforeParagraphIndex: index === -1 ? paragraphs.length : index };
+  });
 }
 
 interface BoilerplateOptions {

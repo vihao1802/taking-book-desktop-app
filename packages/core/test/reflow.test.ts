@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assignImagePositions,
   extractLines,
   filterBoilerplateParagraphs,
   paragraphsFromLines,
   reflowPage,
+  type ReflowImage,
   type ReflowParagraph,
   type ReflowTextItem,
 } from '../src';
@@ -144,7 +146,7 @@ describe('reflowPage', () => {
 
 describe('filterBoilerplateParagraphs', () => {
   function para(text: string, pageIndex: number): ReflowParagraph {
-    return { text, fontSize: 12, indent: false, pageIndex };
+    return { text, fontSize: 12, indent: false, pageIndex, y: 0 };
   }
 
   it('drops a watermark that repeats on most pages', () => {
@@ -178,5 +180,55 @@ describe('filterBoilerplateParagraphs', () => {
   it('does nothing for a single-page document', () => {
     const list = [para('Created in Master PDF Editor', 0)];
     expect(filterBoilerplateParagraphs(list)).toEqual(list);
+  });
+});
+
+describe('assignImagePositions', () => {
+  function para(text: string, pageIndex: number, y: number): ReflowParagraph {
+    return { text, fontSize: 12, indent: false, pageIndex, y };
+  }
+
+  function img(pageIndex: number, y: number, ref = 'img'): ReflowImage {
+    return { pageIndex, x: 0, y, width: 100, height: 50, ref };
+  }
+
+  it('places an image before the first paragraph at or below its y on the same page', () => {
+    const paragraphs = [para('top', 0, 100), para('bottom', 0, 300)];
+    const positioned = assignImagePositions(paragraphs, [img(0, 200)]);
+    expect(positioned).toHaveLength(1);
+    expect(positioned[0].beforeParagraphIndex).toBe(1);
+  });
+
+  it('collapses a side-by-side figure to image-first when the text shares its band', () => {
+    const paragraphs = [para('beside', 0, 110)];
+    const positioned = assignImagePositions(paragraphs, [img(0, 100)]);
+    expect(positioned[0].beforeParagraphIndex).toBe(0);
+  });
+
+  it('moves an image below all same-page text to the start of the next page', () => {
+    const paragraphs = [para('page one', 0, 100), para('page two', 1, 50)];
+    const positioned = assignImagePositions(paragraphs, [img(0, 500)]);
+    expect(positioned[0].beforeParagraphIndex).toBe(1);
+  });
+
+  it('anchors an image after the last paragraph to the end of the flow', () => {
+    const paragraphs = [para('only', 0, 100)];
+    const positioned = assignImagePositions(paragraphs, [img(0, 900)]);
+    expect(positioned[0].beforeParagraphIndex).toBe(1);
+  });
+
+  it('keeps images sharing an anchor in top-to-bottom order', () => {
+    const paragraphs = [para('below', 0, 300)];
+    const positioned = assignImagePositions(paragraphs, [img(0, 220, 'second'), img(0, 200, 'first')]);
+    expect(positioned.map((p) => p.ref)).toEqual(['first', 'second']);
+    expect(positioned.every((p) => p.beforeParagraphIndex === 0)).toBe(true);
+  });
+
+  it('leaves the paragraph list and input images untouched', () => {
+    const paragraphs = [para('top', 0, 100)];
+    const images = [img(0, 50)];
+    assignImagePositions(paragraphs, images);
+    expect('beforeParagraphIndex' in images[0]).toBe(false);
+    expect(paragraphs).toHaveLength(1);
   });
 });

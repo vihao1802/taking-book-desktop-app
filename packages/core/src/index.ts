@@ -34,10 +34,13 @@ export {
   previousPresetPercent,
 } from './zoom';
 export {
+  assignImagePositions,
   extractLines,
   filterBoilerplateParagraphs,
   paragraphsFromLines,
   reflowPage,
+  type PositionedReflowImage,
+  type ReflowImage,
   type ReflowLine,
   type ReflowOptions,
   type ReflowParagraph,

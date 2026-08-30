@@ -15,6 +15,7 @@ import type { PageTextSelection } from './PdfPageView';
 const HIDE_DELAY_MS = 2500;
 
 export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
+  const [mode, setMode] = useState<'page' | 'reflow'>('page');
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
   const {
     paragraphs,
@@ -22,11 +23,12 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     error: reflowError,
     progress: reflowProgress,
     hasText,
-  } = useReflowDocument(pdf);
+    images,
+    getImageData,
+  } = useReflowDocument(pdf, mode === 'reflow');
   const { annotations, create, setNote, remove } = useAnnotations(file.hash);
   useReadingSession(file.id);
 
-  const [mode, setMode] = useState<'page' | 'reflow'>('page');
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(true);
   const zoomLoadedRef = useRef(false);
@@ -251,6 +253,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
       <ReflowReader
         file={file}
         paragraphs={paragraphs}
+        images={images}
         pageTexts={pageTexts}
         error={reflowError}
         progress={reflowProgress}
@@ -269,6 +272,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
         onCreate={create}
         onSetNote={setNote}
         onDelete={remove}
+        getImageData={getImageData}
       />
     );
   }
