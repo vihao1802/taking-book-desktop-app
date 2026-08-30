@@ -8,6 +8,27 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 export const PAGE_GAP = 12;
 
+let cachedScrollbarWidth: number | null = null;
+
+/**
+ * Width of a classic (non-overlay) vertical scrollbar in CSS pixels.
+ *
+ * The reader's scroll container reserves this much horizontal space for its
+ * vertical scrollbar, so a page laid out to the full measured container width
+ * would overflow by this amount and trigger an unwanted horizontal scrollbar.
+ * Measured once; returns 0 on platforms with overlay scrollbars.
+ */
+export function getScrollbarWidth(): number {
+  if (cachedScrollbarWidth !== null) return cachedScrollbarWidth;
+  const probe = document.createElement('div');
+  probe.style.cssText =
+    'position:absolute;top:-9999px;left:-9999px;width:100px;height:100px;overflow:scroll;';
+  document.body.appendChild(probe);
+  cachedScrollbarWidth = Math.max(probe.offsetWidth - probe.clientWidth, 0);
+  probe.remove();
+  return cachedScrollbarWidth;
+}
+
 export function fileUrl(filePath: string): string {
   return `appfile://doc/${encodeURIComponent(filePath)}`;
 }

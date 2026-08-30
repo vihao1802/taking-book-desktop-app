@@ -4,7 +4,7 @@ import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } fro
 import { Button } from '@/components/ui/button';
 import { useTheme } from '../theme';
 import { Overlay, clampZoom } from './Overlay';
-import { fileUrl, useElementSize, usePageLayout, usePdfDocument } from './pdf';
+import { fileUrl, getScrollbarWidth, useElementSize, usePageLayout, usePdfDocument } from './pdf';
 import { PdfPages, type PdfPagesHandle } from './PdfPages';
 import { ReflowReader } from './ReflowReader';
 import { useReflowDocument } from './useReflowDocument';
@@ -37,7 +37,14 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pagesRef = useRef<PdfPagesHandle>(null);
   const { width, height } = useElementSize(scrollRef);
-  const viewWidth = Math.max((fitWidth ? width : width * zoom), 1);
+  // `width` is the full content-box width of the reader wrapper. When pages
+  // are taller than the viewport (always, for a real document) the vertical
+  // scrollbar steals `getScrollbarWidth()` of that width, so a page laid out to
+  // `width` would overflow horizontally. Reserve it, and floor to a whole pixel
+  // so the canvas/text-layer `Math.ceil` rounding can't push one extra px over.
+  const viewWidth = fitWidth
+    ? Math.max(Math.floor(width - getScrollbarWidth()), 1)
+    : Math.max(width * zoom, 1);
   const layout = usePageLayout(pdf, viewWidth);
 
   const [initialPosition, setInitialPosition] = useState<number | undefined>(undefined);

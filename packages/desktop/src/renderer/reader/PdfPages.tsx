@@ -132,6 +132,7 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
   return (
     <div
       className="absolute inset-0 overflow-x-auto overflow-y-auto"
+      style={{ scrollbarGutter: 'stable' }}
       ref={scrollRef}
       onScroll={handleScroll}
     >
