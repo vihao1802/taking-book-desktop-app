@@ -54,9 +54,11 @@ reindexes paragraphs would silently corrupt saved highlights.
    formats such as JPX, CMYK JPEG, and masks are future decoders). Decoded
    object URLs live in a bounded LRU cache (`URL.revokeObjectURL` on eviction),
    scoped by file hash so two documents' pdf.js object ids cannot collide.
-   The eager `getOperatorList` pass that transfers every page's bitmaps is
-   followed by `pdf.cleanup()`, so bitmaps are released and re-fetched per page
-   only when a figure is actually needed.
+   The pdf.js image objects transferred by the eager `getOperatorList` pass are
+   left in `page.objs` (no `pdf.cleanup()`) so `getImageData` can resolve them
+   as figures near the viewport; the pdf is destroyed on close, releasing the
+   memory. Only off-screen figures' decoded blobs are deferred — the raw
+   transfer is accepted as a fixed cost for the first cut.
 
 6. **Page separators.** The renderer derives, at draw time, a thin rule with a
    small 1-based page number whenever the flow's page index changes. No data

@@ -84,7 +84,7 @@ export function useReflowDocument(
   images: PositionedReflowImage[];
   /** True once the image position pass has finished (or failed) for this document. */
   imagesReady: boolean;
-  /** Resolves a figure's pdf.js image object, re-parsing its page on demand. */
+  /** Resolves a figure's pdf.js image object transferred during extraction. */
   getImageData: (pageIndex: number, ref: string) => Promise<unknown>;
 } {
   const [paragraphs, setParagraphs] = useState<ReflowParagraph[]>([]);
@@ -193,9 +193,10 @@ export function useReflowDocument(
         setRawImages([...collected]);
         setPageAreas([...areas]);
         setImagesReady(true);
-        // getOperatorList transfers every page's image bitmaps eagerly; release
-        // them once positions are known. getImageData re-parses per page.
-        await pdf.cleanup();
+        // Keep the transferred image objects in `page.objs` (no cleanup): the
+        // figures are decoded lazily by getImageData as they near the viewport,
+        // but the pdf.js object must remain resolvable. The pdf is destroyed on
+        // close, which releases this memory.
       } catch (err) {
         if (!cancelled) {
           console.warn('Reflow image extraction failed:', err);
@@ -222,13 +223,6 @@ export function useReflowDocument(
       const page = await pdf.getPage(pageIndex + 1);
       const fromPage = tryGetObject(page.objs, ref);
       if (fromPage !== undefined) return fromPage;
-      const fromCommon = tryGetObject(page.commonObjs, ref);
-      if (fromCommon !== undefined) return fromCommon;
-      // The object was released by the cleanup after extraction; re-parse this
-      // page on demand so only the pages actually in view are re-decoded.
-      await page.getOperatorList();
-      const again = tryGetObject(page.objs, ref);
-      if (again !== undefined) return again;
       return tryGetObject(page.commonObjs, ref);
     },
     [pdf],
