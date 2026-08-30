@@ -8,7 +8,7 @@ import {
   type ReflowParagraph,
 } from '@taking-book/core';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { extractImagesFromOperatorList, tryGetObject } from './reflowImages';
+import { extractImagesFromOperatorList, filterBackgroundFigures, tryGetObject } from './reflowImages';
 
 /** Text fragment shape from pdf.js getTextContent(), narrowed to what reflow needs. */
 interface TextFragment {
@@ -95,6 +95,7 @@ export function useReflowDocument(
   // extraction is still running; it's settled once the full document is parsed.
   const [hasText, setHasText] = useState(true);
   const [rawImages, setRawImages] = useState<ReflowImage[]>([]);
+  const [pageAreas, setPageAreas] = useState<Array<number | undefined>>([]);
   const [imagesReady, setImagesReady] = useState(false);
 
   useEffect(() => {
@@ -158,6 +159,7 @@ export function useReflowDocument(
   useEffect(() => {
     if (!pdf || !runImages) {
       setRawImages([]);
+      setPageAreas([]);
       setImagesReady(false);
       return;
     }
@@ -166,15 +168,14 @@ export function useReflowDocument(
     (async () => {
       try {
         const collected: ReflowImage[] = [];
+        const areas: Array<number | undefined> = [];
         const seenPlacements = new Set<string>();
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const viewport = page.getViewport({ scale: 1 });
-          const pageArea = viewport.width * viewport.height;
+          areas[i - 1] = viewport.width * viewport.height;
           const opList = await page.getOperatorList();
-          const found = extractImagesFromOperatorList(opList, i - 1, pageArea, {
-            maxPageAreaRatio: imageOptions.maxPageAreaRatio,
-          });
+          const found = extractImagesFromOperatorList(opList, i - 1);
           for (const image of found) {
             // Running headers, footers, and watermarks sit at the same spot on
             // every page; keep only the first instance of each placement.
@@ -185,10 +186,12 @@ export function useReflowDocument(
           }
           if (!cancelled && i % FLUSH_EVERY_PAGES === 0) {
             setRawImages([...collected]);
+            setPageAreas([...areas]);
           }
         }
         if (cancelled) return;
         setRawImages([...collected]);
+        setPageAreas([...areas]);
         setImagesReady(true);
         // getOperatorList transfers every page's image bitmaps eagerly; release
         // them once positions are known. getImageData re-parses per page.
@@ -203,9 +206,15 @@ export function useReflowDocument(
     return () => {
       cancelled = true;
     };
-  }, [pdf, runImages, imageOptions.maxPageAreaRatio]);
+  }, [pdf, runImages]);
 
-  const images = useMemo(() => assignImagePositions(paragraphs, rawImages), [paragraphs, rawImages]);
+  const images = useMemo(() => {
+    const pagesWithText = new Set(paragraphs.map((para) => para.pageIndex));
+    const kept = filterBackgroundFigures(rawImages, pageAreas, pagesWithText, {
+      maxPageAreaRatio: imageOptions.maxPageAreaRatio,
+    });
+    return assignImagePositions(paragraphs, kept);
+  }, [paragraphs, rawImages, pageAreas, imageOptions.maxPageAreaRatio]);
 
   const getImageData = useCallback(
     async (pageIndex: number, ref: string): Promise<unknown> => {

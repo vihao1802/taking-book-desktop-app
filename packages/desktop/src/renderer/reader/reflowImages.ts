@@ -16,8 +16,9 @@ export const IMAGE_URL_CACHE_SIZE = 24;
 
 export interface ExtractReflowImageOptions {
   /**
-   * Images whose bounding box covers at least this fraction of the page are
-   * treated as full-page backgrounds and dropped. Default 0.9.
+   * An image whose bounding box covers at least this fraction of the page is
+   * treated as a full-page background (and dropped) when the page also has
+   * text. Default 0.9.
    */
   maxPageAreaRatio?: number;
 }
@@ -63,23 +64,20 @@ function multiply(m1: readonly number[], m2: readonly number[]): number[] {
 }
 
 /**
- * Converts a paint transform and image pixel size into an axis-aligned bbox in
- * the reflow engine's top-down convention. pdf.js transforms are in PDF user
- * space (origin bottom-left, y grows upward), so the y axis is negated to make
- * `y` the figure's top edge, consistent with text fragment positions.
+ * Converts a paint transform into an axis-aligned bbox in the reflow engine's
+ * top-down convention. pdf.js paints an image as a unit square (the
+ * `paintImageXObject` width/height args are pixel resolution, not placed size;
+ * the renderer scales by 1/width,1/height before drawing), so the bbox is the
+ * transform applied to the corners of that unit square. The transform is in
+ * PDF user space (origin bottom-left, y grows upward), so the y axis is negated
+ * to make `y` the figure's top edge, consistent with text fragment positions.
  */
-function bboxFromTransform(
-  m: readonly number[],
-  pixelWidth: number,
-  pixelHeight: number,
-  pageIndex: number,
-  ref: string,
-): ReflowImage {
+function bboxFromTransform(m: readonly number[], pageIndex: number, ref: string): ReflowImage {
   const corners = [
     transformPoint(m, 0, 0),
-    transformPoint(m, pixelWidth, 0),
-    transformPoint(m, 0, pixelHeight),
-    transformPoint(m, pixelWidth, pixelHeight),
+    transformPoint(m, 1, 0),
+    transformPoint(m, 0, 1),
+    transformPoint(m, 1, 1),
   ];
   const xs = corners.map(([x]) => x);
   const ys = corners.map(([, y]) => y);
@@ -92,18 +90,16 @@ function bboxFromTransform(
 
 /**
  * Walks a page's operator list and returns the images painted on it, each with
- * its placed bounding box in PDF user space. The current transform is tracked
- * through save/restore/transform operations; each named image is emitted once
- * per page (repeated paints of the same object are deduped), and images that
- * cover the whole page are skipped as backgrounds.
+ * its placed bounding box. The current transform is tracked through
+ * save/restore/transform operations, and each named image is emitted once per
+ * page (repeated paints of the same object are deduped). Background filtering
+ * is not done here — it needs per-page text presence, so the caller applies
+ * `filterBackgroundFigures`.
  */
 export function extractImagesFromOperatorList(
   opList: ReflowOperatorList,
   pageIndex: number,
-  pageArea: number,
-  options: ExtractReflowImageOptions = {},
 ): ReflowImage[] {
-  const maxPageAreaRatio = options.maxPageAreaRatio ?? DEFAULT_MAX_PAGE_AREA_RATIO;
   const images: ReflowImage[] = [];
   const seen = new Set<string>();
   const transformStack: number[][] = [[1, 0, 0, 1, 0, 0]];
@@ -123,22 +119,36 @@ export function extractImagesFromOperatorList(
         transformStack[transformStack.length - 1] = multiply(top, m);
       }
     } else if (fn === OPS.paintImageXObject) {
-      const [ref, pixelWidth, pixelHeight] = args as [string, number, number];
+      const [ref] = args as [string];
       if (!ref || seen.has(ref)) continue;
       seen.add(ref);
-      const image = bboxFromTransform(
-        transformStack[transformStack.length - 1],
-        pixelWidth,
-        pixelHeight,
-        pageIndex,
-        ref,
-      );
-      if (image.width * image.height >= maxPageAreaRatio * pageArea) continue;
-      images.push(image);
+      images.push(bboxFromTransform(transformStack[transformStack.length - 1], pageIndex, ref));
     }
   }
 
   return images;
+}
+
+/**
+ * Drops full-page backgrounds: an image whose bbox covers most of its page is
+ * kept only when the page has no text (a cover or full-page illustration),
+ * because a full-page image *behind* text is page furniture rather than
+ * content. `pageAreas` is indexed by page; pages with unknown area keep their
+ * images. Returns a new array.
+ */
+export function filterBackgroundFigures(
+  images: ReflowImage[],
+  pageAreas: Array<number | undefined>,
+  pagesWithText: ReadonlySet<number>,
+  options: ExtractReflowImageOptions = {},
+): ReflowImage[] {
+  const maxPageAreaRatio = options.maxPageAreaRatio ?? DEFAULT_MAX_PAGE_AREA_RATIO;
+  return images.filter((image) => {
+    const area = pageAreas[image.pageIndex];
+    if (!area) return true;
+    const coversPage = image.width * image.height >= maxPageAreaRatio * area;
+    return !(coversPage && pagesWithText.has(image.pageIndex));
+  });
 }
 
 /** pdf.js image data that carries a decoded ImageBitmap (JPEG/PNG and friends). */

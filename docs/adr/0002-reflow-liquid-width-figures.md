@@ -40,11 +40,13 @@ reindexes paragraphs would silently corrupt saved highlights.
    of the next page. This collapses side-by-side layouts to figure-first with
    the co-located text after it.
 
-4. **Filtering.** Images whose bounding box covers ≥ 90% of the page (a
-   full-page background) are dropped; the ratio is a configurable option.
-   Repeated paints of the same object within a page are deduped, and images at
-   the same position/size on multiple pages (running headers, footers,
-   watermarks) keep only their first instance.
+4. **Filtering.** Images whose bounding box covers ≥ 90% of the page are
+   treated as full-page backgrounds and dropped *only when the page also has
+   text* — a full-page cover or illustration on a text-less page is content and
+   is kept. The ratio is a configurable option. Repeated paints of the same
+   object within a page are deduped, and images at the same position/size on
+   multiple pages (running headers, footers, watermarks) keep only their first
+   instance.
 
 5. **Lazy decoding.** Figure pixel data is decoded only when a figure
    approaches the viewport (`IntersectionObserver`), through an `ImageDecoder`

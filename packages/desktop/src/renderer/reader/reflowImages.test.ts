@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { ReflowImage } from '@taking-book/core';
 
 // reflowImages only needs the numeric OPS constants; pdfjs-dist's full module
 // requires DOM globals (DOMMatrix) that Node lacks, so it is stubbed here.
@@ -11,7 +12,7 @@ vi.mock('pdfjs-dist', () => ({
   },
 }));
 
-import { extractImagesFromOperatorList } from './reflowImages';
+import { extractImagesFromOperatorList, filterBackgroundFigures } from './reflowImages';
 
 /** Numeric OPS constants mirroring the mock above, used to build operator lists. */
 const OPS = { save: 10, restore: 11, transform: 12, paintImageXObject: 85 } as const;
@@ -25,14 +26,13 @@ function opList(ops: Array<[number, unknown[]]>): { fnArray: number[]; argsArray
 }
 
 describe('extractImagesFromOperatorList', () => {
-  it('returns a painted image with its identity-transform bbox', () => {
+  it('returns a painted image with its identity-transform bbox (a unit square)', () => {
     const images = extractImagesFromOperatorList(
       opList([[OPS.paintImageXObject, ['img_p0_1', 100, 40]]]),
       0,
-      100000,
     );
     expect(images).toEqual([
-      { pageIndex: 0, x: 0, y: -40, width: 100, height: 40, ref: 'img_p0_1' },
+      { pageIndex: 0, x: 0, y: -1, width: 1, height: 1, ref: 'img_p0_1' },
     ]);
   });
 
@@ -43,9 +43,8 @@ describe('extractImagesFromOperatorList', () => {
         [OPS.paintImageXObject, ['img_p0_1', 100, 50]],
       ]),
       0,
-      100000,
     );
-    expect(images[0]).toMatchObject({ x: 10, y: -120, width: 200, height: 100 });
+    expect(images[0]).toMatchObject({ x: 10, y: -22, width: 2, height: 2 });
   });
 
   it('restores the transform on restore, isolating later images', () => {
@@ -58,10 +57,9 @@ describe('extractImagesFromOperatorList', () => {
         [OPS.paintImageXObject, ['img_p0_2', 10, 10]],
       ]),
       0,
-      100000,
     );
-    expect(images[0]).toMatchObject({ x: 50, y: -70 });
-    expect(images[1]).toMatchObject({ x: 0, y: -10 });
+    expect(images[0]).toMatchObject({ x: 50, y: -61 });
+    expect(images[1]).toMatchObject({ x: 0, y: -1 });
   });
 
   it('computes the axis-aligned bbox for a rotated image', () => {
@@ -71,9 +69,8 @@ describe('extractImagesFromOperatorList', () => {
         [OPS.paintImageXObject, ['img_p0_1', 100, 50]],
       ]),
       0,
-      100000,
     );
-    expect(images[0]).toMatchObject({ x: 0, y: -100, width: 50, height: 100 });
+    expect(images[0]).toMatchObject({ x: 0, y: -1, width: 1, height: 1 });
   });
 
   it('dedupes repeated paints of the same object on a page', () => {
@@ -83,32 +80,42 @@ describe('extractImagesFromOperatorList', () => {
         [OPS.paintImageXObject, ['logo', 20, 20]],
       ]),
       0,
-      100000,
     );
     expect(images).toHaveLength(1);
   });
+});
 
-  it('drops full-page background images but keeps smaller figures', () => {
-    const pageArea = 100 * 200;
-    const images = extractImagesFromOperatorList(
-      opList([
-        [OPS.paintImageXObject, ['bg', 190, 190]],
-        [OPS.paintImageXObject, ['fig', 40, 40]],
-      ]),
-      0,
-      pageArea,
-    );
-    expect(images.map((img) => img.ref)).toEqual(['fig']);
+describe('filterBackgroundFigures', () => {
+  const pageArea = 100 * 200;
+
+  function img(pageIndex: number, width: number, height: number, ref = `img${pageIndex}`): ReflowImage {
+    return { pageIndex, x: 0, y: 0, width, height, ref };
+  }
+
+  it('keeps a full-page image on a page with no text (a cover)', () => {
+    const kept = filterBackgroundFigures([img(0, 190, 190)], [pageArea], new Set());
+    expect(kept).toHaveLength(1);
+  });
+
+  it('drops a full-page image on a page that has text (a background)', () => {
+    const kept = filterBackgroundFigures([img(0, 190, 190)], [pageArea], new Set([0]));
+    expect(kept).toHaveLength(0);
+  });
+
+  it('keeps a small figure even when its page has text', () => {
+    const kept = filterBackgroundFigures([img(0, 40, 40)], [pageArea], new Set([0]));
+    expect(kept).toHaveLength(1);
+  });
+
+  it('keeps images on pages with unknown area', () => {
+    const kept = filterBackgroundFigures([img(0, 999, 999)], [], new Set([0]));
+    expect(kept).toHaveLength(1);
   });
 
   it('honours a custom background threshold', () => {
-    const pageArea = 100 * 200;
-    const images = extractImagesFromOperatorList(
-      opList([[OPS.paintImageXObject, ['half', 100, 100]]]),
-      0,
-      pageArea,
-      { maxPageAreaRatio: 0.5 },
-    );
-    expect(images).toHaveLength(0);
+    const kept = filterBackgroundFigures([img(0, 100, 100)], [pageArea], new Set([0]), {
+      maxPageAreaRatio: 0.5,
+    });
+    expect(kept).toHaveLength(0);
   });
 });
