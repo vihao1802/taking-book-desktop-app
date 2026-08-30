@@ -8,7 +8,7 @@
  * the fixed pagination so a narrow screen can re-wrap the text.
  */
 
-/** A single extracted text fragment, in PDF user space (y grows downward). */
+/** A single extracted text fragment, positioned top-down (y grows downward). */
 export interface ReflowTextItem {
   str: string;
   x: number;
@@ -31,14 +31,15 @@ export interface ReflowParagraph {
   fontSize: number;
   indent: boolean;
   pageIndex: number;
-  /** Baseline y of the first line (PDF user space, y grows downward), used to interleave images. */
+  /** Baseline y of the first line (top-down, larger lower on the page), used to interleave images. */
   y: number;
 }
 
 /**
- * A figure extracted from a PDF page, positioned in PDF user space. The renderer
- * decodes the pixel data through the `ref` handle, which is opaque here so core
- * stays platform-agnostic (desktop resolves it against pdf.js page objects).
+ * A figure extracted from a PDF page, positioned top-down (larger y lower on
+ * the page). The renderer decodes the pixel data through the `ref` handle,
+ * which is opaque here so core stays platform-agnostic (desktop resolves it
+ * against pdf.js page objects).
  */
 export interface ReflowImage {
   pageIndex: number;

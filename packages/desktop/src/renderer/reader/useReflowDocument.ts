@@ -33,7 +33,9 @@ function toReflowItem(item: TextFragment) {
   return {
     str: item.str,
     x: item.transform[4],
-    y: item.transform[5],
+    // pdf.js reports y in PDF user space (origin bottom-left, y grows upward);
+    // the reflow engine expects y to grow downward, so negate it here.
+    y: -item.transform[5],
     width: item.width,
     fontSize: item.transform[0] || item.height || 10,
   };

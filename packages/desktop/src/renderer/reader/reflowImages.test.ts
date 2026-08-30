@@ -32,7 +32,7 @@ describe('extractImagesFromOperatorList', () => {
       100000,
     );
     expect(images).toEqual([
-      { pageIndex: 0, x: 0, y: 0, width: 100, height: 40, ref: 'img_p0_1' },
+      { pageIndex: 0, x: 0, y: -40, width: 100, height: 40, ref: 'img_p0_1' },
     ]);
   });
 
@@ -45,7 +45,7 @@ describe('extractImagesFromOperatorList', () => {
       0,
       100000,
     );
-    expect(images[0]).toMatchObject({ x: 10, y: 20, width: 200, height: 100 });
+    expect(images[0]).toMatchObject({ x: 10, y: -120, width: 200, height: 100 });
   });
 
   it('restores the transform on restore, isolating later images', () => {
@@ -60,8 +60,8 @@ describe('extractImagesFromOperatorList', () => {
       0,
       100000,
     );
-    expect(images[0]).toMatchObject({ x: 50, y: 60 });
-    expect(images[1]).toMatchObject({ x: 0, y: 0 });
+    expect(images[0]).toMatchObject({ x: 50, y: -70 });
+    expect(images[1]).toMatchObject({ x: 0, y: -10 });
   });
 
   it('computes the axis-aligned bbox for a rotated image', () => {
@@ -73,7 +73,7 @@ describe('extractImagesFromOperatorList', () => {
       0,
       100000,
     );
-    expect(images[0]).toMatchObject({ x: 0, y: 0, width: 50, height: 100 });
+    expect(images[0]).toMatchObject({ x: 0, y: -100, width: 50, height: 100 });
   });
 
   it('dedupes repeated paints of the same object on a page', () => {

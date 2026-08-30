@@ -62,7 +62,12 @@ function multiply(m1: readonly number[], m2: readonly number[]): number[] {
   ];
 }
 
-/** Converts a paint transform and image pixel size into an axis-aligned bbox. */
+/**
+ * Converts a paint transform and image pixel size into an axis-aligned bbox in
+ * the reflow engine's top-down convention. pdf.js transforms are in PDF user
+ * space (origin bottom-left, y grows upward), so the y axis is negated to make
+ * `y` the figure's top edge, consistent with text fragment positions.
+ */
 function bboxFromTransform(
   m: readonly number[],
   pixelWidth: number,
@@ -82,7 +87,7 @@ function bboxFromTransform(
   const minY = Math.min(...ys);
   const maxX = Math.max(...xs);
   const maxY = Math.max(...ys);
-  return { pageIndex, x: minX, y: minY, width: maxX - minX, height: maxY - minY, ref };
+  return { pageIndex, x: minX, y: -maxY, width: maxX - minX, height: maxY - minY, ref };
 }
 
 /**
