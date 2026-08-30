@@ -203,7 +203,7 @@ export function PdfPageView({
         (annotations.find((a) => a.id === id) ? rects : []).map((rect, i) => (
           <div
             key={`${id}-${i}`}
-            className="absolute cursor-pointer"
+            className="absolute z-20 cursor-pointer"
             style={{
               left: rect.x,
               top: rect.y,
