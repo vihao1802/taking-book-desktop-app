@@ -40,11 +40,12 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   // `width` is the full content-box width of the reader wrapper. When pages
   // are taller than the viewport (always, for a real document) the vertical
   // scrollbar steals `getScrollbarWidth()` of that width, so a page laid out to
-  // `width` would overflow horizontally. Reserve it, and floor to a whole pixel
-  // so the canvas/text-layer `Math.ceil` rounding can't push one extra px over.
-  const viewWidth = fitWidth
-    ? Math.max(Math.floor(width - getScrollbarWidth()), 1)
-    : Math.max(width * zoom, 1);
+  // `width` would overflow horizontally. All zooms are relative to the usable
+  // content width (width minus the scrollbar) so that "100%" and fit-to-width
+  // agree, and floored to a whole pixel so the canvas/text-layer `Math.ceil`
+  // rounding can't push one extra px over.
+  const contentWidth = Math.max(width - getScrollbarWidth(), 1);
+  const viewWidth = Math.max(Math.floor(fitWidth ? contentWidth : contentWidth * zoom), 1);
   const layout = usePageLayout(pdf, viewWidth);
 
   const [initialPosition, setInitialPosition] = useState<number | undefined>(undefined);
