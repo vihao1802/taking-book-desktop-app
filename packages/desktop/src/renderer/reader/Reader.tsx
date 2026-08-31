@@ -246,7 +246,11 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const error = pdfError;
   const total = pdf?.numPages ?? 0;
   const ready =
-    pdf != null && layout != null && height > 0 && initialPosition !== undefined;
+    pdf != null &&
+    !pdf.loadingTask.destroyed &&
+    layout != null &&
+    height > 0 &&
+    initialPosition !== undefined;
 
   if (mode === 'reflow') {
     return (

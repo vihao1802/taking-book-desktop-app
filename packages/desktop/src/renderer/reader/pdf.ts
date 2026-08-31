@@ -54,6 +54,12 @@ export function usePdfDocument(url: string | null) {
       });
     return () => {
       cancelled = true;
+      // Drop the loaded document from state before destroying it: a pdf.js
+      // proxy becomes unusable the moment its loading task is destroyed, so
+      // holding onto it past teardown lets a still-mounted reader call
+      // `getPage` on a dead document (its worker message handler is null).
+      setPdf(null);
+      setError(null);
       task.destroy();
     };
   }, [url]);
@@ -106,7 +112,11 @@ export function usePageLayout(pdf: PDFDocumentProxy | null, containerWidth: numb
         vps.push(page.getViewport({ scale: 1 }));
       }
       if (!cancelled) setBaseViewports(vps);
-    })();
+    })().catch(() => {
+      // The document was torn down mid-iteration (e.g. the reader closed);
+      // the layout stays null and the reader shows its loading state.
+      if (!cancelled) setBaseViewports(null);
+    });
     return () => {
       cancelled = true;
     };

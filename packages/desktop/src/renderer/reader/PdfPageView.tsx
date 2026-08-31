@@ -65,6 +65,7 @@ export function PdfPageView({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (pdf.loadingTask.destroyed) return;
     let cancelled = false;
     let task: RenderTask | null = null;
 
@@ -79,7 +80,10 @@ export function PdfPageView({
       task = page.render({ canvas, viewport });
       await task.promise;
     })().catch((err) => {
-      if (!cancelled) console.error(`Failed to render page ${pageNumber}`, err);
+      // Rendering a page while the document is being torn down is not a
+      // failure: pdf.js rejects every in-flight call once the worker is gone.
+      if (cancelled || pdf.loadingTask.destroyed) return;
+      console.error(`Failed to render page ${pageNumber}`, err);
     });
 
     return () => {
@@ -92,6 +96,7 @@ export function PdfPageView({
   useEffect(() => {
     const container = textLayerRef.current;
     if (!container) return;
+    if (pdf.loadingTask.destroyed) return;
     let cancelled = false;
     let layer: TextLayer | null = null;
     container.innerHTML = '';
@@ -107,7 +112,11 @@ export function PdfPageView({
       layer = new TextLayer({ textContentSource, container, viewport });
       await layer.render();
       if (!cancelled) setTextLayerReady(true);
-    })();
+    })().catch((err) => {
+      // Same teardown race as the canvas render: ignore it.
+      if (cancelled || pdf.loadingTask.destroyed) return;
+      console.error(`Failed to build text layer for page ${pageNumber}`, err);
+    });
     return () => {
       cancelled = true;
       layer?.cancel();
