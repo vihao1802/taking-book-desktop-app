@@ -34,9 +34,13 @@ export {
   previousPresetPercent,
 } from './zoom';
 export {
+  REFLOW_TARGET_FONT_SIZE,
   assignImagePositions,
+  dominantFontSize,
   extractLines,
   filterBoilerplateParagraphs,
+  fontStyleFromName,
+  normalizeReflowSizes,
   paragraphsFromLines,
   reflowPage,
   type PositionedReflowImage,
@@ -44,6 +48,7 @@ export {
   type ReflowLine,
   type ReflowOptions,
   type ReflowParagraph,
+  type ReflowRun,
   type ReflowTextItem,
 } from './reflow';
 export {

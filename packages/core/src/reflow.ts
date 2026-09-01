@@ -15,6 +15,35 @@ export interface ReflowTextItem {
   y: number;
   width: number;
   fontSize: number;
+  /** Rendered with a heavier weight; detected from the PDF font name. */
+  bold?: boolean;
+  /** Rendered with a slanted style; detected from the PDF font name. */
+  italic?: boolean;
+}
+
+/**
+ * A contiguous stretch of paragraph text sharing one visual style. Runs must
+ * partition the paragraph exactly: `runs.join('') === paragraph.text`, which
+ * keeps reflow annotation anchors (char offsets into the text) stable.
+ */
+export interface ReflowRun {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+}
+
+/**
+ * Detects bold/italic from a PDF font's PostScript name (e.g.
+ * "Helvetica-Bold", "Times-BoldItalicMT"). Mirrors pdf.js's own heuristic so
+ * desktop and mobile agree on what a font name means. Fonts that fake bold via
+ * stroking or fail to embed a name are silently missed and render regular.
+ */
+export function fontStyleFromName(name: string | null): { bold: boolean; italic: boolean } {
+  if (name == null) return { bold: false, italic: false };
+  return {
+    bold: /bold/i.test(name),
+    italic: /oblique|italic/i.test(name),
+  };
 }
 
 /** A reconstructed line of text (left-to-right join of fragments). */
@@ -23,6 +52,8 @@ export interface ReflowLine {
   y: number;
   fontSize: number;
   text: string;
+  /** Styled runs partitioning `text` exactly (`runs.join('') === text`). */
+  runs: ReflowRun[];
 }
 
 /** A block of text that can be re-wrapped at render time. */
@@ -33,6 +64,8 @@ export interface ReflowParagraph {
   pageIndex: number;
   /** Baseline y of the first line (top-down, larger lower on the page), used to interleave images. */
   y: number;
+  /** Styled runs partitioning `text` exactly (`runs.join('') === text`). */
+  runs: ReflowRun[];
 }
 
 /**
@@ -133,34 +166,84 @@ export function extractLines(
 
   return lines.map((line) => {
     line.items.sort((a, b) => a.x - b.x);
-    const text = joinFragments(line.items, opts.wordGapRatio);
+    const joined = joinLineRuns(line.items, opts.wordGapRatio);
     const fontSize = Math.max(...line.items.map((i) => i.fontSize));
     return {
       x: line.items[0].x,
       y: line.y,
       fontSize,
-      text,
+      text: joined.text,
+      runs: joined.runs,
     };
   });
 }
 
-function joinFragments(items: ReflowTextItem[], wordGapRatio: number): string {
-  let out = '';
+/**
+ * Appends `text` to the last run when it shares the same style, otherwise
+ * starts a new run. Keeps runs as maximal contiguous same-style stretches, the
+ * shape `ReflowRun` promises.
+ */
+function appendRun(runs: ReflowRun[], text: string, bold: boolean, italic: boolean): void {
+  if (text === '') return;
+  const last = runs[runs.length - 1];
+  if (last && last.bold === bold && last.italic === italic) last.text += text;
+  else runs.push({ text, bold, italic });
+}
+
+function joinLineRuns(items: ReflowTextItem[], wordGapRatio: number): { text: string; runs: ReflowRun[] } {
+  const runs: ReflowRun[] = [];
   let prevRight = 0;
   let prevFont = 0;
   for (const item of items) {
     const gap = item.x - prevRight;
     const needSpace =
-      out.length > 0 &&
-      !out.endsWith(' ') &&
+      runs.length > 0 &&
+      !runs[runs.length - 1].text.endsWith(' ') &&
       !item.str.startsWith(' ') &&
       gap > wordGapRatio * Math.max(prevFont, item.fontSize);
-    if (needSpace) out += ' ';
-    out += item.str;
+    if (needSpace) appendRun(runs, ' ', false, false);
+    appendRun(runs, item.str, item.bold ?? false, item.italic ?? false);
     prevRight = item.x + item.width;
     prevFont = item.fontSize;
   }
-  return out.replace(/\s+/g, ' ').trim();
+  return collapseRuns(runs);
+}
+
+/**
+ * Normalizes run whitespace to match the line's `text` exactly: whitespace
+ * runs collapse to a single neutral space and leading/trailing whitespace is
+ * trimmed, mirroring the regex `text.replace(/\s+/g, ' ').trim()`. Non-space
+ * characters keep their run's style, so the invariant `runs.join('') === text`
+ * holds by construction.
+ */
+function collapseRuns(runs: ReflowRun[]): { text: string; runs: ReflowRun[] } {
+  const out: ReflowRun[] = [];
+  let text = '';
+  let pendingSpace = false;
+  for (const run of runs) {
+    let i = 0;
+    while (i < run.text.length) {
+      if (/\s/.test(run.text[i])) {
+        pendingSpace = true;
+        i++;
+        continue;
+      }
+      if (pendingSpace) {
+        if (text.length > 0) {
+          appendRun(out, ' ', false, false);
+          text += ' ';
+        }
+        pendingSpace = false;
+      }
+      let end = i;
+      while (end < run.text.length && !/\s/.test(run.text[end])) end++;
+      const chunk = run.text.slice(i, end);
+      appendRun(out, chunk, run.bold, run.italic);
+      text += chunk;
+      i = end;
+    }
+  }
+  return { text, runs: out };
 }
 
 /**
@@ -182,7 +265,14 @@ export function paragraphsFromLines(
     const prev = paragraphs[paragraphs.length - 1];
 
     if (!prev || !lastLine) {
-      paragraphs.push({ text: line.text, fontSize: line.fontSize, indent: false, pageIndex, y: line.y });
+      paragraphs.push({
+        text: line.text,
+        fontSize: line.fontSize,
+        indent: false,
+        pageIndex,
+        y: line.y,
+        runs: [...line.runs],
+      });
       return;
     }
 
@@ -197,9 +287,18 @@ export function paragraphsFromLines(
       indent;
 
     if (startsNew) {
-      paragraphs.push({ text: line.text, fontSize: line.fontSize, indent, pageIndex, y: line.y });
+      paragraphs.push({
+        text: line.text,
+        fontSize: line.fontSize,
+        indent,
+        pageIndex,
+        y: line.y,
+        runs: [...line.runs],
+      });
     } else {
       prev.text += ' ' + line.text;
+      appendRun(prev.runs, ' ', false, false);
+      for (const run of line.runs) appendRun(prev.runs, run.text, run.bold, run.italic);
     }
   });
 
@@ -214,6 +313,50 @@ export function paragraphsFromLines(
 export function reflowPage(items: ReflowTextItem[], pageIndex: number, options?: ReflowOptions): ReflowParagraph[] {
   const lines = extractLines(items, options);
   return paragraphsFromLines(lines, pageIndex, options);
+}
+
+/** The font size reflow body text renders at when zoom is 100% (20px). */
+export const REFLOW_TARGET_FONT_SIZE = 20;
+
+/**
+ * Returns the font size carrying the most text across the document (weighted
+ * by character count), so a long body at 12px beats a repeated 20px heading.
+ * A paragraph's text is credited to its first line's size; since paragraph
+ * merging only happens within the font-size-change ratio, the estimate stays
+ * close. Used as the denominator for reflow normalization. Returns null for an
+ * empty document; length ties break toward the smaller size.
+ */
+export function dominantFontSize(paragraphs: ReflowParagraph[]): number | null {
+  if (paragraphs.length === 0) return null;
+  const lengthBySize = new Map<number, number>();
+  for (const para of paragraphs) {
+    lengthBySize.set(para.fontSize, (lengthBySize.get(para.fontSize) ?? 0) + para.text.length);
+  }
+  let dominant = 0;
+  let dominantLength = -1;
+  for (const [size, length] of lengthBySize) {
+    if (length > dominantLength || (length === dominantLength && size < dominant)) {
+      dominant = size;
+      dominantLength = length;
+    }
+  }
+  return dominant;
+}
+
+/**
+ * Scales every paragraph's font size so the document's dominant size renders
+ * at `targetSize` when zoom is 100%. Relative sizes are preserved, so headings
+ * stay proportional to body text. Returns new paragraph objects; the input
+ * list and its text/runs are left untouched. An empty document passes through.
+ */
+export function normalizeReflowSizes(
+  paragraphs: ReflowParagraph[],
+  targetSize = REFLOW_TARGET_FONT_SIZE,
+): ReflowParagraph[] {
+  const dominant = dominantFontSize(paragraphs);
+  if (dominant === null) return paragraphs;
+  const scale = targetSize / dominant;
+  return paragraphs.map((para) => ({ ...para, fontSize: para.fontSize * scale }));
 }
 
 /**

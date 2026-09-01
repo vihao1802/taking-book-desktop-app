@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   assignImagePositions,
   filterBoilerplateParagraphs,
+  fontStyleFromName,
+  normalizeReflowSizes,
   reflowPage,
   type PositionedReflowImage,
   type ReflowImage,
   type ReflowParagraph,
 } from '@taking-book/core';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import { extractImagesFromOperatorList, filterBackgroundFigures, tryGetObject } from './reflowImages';
 
 /** Text fragment shape from pdf.js getTextContent(), narrowed to what reflow needs. */
@@ -16,6 +18,12 @@ interface TextFragment {
   transform: number[];
   width: number;
   height: number;
+  fontName: string;
+}
+
+/** Structural slice of pdf.js TextContent, narrowed to the font style map. */
+interface PageTextContent {
+  styles: Record<string, unknown>;
 }
 
 function isTextFragment(item: unknown): item is TextFragment {
@@ -25,11 +33,12 @@ function isTextFragment(item: unknown): item is TextFragment {
     'str' in item &&
     'transform' in item &&
     'width' in item &&
-    'height' in item
+    'height' in item &&
+    'fontName' in item
   );
 }
 
-function toReflowItem(item: TextFragment) {
+function toReflowItem(item: TextFragment, fontStyle: { bold: boolean; italic: boolean }) {
   return {
     str: item.str,
     x: item.transform[4],
@@ -38,7 +47,30 @@ function toReflowItem(item: TextFragment) {
     y: -item.transform[5],
     width: item.width,
     fontSize: item.transform[0] || item.height || 10,
+    bold: fontStyle.bold,
+    italic: fontStyle.italic,
   };
+}
+
+const EMPTY_FONT_STYLE = { bold: false, italic: false };
+
+/**
+ * Resolves each font referenced on the page to its bold/italic flags. The font
+ * objects only land in `page.commonObjs` once the page's operator list has been
+ * fetched (which is cached per page), so callers must fetch it first; fonts
+ * that fail to resolve silently render regular, matching the reflow engine's
+ * accepted silent-miss for detection.
+ */
+function resolveFontStyles(
+  page: PDFPageProxy,
+  content: PageTextContent,
+): Map<string, { bold: boolean; italic: boolean }> {
+  const styles = new Map<string, { bold: boolean; italic: boolean }>();
+  for (const fontName of Object.keys(content.styles)) {
+    const fontObj = tryGetObject(page.commonObjs, fontName) as { name?: string } | undefined;
+    styles.set(fontName, fontStyleFromName(fontObj?.name ?? null));
+  }
+  return styles;
 }
 
 export interface ReflowProgress {
@@ -115,12 +147,16 @@ export function useReflowDocument(
         const texts: string[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
+          // Operator lists are cached per page; fetching one here forces the
+          // page's fonts into `commonObjs` so each fragment's bold/italic can
+          // be resolved from its font name.
+          const [content] = await Promise.all([page.getTextContent(), page.getOperatorList()]);
           const items: ReturnType<typeof toReflowItem>[] = [];
+          const fontStyles = resolveFontStyles(page, content);
           let pageText = '';
           for (const it of content.items) {
             if ('str' in it && typeof it.str === 'string') {
-              if (isTextFragment(it)) items.push(toReflowItem(it));
+              if (isTextFragment(it)) items.push(toReflowItem(it, fontStyles.get(it.fontName) ?? EMPTY_FONT_STYLE));
               pageText += it.str;
             }
           }
@@ -128,18 +164,22 @@ export function useReflowDocument(
           all.push(...reflowPage(items, i - 1));
           // Intermediate flushes show raw text as soon as possible; the final
           // pass applies the boilerplate filter with the complete document so
-          // repeated headers/watermarks are judged against every page.
+          // repeated headers/watermarks are judged against every page. Both
+          // passes normalize so the reading size is roughly stable while
+          // streaming; the final pass recomputes the dominant size from the
+          // complete (filtered) document, so a small nudge may land at the end.
           if (i % FLUSH_EVERY_PAGES === 0 && !cancelled) {
             setPageTexts([...texts]);
-            setParagraphs([...all]);
+            setParagraphs(normalizeReflowSizes(all));
             setProgress({ done: i, total: pdf.numPages });
           }
         }
         if (!cancelled) {
           const filtered = filterBoilerplateParagraphs(all);
-          const chars = filtered.reduce((sum, para) => sum + para.text.length, 0);
+          const normalized = normalizeReflowSizes(filtered);
+          const chars = normalized.reduce((sum, para) => sum + para.text.length, 0);
           setPageTexts(texts);
-          setParagraphs(filtered);
+          setParagraphs(normalized);
           setHasText(chars >= MIN_REFLOW_CHARS);
           setProgress(null);
         }

@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { PositionedReflowImage, ReflowParagraph } from '@taking-book/core';
+import type { PositionedReflowImage, ReflowParagraph, ReflowRun } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import type { ReflowProgress } from './useReflowDocument';
 import { Button } from '@/components/ui/button';
@@ -464,13 +464,14 @@ const Paragraph = memo(function Paragraph({
   marks: Annotation[];
   onOpen: (entry: { annotation: Annotation; x: number; y: number }) => void;
 }) {
+  const offsets = useMemo(() => runOffsets(paragraph), [paragraph]);
   const nodes: ReactNode[] = [];
   let cursor = 0;
   for (const mark of marks) {
     const start = Math.max(cursor, mark.paraStart!);
     const end = Math.min(paragraph.text.length, mark.paraEnd!);
     if (end <= start) continue;
-    if (start > cursor) nodes.push(paragraph.text.slice(cursor, start));
+    if (start > cursor) nodes.push(...renderStyled(paragraph, offsets, cursor, start));
     nodes.push(
       <mark
         key={mark.id}
@@ -483,12 +484,12 @@ const Paragraph = memo(function Paragraph({
         }}
         title={mark.note ?? undefined}
       >
-        {paragraph.text.slice(start, end)}
+        {renderStyled(paragraph, offsets, start, end)}
       </mark>,
     );
     cursor = end;
   }
-  if (cursor < paragraph.text.length) nodes.push(paragraph.text.slice(cursor));
+  if (cursor < paragraph.text.length) nodes.push(...renderStyled(paragraph, offsets, cursor, paragraph.text.length));
 
   return (
     <p
@@ -502,6 +503,54 @@ const Paragraph = memo(function Paragraph({
     </p>
   );
 });
+
+/** Offsets into `paragraph.text` per run, so runs and highlight anchors (also text offsets) slice against each other. */
+function runOffsets(paragraph: ReflowParagraph): Array<{ run: ReflowRun; start: number; end: number }> {
+  let acc = 0;
+  return paragraph.runs.map((run) => {
+    const span = { run, start: acc, end: acc + run.text.length };
+    acc += run.text.length;
+    return span;
+  });
+}
+
+/**
+ * Renders the `[from, to)` char range of a paragraph as its styled runs.
+ * Unstyled runs render as raw text so selection stays contiguous; bold/italic
+ * runs are wrapped in spans with the matching weight and slant. Offsets come
+ * from the same `paragraph.text` space the highlight anchors use, so runs and
+ * marks slice cleanly against each other.
+ */
+function renderStyled(
+  paragraph: ReflowParagraph,
+  offsets: Array<{ run: ReflowRun; start: number; end: number }>,
+  from: number,
+  to: number,
+): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  for (const { run, start, end } of offsets) {
+    const s = Math.max(from, start);
+    const e = Math.min(to, end);
+    if (e <= s) continue;
+    const chunk = run.text.slice(s - start, e - start);
+    if (run.bold || run.italic) {
+      nodes.push(
+        <span
+          key={`${from}-${start}`}
+          style={{
+            fontWeight: run.bold ? 'bold' : undefined,
+            fontStyle: run.italic ? 'italic' : undefined,
+          }}
+        >
+          {chunk}
+        </span>,
+      );
+    } else {
+      nodes.push(chunk);
+    }
+  }
+  return nodes;
+}
 
 const EMPTY_MARKS: Annotation[] = [];
 

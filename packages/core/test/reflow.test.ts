@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+  REFLOW_TARGET_FONT_SIZE,
   assignImagePositions,
+  dominantFontSize,
   extractLines,
   filterBoilerplateParagraphs,
+  fontStyleFromName,
+  normalizeReflowSizes,
   paragraphsFromLines,
   reflowPage,
   type ReflowImage,
+  type ReflowLine,
   type ReflowParagraph,
+  type ReflowRun,
   type ReflowTextItem,
 } from '../src';
 
@@ -14,6 +20,10 @@ const FONT = 12;
 
 function item(str: string, x: number, y: number, opts: Partial<ReflowTextItem> = {}): ReflowTextItem {
   return { str, x, y, width: str.length * 6, fontSize: FONT, ...opts };
+}
+
+function line(text: string, y: number, x = 0, fontSize = FONT, runs?: ReflowRun[]): ReflowLine {
+  return { x, y, fontSize, text, runs: runs ?? [{ text, bold: false, italic: false }] };
 }
 
 describe('extractLines', () => {
@@ -68,14 +78,49 @@ describe('extractLines', () => {
     expect(lines).toHaveLength(1);
     expect(lines[0].text).toBe('漢字');
   });
+
+  it('carries bold and italic onto the line runs', () => {
+    const lines = extractLines([
+      item('bold', 0, 100, { bold: true }),
+      item('plain', 90, 100),
+      item('slant', 160, 100, { italic: true }),
+    ]);
+    expect(lines[0].runs).toEqual([
+      { text: 'bold', bold: true, italic: false },
+      { text: ' plain ', bold: false, italic: false },
+      { text: 'slant', bold: false, italic: true },
+    ]);
+  });
+
+  it('coalesces adjacent fragments with the same style into one run', () => {
+    const lines = extractLines([
+      item('He', 0, 100, { bold: true }),
+      item('llo', 10, 100, { bold: true }),
+    ]);
+    expect(lines[0].runs).toEqual([{ text: 'Hello', bold: true, italic: false }]);
+  });
+
+  it('keeps runs joined to the line text when whitespace collapses', () => {
+    const lines = extractLines([
+      item('a ', 0, 100, { bold: true }),
+      item(' b', 60, 100, { italic: true }),
+    ]);
+    expect(lines[0].text).toBe('a b');
+    expect(lines[0].runs.map((r) => r.text).join('')).toBe(lines[0].text);
+    expect(lines[0].runs).toEqual([
+      { text: 'a', bold: true, italic: false },
+      { text: ' ', bold: false, italic: false },
+      { text: 'b', bold: false, italic: true },
+    ]);
+  });
 });
 
 describe('paragraphsFromLines', () => {
   it('keeps consecutive lines in one paragraph', () => {
     const paragraphs = paragraphsFromLines(
       [
-        { x: 0, y: 100, fontSize: FONT, text: 'line one' },
-        { x: 0, y: 115, fontSize: FONT, text: 'line two' },
+        line('line one', 100),
+        line('line two', 115),
       ],
       0,
     );
@@ -86,8 +131,8 @@ describe('paragraphsFromLines', () => {
   it('starts a new paragraph after a large vertical gap', () => {
     const paragraphs = paragraphsFromLines(
       [
-        { x: 0, y: 100, fontSize: FONT, text: 'first para' },
-        { x: 0, y: 200, fontSize: FONT, text: 'second para' },
+        line('first para', 100),
+        line('second para', 200),
       ],
       0,
     );
@@ -97,8 +142,8 @@ describe('paragraphsFromLines', () => {
   it('marks an indented first line as a new paragraph', () => {
     const paragraphs = paragraphsFromLines(
       [
-        { x: 0, y: 100, fontSize: FONT, text: 'flow text' },
-        { x: 20, y: 115, fontSize: FONT, text: 'indented start' },
+        line('flow text', 100),
+        line('indented start', 115, 20),
       ],
       0,
     );
@@ -109,8 +154,8 @@ describe('paragraphsFromLines', () => {
   it('starts a new paragraph on a font-size change', () => {
     const paragraphs = paragraphsFromLines(
       [
-        { x: 0, y: 100, fontSize: 24, text: 'Heading' },
-        { x: 0, y: 130, fontSize: FONT, text: 'Body text' },
+        line('Heading', 100, 0, 24),
+        line('Body text', 130),
       ],
       0,
     );
@@ -120,10 +165,27 @@ describe('paragraphsFromLines', () => {
 
   it('tags paragraphs with the page index', () => {
     const paragraphs = paragraphsFromLines(
-      [{ x: 0, y: 100, fontSize: FONT, text: 'p2' }],
+      [line('p2', 100)],
       1,
     );
     expect(paragraphs[0].pageIndex).toBe(1);
+  });
+
+  it('joins runs across consecutive lines, keeping the space between them', () => {
+    const paragraphs = paragraphsFromLines(
+      [
+        line('line one', 100, 0, FONT, [{ text: 'line one', bold: true, italic: false }]),
+        line('line two', 115, 0, FONT, [{ text: 'line two', bold: false, italic: true }]),
+      ],
+      0,
+    );
+    expect(paragraphs[0].text).toBe('line one line two');
+    expect(paragraphs[0].runs.map((r) => r.text).join('')).toBe(paragraphs[0].text);
+    expect(paragraphs[0].runs).toEqual([
+      { text: 'line one', bold: true, italic: false },
+      { text: ' ', bold: false, italic: false },
+      { text: 'line two', bold: false, italic: true },
+    ]);
   });
 });
 
@@ -142,11 +204,142 @@ describe('reflowPage', () => {
     expect(paragraphs[0].indent).toBe(false);
     expect(paragraphs[1].indent).toBe(true);
   });
+
+  it('preserves the joined text while carrying styles through the pipeline', () => {
+    const styled = reflowPage(
+      [
+        item('The', 0, 100, { bold: true }),
+        item('quick', 30, 100, { bold: true }),
+        item('brown', 80, 100),
+        item('fox', 130, 100, { italic: true }),
+        item('jumps', 0, 118),
+        item('over', 40, 118),
+      ],
+      0,
+    );
+    const plain = reflowPage(
+      [
+        item('The', 0, 100),
+        item('quick', 30, 100),
+        item('brown', 80, 100),
+        item('fox', 130, 100),
+        item('jumps', 0, 118),
+        item('over', 40, 118),
+      ],
+      0,
+    );
+    expect(styled.map((p) => p.text)).toEqual(plain.map((p) => p.text));
+    expect(styled.map((p) => p.text)).toEqual(['The quick brown fox jumps over']);
+    for (const p of styled) {
+      expect(p.runs.map((r) => r.text).join('')).toBe(p.text);
+    }
+    expect(styled[0].runs.some((r) => r.bold && r.text.includes('quick'))).toBe(true);
+    expect(styled[0].runs.some((r) => r.italic && r.text.includes('fox'))).toBe(true);
+  });
+});
+
+describe('fontStyleFromName', () => {
+  it('flags a Bold font name', () => {
+    expect(fontStyleFromName('Helvetica-Bold')).toEqual({ bold: true, italic: false });
+  });
+
+  it('flags an italic font name', () => {
+    expect(fontStyleFromName('Times-Italic')).toEqual({ bold: false, italic: true });
+  });
+
+  it('flags a bold-italic font name', () => {
+    expect(fontStyleFromName('Times-BoldItalicMT')).toEqual({ bold: true, italic: true });
+  });
+
+  it('treats oblique as italic', () => {
+    expect(fontStyleFromName('Arial-Oblique')).toEqual({ bold: false, italic: true });
+  });
+
+  it('leaves a regular font name unflagged', () => {
+    expect(fontStyleFromName('Helvetica')).toEqual({ bold: false, italic: false });
+  });
+
+  it('is case-insensitive', () => {
+    expect(fontStyleFromName('arial-boldmt')).toEqual({ bold: true, italic: false });
+  });
+
+  it('is unflagged when the font is unknown', () => {
+    expect(fontStyleFromName(null)).toEqual({ bold: false, italic: false });
+  });
+});
+
+describe('dominantFontSize', () => {
+  function para(text: string, fontSize: number): ReflowParagraph {
+    return { text, fontSize, indent: false, pageIndex: 0, y: 0, runs: [{ text, bold: false, italic: false }] };
+  }
+
+  it('returns null for an empty document', () => {
+    expect(dominantFontSize([])).toBeNull();
+  });
+
+  it('picks the font size carrying the most text, not the most paragraphs', () => {
+    const paragraphs = [
+      para('Heading', 24),
+      para('Sub', 18),
+      para('body body body body body body body body', 12),
+      para('body body body body body body body body', 12),
+    ];
+    expect(dominantFontSize(paragraphs)).toBe(12);
+  });
+
+  it('breaks a length tie toward the smaller size', () => {
+    const paragraphs = [para('aaaa', 14), para('bbbb', 10)];
+    expect(dominantFontSize(paragraphs)).toBe(10);
+  });
+
+  it('returns the only size present', () => {
+    expect(dominantFontSize([para('text', 15)])).toBe(15);
+  });
+});
+
+describe('normalizeReflowSizes', () => {
+  function para(text: string, fontSize: number): ReflowParagraph {
+    return { text, fontSize, indent: false, pageIndex: 0, y: 0, runs: [{ text, bold: false, italic: false }] };
+  }
+
+  it('scales so the dominant size lands on the 20px target', () => {
+    const out = normalizeReflowSizes([para('body text here', 12), para('Heading', 24)]);
+    expect(out[0].fontSize).toBeCloseTo(REFLOW_TARGET_FONT_SIZE);
+    expect(out[1].fontSize).toBeCloseTo(REFLOW_TARGET_FONT_SIZE * 2);
+  });
+
+  it('accepts a custom target size', () => {
+    const out = normalizeReflowSizes([para('body', 10)], 25);
+    expect(out[0].fontSize).toBeCloseTo(25);
+  });
+
+  it('shrinks a document whose dominant size exceeds the target', () => {
+    const out = normalizeReflowSizes([para('body body body body', 28), para('Heading', 40)]);
+    expect(out[0].fontSize).toBeCloseTo(20);
+    expect(out[1].fontSize).toBeCloseTo(20 * (40 / 28));
+  });
+
+  it('keeps text and runs untouched', () => {
+    const out = normalizeReflowSizes([para('body text', 12)]);
+    expect(out[0].text).toBe('body text');
+    expect(out[0].runs.map((r) => r.text).join('')).toBe('body text');
+  });
+
+  it('does not mutate the input paragraphs', () => {
+    const input = [para('body', 12)];
+    const out = normalizeReflowSizes(input);
+    expect(input[0].fontSize).toBe(12);
+    expect(out[0]).not.toBe(input[0]);
+  });
+
+  it('returns the empty list unchanged', () => {
+    expect(normalizeReflowSizes([])).toEqual([]);
+  });
 });
 
 describe('filterBoilerplateParagraphs', () => {
   function para(text: string, pageIndex: number): ReflowParagraph {
-    return { text, fontSize: 12, indent: false, pageIndex, y: 0 };
+    return { text, fontSize: 12, indent: false, pageIndex, y: 0, runs: [{ text, bold: false, italic: false }] };
   }
 
   it('drops a watermark that repeats on most pages', () => {
@@ -185,7 +378,7 @@ describe('filterBoilerplateParagraphs', () => {
 
 describe('assignImagePositions', () => {
   function para(text: string, pageIndex: number, y: number): ReflowParagraph {
-    return { text, fontSize: 12, indent: false, pageIndex, y };
+    return { text, fontSize: 12, indent: false, pageIndex, y, runs: [{ text, bold: false, italic: false }] };
   }
 
   function img(pageIndex: number, y: number, ref = 'img'): ReflowImage {
