@@ -8,16 +8,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { initials } from '@/lib/initials';
 import { useLibrary } from '../library/useLibrary';
 import { AreaChart } from './AreaChart';
+import { formatDay } from './chartAxes';
 
 const CHART_DAYS = 30;
-
-function formatDay(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
-}
 
 export function Statistics({
   onOpen,
