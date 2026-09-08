@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   assignImagePositions,
   filterBoilerplateParagraphs,
@@ -8,9 +8,15 @@ import {
   type PositionedReflowImage,
   type ReflowImage,
   type ReflowParagraph,
+  type ReflowTextItem,
 } from '@taking-book/core';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
-import { extractImagesFromOperatorList, filterBackgroundFigures, tryGetObject } from './reflowImages';
+import {
+  extractImagesFromOperatorList,
+  filterBackgroundFigures,
+  getObjectAsync,
+  tryGetObject,
+} from './reflowImages';
 
 /** Text fragment shape from pdf.js getTextContent(), narrowed to what reflow needs. */
 interface TextFragment {
@@ -121,6 +127,7 @@ export function useReflowDocument(
 } {
   const [paragraphs, setParagraphs] = useState<ReflowParagraph[]>([]);
   const [pageTexts, setPageTexts] = useState<string[]>([]);
+  const pageWidthsRef = useRef<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ReflowProgress | null>(null);
   // Optimistically true so the reflow toggle isn't spuriously disabled while
@@ -129,6 +136,7 @@ export function useReflowDocument(
   const [rawImages, setRawImages] = useState<ReflowImage[]>([]);
   const [pageAreas, setPageAreas] = useState<Array<number | undefined>>([]);
   const [imagesReady, setImagesReady] = useState(false);
+  const allItemsRef = useRef<ReflowTextItem[][]>([]);
 
   useEffect(() => {
     if (!pdf) {
@@ -161,6 +169,9 @@ export function useReflowDocument(
             }
           }
           texts.push(pageText);
+          allItemsRef.current.push(items);
+          const viewport = page.getViewport({ scale: 1 });
+          pageWidthsRef.current = [...pageWidthsRef.current, viewport.width];
           all.push(...reflowPage(items, i - 1));
           // Intermediate flushes show raw text as soon as possible; the final
           // pass applies the boilerplate filter with the complete document so
@@ -177,6 +188,33 @@ export function useReflowDocument(
         if (!cancelled) {
           const filtered = filterBoilerplateParagraphs(all);
           const normalized = normalizeReflowSizes(filtered);
+          // Detect centered text: if a paragraph's text fragments are centered
+          // relative to the page width, mark it with align='center' so it renders
+          // centered in reflow mode too.
+          const pageWidths = pageWidthsRef.current;
+          const pageItems = allItemsRef.current;
+          normalized.forEach((para, paraIdx) => {
+            const pageIdx = para.pageIndex;
+            const itemsForPage = pageItems[pageIdx] ?? [];
+            const pageWidth = pageWidths[pageIdx] ?? 0;
+            const pageCenter = pageWidth / 2;
+            if (itemsForPage.length > 0 && pageWidth > 0) {
+              const matchingItems = itemsForPage.filter((it) =>
+                para.text.includes(it.str),
+              );
+              if (matchingItems.length > 0) {
+                const avgCenter =
+                  matchingItems.reduce(
+                    (sum: number, it: { x: number; width: number }) => sum + it.x + it.width / 2,
+                    0,
+                  ) / matchingItems.length;
+                const deviation = Math.abs(avgCenter - pageCenter);
+                if (deviation < pageWidth * 0.1) {
+                  normalized[paraIdx].align = 'center';
+                }
+              }
+            }
+          });
           const chars = normalized.reduce((sum, para) => sum + para.text.length, 0);
           setPageTexts(texts);
           setParagraphs(normalized);
@@ -261,9 +299,14 @@ export function useReflowDocument(
     async (pageIndex: number, ref: string): Promise<unknown> => {
       if (!pdf) return undefined;
       const page = await pdf.getPage(pageIndex + 1);
-      const fromPage = tryGetObject(page.objs, ref);
+      // pdf.js resolves a page's operator list as soon as it is built, not once
+      // every image it references has finished decoding -- a page's largest
+      // image (a full-page cover, most often) can still be mid-decode the
+      // instant this is called. getObjectAsync waits for it instead of treating
+      // "not yet resolved" as "never coming".
+      const fromPage = await getObjectAsync(page.objs, ref);
       if (fromPage !== undefined) return fromPage;
-      return tryGetObject(page.commonObjs, ref);
+      return getObjectAsync(page.commonObjs, ref);
     },
     [pdf],
   );

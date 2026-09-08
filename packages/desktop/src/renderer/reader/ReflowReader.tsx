@@ -494,9 +494,10 @@ const Paragraph = memo(function Paragraph({
 
   return (
     <p
-      className="mb-[1em] text-justify"
+      className="mb-[1em]"
       style={{
         fontSize: paragraph.fontSize * zoom,
+        textAlign: paragraph.align ?? 'justify',
         textIndent: paragraph.indent ? '1.6em' : undefined,
       }}
     >

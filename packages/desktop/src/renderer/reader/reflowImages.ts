@@ -31,7 +31,7 @@ export interface ReflowOperatorList {
 
 /** A pdf.js page-side object pool that resolves image data by object id. */
 export interface PdfObjectPool {
-  get(objId: string): unknown;
+  get(objId: string, callback?: (data: unknown) => void): unknown;
 }
 
 /**
@@ -44,6 +44,42 @@ export function tryGetObject(pool: PdfObjectPool, objId: string): unknown {
   } catch {
     return undefined;
   }
+}
+
+/** How long to wait for a pdf.js object to resolve before giving up. */
+export const OBJECT_RESOLVE_TIMEOUT_MS = 10000;
+
+/**
+ * Resolves an object from a pdf.js pool, waiting for the worker to finish
+ * decoding and transferring it if it has not landed yet. pdf.js's operator
+ * list resolves as soon as it is *built*, not once every image it references
+ * has finished its own async decode, so a page's largest image (a full-page
+ * cover, most often) can still be in flight the instant a caller asks for it
+ * -- the synchronous `pool.get(objId)` throws in that case, which `tryGetObject`
+ * turns into a permanent-looking `undefined`. pdf.js's pool supports a
+ * callback form of `get` that fires once the object resolves instead, which
+ * this waits on. `timeoutMs` bounds the wait so a bad/unreferenced id can't
+ * hang a figure forever.
+ */
+export function getObjectAsync(
+  pool: PdfObjectPool,
+  objId: string,
+  timeoutMs = OBJECT_RESOLVE_TIMEOUT_MS,
+): Promise<unknown> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(undefined);
+    }, timeoutMs);
+    pool.get(objId, (data) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(data);
+    });
+  });
 }
 
 /** Applies a PDF transform [a, b, c, d, e, f] to a point and returns [x, y]. */
@@ -151,18 +187,27 @@ export function filterBackgroundFigures(
   });
 }
 
-/** pdf.js image data that carries a decoded ImageBitmap (JPEG/PNG and friends). */
-interface ImageBitmapData {
-  bitmap: ImageBitmap;
+/**
+ * pdf.js image data that carries a canvas-drawable bitmap, plus the size to
+ * draw it at. `bitmap` is an ImageBitmap on pdf.js's canvas decode path, but a
+ * VideoFrame when pdf.js instead decoded the image via the WebCodecs
+ * `ImageDecoder` API -- its fast path for JPEGs on runtimes that support it,
+ * which includes Electron's Chromium. Both implement CanvasImageSource, so
+ * both can be drawn directly; neither exposes the draw size as `.width`/
+ * `.height` reliably (VideoFrame has no such properties at all), so the size
+ * is read from the wrapping object, which pdf.js always populates.
+ */
+interface DrawableImageData {
+  bitmap: ImageBitmap | VideoFrame;
+  width: number;
+  height: number;
 }
 
-function isImageBitmapData(obj: unknown): obj is ImageBitmapData {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    'bitmap' in obj &&
-    (obj as { bitmap: unknown }).bitmap instanceof ImageBitmap
-  );
+function isDrawableImageData(obj: unknown): obj is DrawableImageData {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const { bitmap, width, height } = obj as Record<string, unknown>;
+  if (typeof width !== 'number' || typeof height !== 'number') return false;
+  return bitmap instanceof ImageBitmap || (typeof VideoFrame !== 'undefined' && bitmap instanceof VideoFrame);
 }
 
 /** Turns a pdf.js image object into a renderable Blob. */
@@ -172,22 +217,26 @@ export interface ImageDecoder {
 }
 
 /**
- * Decodes figures pdf.js exposes as an ImageBitmap. First-cut decoder; raw
- * array-backed formats (JPX, CMYK, masks) are left to future decoders.
+ * Decodes figures pdf.js exposes as a drawable bitmap (ImageBitmap or
+ * VideoFrame -- see `DrawableImageData`). First-cut decoder; raw array-backed
+ * formats (JPX, CMYK, masks) are left to future decoders.
  */
 export class ImageBitmapDecoder implements ImageDecoder {
   canDecode(obj: unknown): boolean {
-    return isImageBitmapData(obj);
+    return isDrawableImageData(obj);
   }
 
   async decode(obj: unknown): Promise<Blob> {
-    const { bitmap } = obj as ImageBitmapData;
+    const { bitmap, width, height } = obj as DrawableImageData;
     const canvas = document.createElement('canvas');
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get a 2D context to decode a reflow image.');
-    ctx.drawImage(bitmap, 0, 0);
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    // A VideoFrame holds a GPU/decoder resource that must be released
+    // explicitly (unlike ImageBitmap, which both support and gc handles too).
+    bitmap.close();
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error('Could not encode a reflow image.');
     return blob;

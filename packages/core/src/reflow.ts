@@ -66,6 +66,8 @@ export interface ReflowParagraph {
   y: number;
   /** Styled runs partitioning `text` exactly (`runs.join('') === text`). */
   runs: ReflowRun[];
+  /** Horizontal alignment for reflow rendering: 'left' | 'center' | 'right' | 'justify'. */
+  align?: 'left' | 'center' | 'right' | 'justify';
 }
 
 /**
@@ -310,8 +312,13 @@ export function paragraphsFromLines(
  * processed independently; multi-page flow joins are handled by the caller so
  * page boundaries can be rendered as spacing.
  */
-export function reflowPage(items: ReflowTextItem[], pageIndex: number, options?: ReflowOptions): ReflowParagraph[] {
-  const lines = extractLines(items, options);
+export function reflowPage(
+  items: ReflowTextItem[],
+  pageIndex: number,
+  options?: ReflowOptions,
+): ReflowParagraph[] {
+  const opts = mergeOptions(options);
+  const lines = extractLines(items, opts);
   return paragraphsFromLines(lines, pageIndex, options);
 }
 

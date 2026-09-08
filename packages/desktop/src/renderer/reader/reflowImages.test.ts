@@ -12,7 +12,18 @@ vi.mock('pdfjs-dist', () => ({
   },
 }));
 
-import { extractImagesFromOperatorList, filterBackgroundFigures } from './reflowImages';
+import { extractImagesFromOperatorList, filterBackgroundFigures, getObjectAsync, ImageBitmapDecoder } from './reflowImages';
+
+// Node has neither global. Real ImageBitmap/VideoFrame instances are only
+// reachable from a browser's canvas/WebCodecs APIs, so the decoder's type
+// guard is exercised here against stand-ins registered under the same names
+// it checks `instanceof` against.
+class FakeImageBitmap {}
+class FakeVideoFrame {
+  close() {}
+}
+(globalThis as unknown as { ImageBitmap: unknown }).ImageBitmap = FakeImageBitmap;
+(globalThis as unknown as { VideoFrame: unknown }).VideoFrame = FakeVideoFrame;
 
 /** Numeric OPS constants mirroring the mock above, used to build operator lists. */
 const OPS = { save: 10, restore: 11, transform: 12, paintImageXObject: 85 } as const;
@@ -117,5 +128,54 @@ describe('filterBackgroundFigures', () => {
       maxPageAreaRatio: 0.5,
     });
     expect(kept).toHaveLength(0);
+  });
+});
+
+describe('getObjectAsync', () => {
+  it('waits for an object that is not resolved yet, instead of giving up immediately', async () => {
+    let pending: (data: unknown) => void = () => {};
+    const pool = {
+      get: vi.fn((_objId: string, callback?: (data: unknown) => void) => {
+        if (callback) pending = callback;
+      }),
+    };
+    const result = getObjectAsync(pool, 'img1', 5000);
+    // Simulates pdf.js's worker finishing the decode after the caller already
+    // asked for the object -- the exact race a full-page cover image hits.
+    pending({ bitmap: 'fake-bitmap' });
+    await expect(result).resolves.toEqual({ bitmap: 'fake-bitmap' });
+  });
+
+  it('resolves to undefined if the object never resolves within the timeout', async () => {
+    vi.useFakeTimers();
+    const pool = { get: vi.fn() };
+    const result = getObjectAsync(pool, 'missing', 1000);
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(result).resolves.toBeUndefined();
+    vi.useRealTimers();
+  });
+});
+
+describe('ImageBitmapDecoder.canDecode', () => {
+  const decoder = new ImageBitmapDecoder();
+
+  it('accepts an ImageBitmap-backed result (pdf.js\'s canvas decode path)', () => {
+    expect(decoder.canDecode({ bitmap: new FakeImageBitmap(), width: 300, height: 200 })).toBe(true);
+  });
+
+  it('accepts a VideoFrame-backed result (pdf.js\'s WebCodecs ImageDecoder path, e.g. Electron JPEGs)', () => {
+    expect(decoder.canDecode({ bitmap: new FakeVideoFrame(), width: 2400, height: 3600 })).toBe(true);
+  });
+
+  it('rejects a result missing width/height', () => {
+    expect(decoder.canDecode({ bitmap: new FakeImageBitmap() })).toBe(false);
+  });
+
+  it('rejects a bitmap of an unrecognized type', () => {
+    expect(decoder.canDecode({ bitmap: {}, width: 300, height: 200 })).toBe(false);
+  });
+
+  it('rejects undefined (an object pdf.js has not resolved)', () => {
+    expect(decoder.canDecode(undefined)).toBe(false);
   });
 });
