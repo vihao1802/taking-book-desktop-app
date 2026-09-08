@@ -372,11 +372,11 @@ export function ReflowReader({
             onMouseUp={handleMouseUp}
           >
             {flowItems.map((item, i) => {
-              const isNewPage = i === 0 || flowItemPage(item) !== flowItemPage(flowItems[i - 1]);
+              const isEndOfPage =
+                i === flowItems.length - 1 || flowItemPage(item) !== flowItemPage(flowItems[i + 1]);
               const key = item.kind === 'image' ? `image-${item.image.ref}` : `para-${item.index}`;
               return (
                 <Fragment key={key}>
-                  {isNewPage && <PageSeparator page={flowItemPage(item) + 1} />}
                   {item.kind === 'image' ? (
                     <ReflowFigure
                       image={item.image}
@@ -392,6 +392,7 @@ export function ReflowReader({
                       onOpen={setActivePopup}
                     />
                   )}
+                  {isEndOfPage && <PageSeparator page={flowItemPage(item) + 1} />}
                 </Fragment>
               );
             })}
@@ -554,13 +555,13 @@ function renderStyled(
 
 const EMPTY_MARKS: Annotation[] = [];
 
-/** Thin rule with a small page number marking a page boundary in reflow text. */
+/** Full-width rule with a small page number marking the end of a page in reflow text. */
 function PageSeparator({ page }: { page: number }) {
   return (
-    <div className="flex items-center justify-center gap-3 py-6 select-none" aria-hidden>
-      <span className="bg-muted h-px w-12" />
-      <span className="text-muted-foreground text-xs tabular-nums">{page}</span>
-      <span className="bg-muted h-px w-12" />
+    <div className="flex w-full items-center justify-center gap-4 py-8 select-none" aria-hidden>
+      <span className="bg-border h-px flex-1" />
+      <span className="text-muted-foreground text-xs font-medium tabular-nums px-1">{page}</span>
+      <span className="bg-border h-px flex-1" />
     </div>
   );
 }
