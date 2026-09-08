@@ -50,3 +50,6 @@ packages/desktop/build/
 
 # Local opencode config (may contain secrets)
 opencode.json
+
+# Local Claude config
+.claude/
