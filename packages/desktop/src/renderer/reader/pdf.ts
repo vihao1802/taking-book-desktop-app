@@ -1,5 +1,5 @@
 import * as pdfjs from 'pdfjs-dist';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 // eslint-disable-next-line import/no-unresolved
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
@@ -94,24 +94,106 @@ export interface PageLayout {
   offsets: number[];
   scales: number[];
   totalHeight: number;
+  /** True once every page's real dimensions have been measured. */
+  complete: boolean;
 }
 
+/**
+ * Shares one in-flight `getPage` promise per page across layout, canvas, and
+ * text-layer callers. Without this each visible page costs 2-3 worker
+ * round-trips (layout + canvas render + text layer each fetch independently).
+ * Entries are dropped when the document is destroyed.
+ */
+const pagePromiseCache = new WeakMap<PDFDocumentProxy, Map<number, Promise<PDFPageProxy>>>();
+
+export function getPageCached(pdf: PDFDocumentProxy, pageNumber: number): Promise<PDFPageProxy> {
+  let perDoc = pagePromiseCache.get(pdf);
+  if (!perDoc) {
+    perDoc = new Map();
+    pagePromiseCache.set(pdf, perDoc);
+  }
+  const cached = perDoc.get(pageNumber);
+  if (cached) return cached;
+  const promise = pdf.getPage(pageNumber);
+  perDoc.set(pageNumber, promise);
+  // A rejected fetch (e.g. teardown race) must not poison later callers.
+  promise.catch(() => {
+    if (perDoc.get(pageNumber) === promise) perDoc.delete(pageNumber);
+  });
+  return promise;
+}
+
+/** Fallback page size (US Letter points) used before a page is measured. */
+const FALLBACK_PAGE = { width: 612, height: 792 };
+
+/** Pages fetched concurrently while measuring the document. */
+const LAYOUT_CONCURRENCY = 6;
+
+/** Flush measured sizes to state this often; every page would re-render 600+ times. */
+const LAYOUT_FLUSH_EVERY = 10;
+
 export function usePageLayout(pdf: PDFDocumentProxy | null, containerWidth: number): PageLayout | null {
-  const [baseViewports, setBaseViewports] = useState<{ width: number; height: number }[] | null>(null);
+  const [baseViewports, setBaseViewports] = useState<({ width: number; height: number } | null)[] | null>(null);
+  const [complete, setComplete] = useState(false);
 
   useEffect(() => {
     if (!pdf) {
       setBaseViewports(null);
+      setComplete(false);
       return;
     }
     let cancelled = false;
+    const total = pdf.numPages;
+    const vps: ({ width: number; height: number } | null)[] = new Array(total).fill(null);
+    let done = 0;
+    const flush = () => {
+      if (!cancelled) setBaseViewports([...vps]);
+    };
     (async () => {
-      const vps: { width: number; height: number }[] = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        vps.push(page.getViewport({ scale: 1 }));
+      // Measure page 1 first so the reader can paint immediately; the rest
+      // fills in behind it instead of blocking first paint on all N pages.
+      try {
+        const first = await getPageCached(pdf, 1);
+        if (cancelled) return;
+        const vp = first.getViewport({ scale: 1 });
+        vps[0] = { width: vp.width, height: vp.height };
+        done = 1;
+        flush();
+      } catch {
+        if (!cancelled) setBaseViewports(null);
+        return;
       }
-      if (!cancelled) setBaseViewports(vps);
+      // Measure the remaining pages with bounded concurrency.
+      let next = 2;
+      const workers: Promise<void>[] = [];
+      const workerCount = Math.min(LAYOUT_CONCURRENCY, Math.max(total - 1, 0));
+      for (let w = 0; w < workerCount; w++) {
+        workers.push(
+          (async () => {
+            while (!cancelled) {
+              const pageNumber = next++;
+              if (pageNumber > total) return;
+              try {
+                const page = await getPageCached(pdf, pageNumber);
+                if (cancelled) return;
+                const vp = page.getViewport({ scale: 1 });
+                vps[pageNumber - 1] = { width: vp.width, height: vp.height };
+              } catch {
+                // A single unreadable page keeps its fallback size; it must
+                // not abort measurement of the rest of the document.
+                if (cancelled) return;
+              }
+              done++;
+              if (done % LAYOUT_FLUSH_EVERY === 0 || done === total) flush();
+            }
+          })(),
+        );
+      }
+      await Promise.all(workers);
+      if (!cancelled) {
+        flush();
+        setComplete(true);
+      }
     })().catch(() => {
       // The document was torn down mid-iteration (e.g. the reader closed);
       // the layout stays null and the reader shows its loading state.
@@ -124,19 +206,21 @@ export function usePageLayout(pdf: PDFDocumentProxy | null, containerWidth: numb
 
   if (!baseViewports || containerWidth <= 0) return null;
 
+  const fallback = baseViewports.find((vp) => vp != null) ?? FALLBACK_PAGE;
   const heights: number[] = [];
   const offsets: number[] = [];
   const scales: number[] = [];
   let acc = PAGE_GAP;
   for (const vp of baseViewports) {
-    const scale = containerWidth / vp.width;
-    const h = vp.height * scale;
+    const size = vp ?? fallback;
+    const scale = containerWidth / size.width;
+    const h = size.height * scale;
     scales.push(scale);
     offsets.push(acc);
     heights.push(h);
     acc += h + PAGE_GAP;
   }
-  return { heights, offsets, scales, totalHeight: acc };
+  return { heights, offsets, scales, totalHeight: acc, complete };
 }
 
 export function pageFromOffset(layout: PageLayout, scrollTop: number): number {

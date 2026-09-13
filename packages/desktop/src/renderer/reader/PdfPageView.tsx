@@ -11,6 +11,7 @@ import {
   selectionRect,
   type HighlightRect,
 } from './highlights';
+import { getPageCached } from './pdf';
 
 /** A selected stretch of text anchored to a PDF page's joined text content. */
 export interface PageTextSelection {
@@ -70,7 +71,7 @@ export function PdfPageView({
     let task: RenderTask | null = null;
 
     (async () => {
-      const page = await pdf.getPage(pageNumber);
+      const page = await getPageCached(pdf, pageNumber);
       const viewport = page.getViewport({ scale: cssScale * dpr });
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -102,7 +103,7 @@ export function PdfPageView({
     container.innerHTML = '';
     setTextLayerReady(false);
     (async () => {
-      const page = await pdf.getPage(pageNumber);
+      const page = await getPageCached(pdf, pageNumber);
       const viewport = page.getViewport({ scale: cssScale });
       if (cancelled) return;
       container.style.width = `${Math.ceil(viewport.width)}px`;
@@ -154,7 +155,10 @@ export function PdfPageView({
       setToolbar(null);
       return;
     }
-    const quote = pageText.slice(start, end);
+    // Prefer the DOM's selected string: full-document page texts are only
+    // extracted in reflow mode now, and the selection text is exact whereas
+    // slicing joined page text with DOM offsets is approximate.
+    const quote = selection.toString() || pageText.slice(start, end);
     setPopup(null);
     setToolbar({
       selection: { page: pageNumber, start, end, quote },

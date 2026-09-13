@@ -17,6 +17,7 @@ import {
   getObjectAsync,
   tryGetObject,
 } from './reflowImages';
+import { getPageCached } from './pdf';
 
 /** Text fragment shape from pdf.js getTextContent(), narrowed to what reflow needs. */
 interface TextFragment {
@@ -101,16 +102,20 @@ export interface ReflowImageOptions {
 }
 
 /**
- * Extracts the whole document into reflow paragraphs and, when `runImages` is
+ * Extracts the whole document into reflow paragraphs and, when `enabled` is
  * set, the figures placed between them. Pages are processed sequentially but
  * state is flushed in batches so the reader can paint and scroll early instead
  * of freezing until every page is parsed. Image positions are collected from
  * each page's operator list; the pixel data itself is decoded lazily through
  * `getImageData` so off-screen figures cost no decoded memory.
+ *
+ * `enabled` must be false in page mode: full-document text extraction issues
+ * one worker round-trip per page and would starve layout and page rendering
+ * on large documents. It is only run when the user enters reflow mode.
  */
 export function useReflowDocument(
   pdf: PDFDocumentProxy | null,
-  runImages: boolean,
+  enabled: boolean,
   imageOptions: ReflowImageOptions = {},
 ): {
   paragraphs: ReflowParagraph[];
@@ -139,22 +144,26 @@ export function useReflowDocument(
   const allItemsRef = useRef<ReflowTextItem[][]>([]);
 
   useEffect(() => {
-    if (!pdf) {
+    if (!pdf || !enabled) {
       setParagraphs([]);
       setPageTexts([]);
       setError(null);
       setProgress(null);
       setHasText(true);
+      pageWidthsRef.current = [];
+      allItemsRef.current = [];
       return;
     }
     let cancelled = false;
     setProgress({ done: 0, total: pdf.numPages });
+    pageWidthsRef.current = [];
+    allItemsRef.current = [];
     (async () => {
       try {
         const all: ReflowParagraph[] = [];
         const texts: string[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
+          const page = await getPageCached(pdf, i);
           // Operator lists are cached per page; fetching one here forces the
           // page's fonts into `commonObjs` so each fragment's bold/italic can
           // be resolved from its font name.
@@ -232,10 +241,42 @@ export function useReflowDocument(
     return () => {
       cancelled = true;
     };
-  }, [pdf]);
+  }, [pdf, enabled]);
+
+  // Cheap scan check while in page mode (full extraction is deferred until
+  // reflow mode): sample the first pages so scanned PDFs still disable the
+  // reflow toggle without parsing the whole document.
+  useEffect(() => {
+    if (!pdf || enabled) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const samplePages = Math.min(3, pdf.numPages);
+        let chars = 0;
+        for (let i = 1; i <= samplePages; i++) {
+          const page = await getPageCached(pdf, i);
+          if (cancelled) return;
+          const content = await page.getTextContent();
+          if (cancelled) return;
+          for (const it of content.items) {
+            if ('str' in it && typeof it.str === 'string') chars += it.str.length;
+          }
+        }
+        // Only ever disables: a text-heavy sample proves nothing about the
+        // remaining pages (extraction stays optimistic), but an empty sample
+        // reliably marks a scan.
+        if (!cancelled && chars < 60) setHasText(false);
+      } catch {
+        // Sampling is best-effort; extraction stays optimistic on failure.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, enabled]);
 
   useEffect(() => {
-    if (!pdf || !runImages) {
+    if (!pdf || !enabled) {
       setRawImages([]);
       setPageAreas([]);
       setImagesReady(false);
@@ -249,7 +290,7 @@ export function useReflowDocument(
         const areas: Array<number | undefined> = [];
         const seenPlacements = new Set<string>();
         for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
+          const page = await getPageCached(pdf, i);
           const viewport = page.getViewport({ scale: 1 });
           areas[i - 1] = viewport.width * viewport.height;
           const opList = await page.getOperatorList();
@@ -285,7 +326,7 @@ export function useReflowDocument(
     return () => {
       cancelled = true;
     };
-  }, [pdf, runImages]);
+  }, [pdf, enabled]);
 
   const images = useMemo(() => {
     const pagesWithText = new Set(paragraphs.map((para) => para.pageIndex));
@@ -298,7 +339,7 @@ export function useReflowDocument(
   const getImageData = useCallback(
     async (pageIndex: number, ref: string): Promise<unknown> => {
       if (!pdf) return undefined;
-      const page = await pdf.getPage(pageIndex + 1);
+      const page = await getPageCached(pdf, pageIndex + 1);
       // pdf.js resolves a page's operator list as soon as it is built, not once
       // every image it references has finished decoding -- a page's largest
       // image (a full-page cover, most often) can still be mid-decode the
