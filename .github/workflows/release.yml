@@ -21,7 +21,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # windows-latest is a VS2026-only image (windows-2025-vs2026) that
+        # node-gyp cannot detect ("unknown version undefined"), so any native
+        # module source build (better-sqlite3 via npm ci, electron-rebuild
+        # via forge make) fails. Pin windows-2022, which ships VS2022.
+        os: [ubuntu-latest, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
