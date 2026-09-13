@@ -9,6 +9,8 @@ on:
   push:
     tags:
       - 'v*'
+  # Manual trigger to verify Windows + Linux builds without cutting a tag.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -22,11 +24,11 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # Bake the publisher's Google OAuth client into resources/. When the
@@ -45,7 +47,7 @@ jobs:
         run: npm run make
 
       - name: Upload make output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: make-${{ matrix.os }}
           path: packages/desktop/out/make/
@@ -54,9 +56,11 @@ jobs:
   release:
     name: Create release
     needs: build
+    # Manual dispatch runs verify the builds only; publishing stays tag-gated.
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           path: artifacts
           merge-multiple: true

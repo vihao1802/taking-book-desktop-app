@@ -19,7 +19,7 @@
     "@types/react-dom": "^19.2.4"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13.0"
   },
   "dependencies": {
     "dotenv": "^17.4.2"
