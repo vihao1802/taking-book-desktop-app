@@ -3,6 +3,10 @@ import { isOk } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Overlay, clampZoom } from './Overlay';
+import { SidebarPanel, type SidebarTab } from './SidebarPanel';
+import { ThumbnailsView } from './ThumbnailsView';
+import { OutlineView } from './OutlineView';
+import { usePdfOutline } from './usePdfOutline';
 import { fileUrl, getScrollbarWidth, useElementSize, usePageLayout, usePdfDocument } from './pdf';
 import { PdfPages, type PdfPagesHandle } from './PdfPages';
 import { ReflowReader } from './ReflowReader';
@@ -53,6 +57,8 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const lastFractionRef = useRef(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [overlayVisible, setOverlayVisible] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
+  const { nodes: outlineNodes, loading: outlineLoading } = usePdfOutline(pdf);
   const hideTimerRef = useRef<number>(0);
   const positionRef = useRef({ page: 1, position: 0, mode: 'page' as 'page' | 'reflow' });
   const saveTimerRef = useRef<number>(0);
@@ -179,6 +185,10 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     });
   }, [startHideTimer]);
 
+  const selectSidebarPage = useCallback((page: number) => {
+    pagesRef.current?.scrollToPage(page);
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -256,6 +266,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     return (
       <ReflowReader
         file={file}
+        pdf={pdf}
         paragraphs={paragraphs}
         images={images}
         pageTexts={pageTexts}
@@ -340,7 +351,33 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           onClose={onClose}
           onSeek={(p) => pagesRef.current?.scrollToPage(p)}
           onInteract={reveal}
+          sidebarTab={sidebarTab}
+          onSelectSidebarTab={setSidebarTab}
         />
+      )}
+      {sidebarTab !== null && pdf !== null && (
+        <SidebarPanel
+          tab={sidebarTab}
+          onTabChange={setSidebarTab}
+          onClose={() => setSidebarTab(null)}
+          showThumbnails
+        >
+          {sidebarTab === 'thumbnails' ? (
+            <ThumbnailsView
+              pdf={pdf}
+              total={pdf.numPages}
+              currentPage={currentPage}
+              onSelect={selectSidebarPage}
+            />
+          ) : (
+            <OutlineView
+              nodes={outlineNodes}
+              loading={outlineLoading}
+              currentPage={currentPage}
+              onSelect={selectSidebarPage}
+            />
+          )}
+        </SidebarPanel>
       )}
     </div>
   );

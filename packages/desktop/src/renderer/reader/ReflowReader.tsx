@@ -1,9 +1,13 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { PositionedReflowImage, ReflowParagraph, ReflowRun } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import type { ReflowProgress } from './useReflowDocument';
 import { Button } from '@/components/ui/button';
 import { Overlay } from './Overlay';
+import { SidebarPanel, type SidebarTab } from './SidebarPanel';
+import { OutlineView } from './OutlineView';
+import { usePdfOutline } from './usePdfOutline';
 import { AnnotationPopup } from './AnnotationPopup';
 import { SelectionToolbar } from './SelectionToolbar';
 import { ReflowFigure } from './ReflowFigure';
@@ -28,6 +32,7 @@ interface ReflowSelection {
 
 interface ReflowReaderProps {
   file: BookFile;
+  pdf: PDFDocumentProxy | null;
   paragraphs: ReflowParagraph[];
   images: PositionedReflowImage[];
   pageTexts: string[];
@@ -48,6 +53,7 @@ interface ReflowReaderProps {
 
 export function ReflowReader({
   file,
+  pdf,
   paragraphs,
   images,
   pageTexts,
@@ -72,6 +78,8 @@ export function ReflowReader({
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; x: number; y: number } | null>(null);
   const [activePopup, setActivePopup] = useState<{ annotation: Annotation; x: number; y: number } | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
+  const { nodes: outlineNodes, loading: outlineLoading } = usePdfOutline(pdf);
   const hideTimerRef = useRef<number>(0);
   const rafRef = useRef(0);
 
@@ -200,6 +208,27 @@ export function ReflowReader({
       return true;
     });
   }, [startHideTimer]);
+
+  const seekToParagraph = useCallback(
+    (index: number) => {
+      const el = scrollRef.current;
+      if (!el || total === 0) return;
+      const scrollable = Math.max(el.scrollHeight - el.clientHeight, 0);
+      const target = (index / Math.max(total - 1, 1)) * scrollable;
+      el.scrollTo({ top: target, behavior: 'smooth' });
+    },
+    [total],
+  );
+
+  // Outlines resolve to PDF pages; reflow jumps to the first paragraph
+  // extracted from that page.
+  const selectOutlinePage = useCallback(
+    (page: number) => {
+      const index = paragraphs.findIndex((para) => para.pageIndex === page - 1);
+      seekToParagraph(index === -1 ? 0 : index);
+    },
+    [paragraphs, seekToParagraph],
+  );
 
   // Scroll updates are coalesced to one state write per frame; a raw setState
   // per scroll event re-rendered the whole article on every tick.
@@ -433,15 +462,27 @@ export function ReflowReader({
           onZoomChange={onZoomChange}
           onToggleMode={onToggleMode}
           onClose={onClose}
-          onSeek={(n) => {
-            const el = scrollRef.current;
-            if (!el) return;
-            const scrollable = Math.max(el.scrollHeight - el.clientHeight, 0);
-            const target = ((n - 1) / Math.max(total - 1, 1)) * scrollable;
-            el.scrollTo({ top: target, behavior: 'smooth' });
-          }}
+          onSeek={(n) => seekToParagraph(n - 1)}
           onInteract={reveal}
+          sidebarTab={sidebarTab}
+          onSelectSidebarTab={setSidebarTab}
+          sidebarThumbnailsEnabled={false}
         />
+      )}
+      {sidebarTab !== null && (
+        <SidebarPanel
+          tab={sidebarTab}
+          onTabChange={setSidebarTab}
+          onClose={() => setSidebarTab(null)}
+          showThumbnails={false}
+        >
+          <OutlineView
+            nodes={outlineNodes}
+            loading={outlineLoading}
+            currentPage={(paragraphs[currentIndex]?.pageIndex ?? 0) + 1}
+            onSelect={selectOutlinePage}
+          />
+        </SidebarPanel>
       )}
     </div>
   );
