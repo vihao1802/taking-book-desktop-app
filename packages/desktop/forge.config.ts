@@ -28,7 +28,13 @@ const config: ForgeConfig = {
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    // The npm package name is scoped (@taking-book/desktop) and Squirrel
+    // derives the nuspec/installer file names from it unless pinned, which
+    // produces invalid paths like `@taking_book/desktop.nuspec`. Pin to the
+    // productName from package.json.
+    new MakerSquirrel({
+      name: 'taking-book-desktop-app',
+    }),
     new MakerZIP({}, ['darwin']),
     // The npm package name is scoped (@taking-book/desktop) but the packaged
     // binary is named from productName; the deb maker defaults its bin to the
