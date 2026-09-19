@@ -23,7 +23,7 @@ function item(str: string, x: number, y: number, opts: Partial<ReflowTextItem> =
 }
 
 function line(text: string, y: number, x = 0, fontSize = FONT, runs?: ReflowRun[]): ReflowLine {
-  return { x, y, fontSize, text, runs: runs ?? [{ text, bold: false, italic: false }] };
+  return { x, right: x + text.length * 6, y, fontSize, text, runs: runs ?? [{ text, bold: false, italic: false }] };
 }
 
 describe('extractLines', () => {
@@ -186,6 +186,45 @@ describe('paragraphsFromLines', () => {
       { text: ' ', bold: false, italic: false },
       { text: 'line two', bold: false, italic: true },
     ]);
+  });
+});
+
+describe('paragraph alignment', () => {
+  // Fixed-width lines so the column spans x 0..300 (50 chars * 6px).
+  const full = (y: number): ReflowLine => ({ ...line('x'.repeat(50), y, 0), right: 300 });
+
+  it('marks a heading centered in the text column as centered', () => {
+    const heading: ReflowLine = { ...line('Chapter One', 20, 117), right: 183 };
+    const paragraphs = paragraphsFromLines([heading, full(60), full(74)], 0);
+    expect(paragraphs[0].align).toBe('center');
+  });
+
+  it('leaves full-width left-aligned text unaligned', () => {
+    const paragraphs = paragraphsFromLines([full(20), full(34), full(48)], 0);
+    expect(paragraphs.map((p) => p.align)).toEqual([undefined]);
+  });
+
+  it('does not center the short last line of a left-aligned paragraph', () => {
+    const last: ReflowLine = { ...line('end.', 48, 0), right: 24 };
+    const paragraphs = paragraphsFromLines([full(20), full(34), last], 0);
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0].align).toBeUndefined();
+  });
+
+  it('does not center a short left-aligned heading', () => {
+    const heading: ReflowLine = { ...line('Notes', 20, 0), right: 30 };
+    const paragraphs = paragraphsFromLines([heading, full(60)], 0);
+    expect(paragraphs[0].align).toBeUndefined();
+  });
+
+  it('centers a multi-line paragraph only when every line is centered', () => {
+    const a: ReflowLine = { ...line('centered line one', 20, 90), right: 210 };
+    const b: ReflowLine = { ...line('line two', 34, 96), right: 204 };
+    const skewed: ReflowLine = { ...line('line two', 34, 30), right: 138 };
+    const both = paragraphsFromLines([a, b, full(80)], 0);
+    expect(both[0].text).toBe('centered line one line two');
+    expect(both[0].align).toBe('center');
+    expect(paragraphsFromLines([a, skewed, full(80)], 0)[0].align).toBeUndefined();
   });
 });
 

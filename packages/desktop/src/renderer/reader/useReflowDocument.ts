@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   assignImagePositions,
   filterBoilerplateParagraphs,
@@ -10,7 +10,6 @@ import {
   type ReflowCacheEntry,
   type ReflowImage,
   type ReflowParagraph,
-  type ReflowTextItem,
 } from '@taking-book/core';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import {
@@ -174,7 +173,6 @@ export function useReflowDocument(
 } {
   const [paragraphs, setParagraphs] = useState<ReflowParagraph[]>([]);
   const [pageTexts, setPageTexts] = useState<string[]>([]);
-  const pageWidthsRef = useRef<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ReflowProgress | null>(null);
   // Optimistically true so the reflow toggle isn't spuriously disabled while
@@ -183,7 +181,6 @@ export function useReflowDocument(
   const [rawImages, setRawImages] = useState<ReflowImage[]>([]);
   const [pageAreas, setPageAreas] = useState<Array<number | undefined>>([]);
   const [imagesReady, setImagesReady] = useState(false);
-  const allItemsRef = useRef<ReflowTextItem[][]>([]);
   const { fileHash, maxPageAreaRatio } = options;
 
   useEffect(() => {
@@ -193,14 +190,10 @@ export function useReflowDocument(
       setError(null);
       setProgress(null);
       setHasText(true);
-      pageWidthsRef.current = [];
-      allItemsRef.current = [];
       return;
     }
     let cancelled = false;
     setProgress({ done: 0, total: pdf.numPages });
-    pageWidthsRef.current = [];
-    allItemsRef.current = [];
     (async () => {
       try {
         const cached = await loadReflowCache(fileHash);
@@ -231,9 +224,6 @@ export function useReflowDocument(
             }
           }
           texts.push(pageText);
-          allItemsRef.current.push(items);
-          const viewport = page.getViewport({ scale: 1 });
-          pageWidthsRef.current = [...pageWidthsRef.current, viewport.width];
           all.push(...reflowPage(items, i - 1));
           // Intermediate flushes show raw text as soon as possible; the final
           // pass applies the boilerplate filter with the complete document so
@@ -250,36 +240,6 @@ export function useReflowDocument(
         if (!cancelled) {
           const filtered = filterBoilerplateParagraphs(all);
           const normalized = normalizeReflowSizes(filtered);
-          // Detect centered text: if a paragraph's text fragments are centered
-          // relative to the page width, mark it with align='center' so it renders
-          // centered in reflow mode too.
-          const pageWidths = pageWidthsRef.current;
-          const pageItems = allItemsRef.current;
-          normalized.forEach((para, paraIdx) => {
-            // Table rows stay left-aligned in their scroll container; centering
-            // them would fight the nowrap layout.
-            if (para.isTable) return;
-            const pageIdx = para.pageIndex;
-            const itemsForPage = pageItems[pageIdx] ?? [];
-            const pageWidth = pageWidths[pageIdx] ?? 0;
-            const pageCenter = pageWidth / 2;
-            if (itemsForPage.length > 0 && pageWidth > 0) {
-              const matchingItems = itemsForPage.filter((it) =>
-                para.text.includes(it.str),
-              );
-              if (matchingItems.length > 0) {
-                const avgCenter =
-                  matchingItems.reduce(
-                    (sum: number, it: { x: number; width: number }) => sum + it.x + it.width / 2,
-                    0,
-                  ) / matchingItems.length;
-                const deviation = Math.abs(avgCenter - pageCenter);
-                if (deviation < pageWidth * 0.1) {
-                  normalized[paraIdx].align = 'center';
-                }
-              }
-            }
-          });
           const chars = normalized.reduce((sum, para) => sum + para.text.length, 0);
           setPageTexts(texts);
           setParagraphs(normalized);

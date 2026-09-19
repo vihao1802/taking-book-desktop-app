@@ -49,6 +49,8 @@ export function fontStyleFromName(name: string | null): { bold: boolean; italic:
 /** A reconstructed line of text (left-to-right join of fragments). */
 export interface ReflowLine {
   x: number;
+  /** Right edge of the line's last fragment; with `x` it tells whether the line is centered. */
+  right: number;
   y: number;
   fontSize: number;
   text: string;
@@ -194,6 +196,7 @@ export function extractLines(
     const fontSize = Math.max(...line.items.map((i) => i.fontSize));
     return {
       x: line.items[0].x,
+      right: Math.max(...line.items.map((i) => i.x + i.width)),
       y: line.y,
       fontSize,
       text: joined.text,
@@ -342,6 +345,9 @@ export function paragraphsFromLines(
 ): ReflowParagraph[] {
   const opts = mergeOptions(options);
   const paragraphs: ReflowParagraph[] = [];
+  // Source lines of each paragraph, kept in step with `paragraphs`, so
+  // alignment can be judged from line geometry once grouping is done.
+  const paragraphLines: ReflowLine[][] = [];
 
   lines.forEach((line, index) => {
     const lastLine = lines[index - 1];
@@ -357,6 +363,7 @@ export function paragraphsFromLines(
         runs: [...line.runs],
         ...(line.isTable ? { isTable: true as const } : {}),
       });
+      paragraphLines.push([line]);
       return;
     }
 
@@ -372,6 +379,7 @@ export function paragraphsFromLines(
         runs: [...line.runs],
         ...(line.isTable ? { isTable: true as const } : {}),
       });
+      paragraphLines.push([line]);
       return;
     }
 
@@ -394,14 +402,56 @@ export function paragraphsFromLines(
         y: line.y,
         runs: [...line.runs],
       });
+      paragraphLines.push([line]);
     } else {
+      paragraphLines[paragraphLines.length - 1].push(line);
       prev.text += ' ' + line.text;
       appendRun(prev.runs, ' ', false, false);
       for (const run of line.runs) appendRun(prev.runs, run.text, run.bold, run.italic);
     }
   });
 
+  markCenteredParagraphs(paragraphs, paragraphLines, lines);
   return paragraphs;
+}
+
+/** How far inside the text column (× font size) a line must sit on each side to count as centered. */
+const CENTER_INSET_RATIO = 1.5;
+/** Allowed offset (× font size) between a line's midpoint and the column midpoint. */
+const CENTER_TOLERANCE_RATIO = 1;
+
+/**
+ * Sets `align: 'center'` on paragraphs whose every line is centered in the
+ * page's text column. The column is the span of all body lines on the page, so
+ * a full-width left-aligned paragraph (whose lines start at the column's left
+ * edge) is never mistaken for centered text, however its fragments average out.
+ * Table rows are skipped: they scroll horizontally and stay left-aligned.
+ */
+function markCenteredParagraphs(
+  paragraphs: ReflowParagraph[],
+  paragraphLines: ReflowLine[][],
+  pageLines: ReflowLine[],
+): void {
+  const bodyLines = pageLines.filter((line) => !line.isTable);
+  if (bodyLines.length === 0) return;
+  const columnLeft = Math.min(...bodyLines.map((line) => line.x));
+  const columnRight = Math.max(...bodyLines.map((line) => line.right));
+  const columnMid = (columnLeft + columnRight) / 2;
+
+  const isCentered = (line: ReflowLine): boolean => {
+    const inset = CENTER_INSET_RATIO * line.fontSize;
+    const midOffset = Math.abs((line.x + line.right) / 2 - columnMid);
+    return (
+      line.x - columnLeft >= inset &&
+      columnRight - line.right >= inset &&
+      midOffset <= CENTER_TOLERANCE_RATIO * line.fontSize
+    );
+  };
+
+  paragraphs.forEach((paragraph, index) => {
+    if (paragraph.isTable) return;
+    if (paragraphLines[index].every(isCentered)) paragraph.align = 'center';
+  });
 }
 
 /**
