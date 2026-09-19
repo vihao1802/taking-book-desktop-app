@@ -26,6 +26,16 @@ export { createSha256Hasher, sha256Hex, type Sha256Hasher } from './sha256';
 export { normalizePosition, progressFraction } from './position';
 export { sortByRecentlyRead } from './recentlyRead';
 export {
+  detectShortcutPlatform,
+  formatShortcutLabel,
+  resolveReaderShortcut,
+  type KeyInput,
+  type ReaderShortcutAction,
+  type ResolveShortcutOptions,
+  type ShortcutPlatform,
+} from './readerShortcuts';
+export { findMatchesInTexts, findTextMatches, type IndexedTextMatch, type TextMatch } from './textSearch';
+export {
   ZOOM_PRESETS,
   clampZoomPercent,
   multiplierToPercent,
