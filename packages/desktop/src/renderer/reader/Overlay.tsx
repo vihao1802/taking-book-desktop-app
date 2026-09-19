@@ -71,6 +71,12 @@ export function Overlay({
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [sidebarMenuOpen]);
 
+  // A hidden overlay must not leave the menu open: the backdrop stays
+  // clickable while invisible and would swallow the next page click.
+  useEffect(() => {
+    if (!visible) setSidebarMenuOpen(false);
+  }, [visible]);
+
   const openSidebarMenu = () => {
     setSidebarMenuOpen(true);
     onInteract?.();
@@ -92,7 +98,11 @@ export function Overlay({
           aria-hidden
         />
       )}
-      <div className={cn('overlay overlay-top', !visible && 'overlay-hidden')}>
+      {/* While the sidebar menu is open the top bar sits above its own
+          click-away backdrop. The bar's backdrop-blur traps the dropdown's
+          z-30 in a local stacking context, so without this the transparent
+          backdrop (z-10) covers the menu and swallows every click on it. */}
+      <div className={cn('overlay overlay-top', !visible && 'overlay-hidden', sidebarMenuOpen && 'z-20')}>
         <div className="bg-overlay text-foreground pointer-events-auto flex items-center gap-3.5 px-4 py-2.5 backdrop-blur-md">
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Back">
             <ArrowLeft className="size-5" />
