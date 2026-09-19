@@ -16,9 +16,9 @@ interface ReaderBarsProps {
 
 /**
  * The reader's on-demand bars. Find sits top right below the overlay; go to
- * page sits bottom right above the overlay, next to the page indicator that
- * opens it. Neither is visible until its shortcut or the indicator is used,
- * so the reading view stays free of permanent controls.
+ * page is centered over the reading view like a dialog. Neither is visible
+ * until its shortcut or the page indicator is used, so the reading view stays
+ * free of permanent controls.
  */
 export function ReaderBars({
   search,
@@ -48,7 +48,7 @@ export function ReaderBars({
         </div>
       )}
       {goToRequest !== 0 && (
-        <div className="pointer-events-none fixed right-4 bottom-16 z-30">
+        <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center">
           <GoToPageBar
             key={goToRequest}
             total={totalPages}
