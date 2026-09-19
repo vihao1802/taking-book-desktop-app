@@ -21,11 +21,24 @@ export function GoToPageBar({ total, currentPage, onGoTo, onClose }: GoToPageBar
   const [draft, setDraft] = useState(String(currentPage));
   const [invalid, setInvalid] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
+
+  // Listens on window in the capture phase because the overlay and the page
+  // stop pointerdown from bubbling, so a bubbling listener would miss most
+  // outside clicks. The click still reaches its target; this only closes.
+  useEffect(() => {
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && dialogRef.current?.contains(event.target)) return;
+      onClose();
+    };
+    window.addEventListener('pointerdown', closeOnOutsidePointerDown, true);
+    return () => window.removeEventListener('pointerdown', closeOnOutsidePointerDown, true);
+  }, [onClose]);
 
   const submit = () => {
     const page = parsePageNumber(draft, total);
@@ -39,13 +52,14 @@ export function GoToPageBar({ total, currentPage, onGoTo, onClose }: GoToPageBar
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-label="Go to page"
       className="bg-popover text-popover-foreground pointer-events-auto flex items-center gap-2 rounded-md border p-1.5 shadow-md"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <span className="text-muted-foreground pl-1.5 text-xs">Go to page</span>
+      <span className="text-muted-foreground pl-1.5 text-xs font-semibold">Go to page</span>
       <Input
         ref={inputRef}
         inputMode="numeric"
@@ -63,7 +77,7 @@ export function GoToPageBar({ total, currentPage, onGoTo, onClose }: GoToPageBar
         aria-invalid={invalid}
         className={cn('h-8 w-16 text-center text-sm tabular-nums', invalid && 'border-destructive')}
       />
-      <span className="text-muted-foreground text-xs tabular-nums">of {total}</span>
+      <span className="text-muted-foreground text-xs font-semibold tabular-nums">of {total}</span>
       <Button variant="ghost" size="icon" className="size-8" onClick={onClose} aria-label="Close go to page">
         <X className="size-4" />
       </Button>
