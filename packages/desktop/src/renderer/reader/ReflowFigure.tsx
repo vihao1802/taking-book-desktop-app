@@ -57,7 +57,10 @@ export const ReflowFigure = memo(function ReflowFigure({
               return;
             }
             const blob = await decoder.decode(obj);
-            const url = URL.createObjectURL(blob);
+            // The same ref can be on screen twice; if another figure finished
+            // first, reuse its URL rather than leaking a second one.
+            const url =
+              URL_CACHE.get(fileHash, image.ref) ?? URL.createObjectURL(blob);
             URL_CACHE.set(fileHash, image.ref, url);
             setSrc(url);
             setState('ready');

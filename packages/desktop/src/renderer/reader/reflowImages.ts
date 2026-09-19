@@ -233,10 +233,11 @@ export class ImageBitmapDecoder implements ImageDecoder {
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get a 2D context to decode a reflow image.');
+    // The bitmap is deliberately not closed: it is owned by pdf.js's object
+    // store, which closes it on cleanup/destroy. Closing it here detaches it,
+    // so a second decode of the same ref (cache eviction, a repeated figure)
+    // would throw "The image source is detached".
     ctx.drawImage(bitmap, 0, 0, width, height);
-    // A VideoFrame holds a GPU/decoder resource that must be released
-    // explicitly (unlike ImageBitmap, which both support and gc handles too).
-    bitmap.close();
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error('Could not encode a reflow image.');
     return blob;

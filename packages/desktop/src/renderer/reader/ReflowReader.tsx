@@ -403,7 +403,12 @@ export function ReflowReader({
             {flowItems.map((item, i) => {
               const isEndOfPage =
                 i === flowItems.length - 1 || flowItemPage(item) !== flowItemPage(flowItems[i + 1]);
-              const key = item.kind === 'image' ? `image-${item.image.ref}` : `para-${item.index}`;
+              // A pdf.js ref can be painted on several pages (shared logos, rules), so
+              // the ref alone is not unique across the flow.
+              const key =
+                item.kind === 'image'
+                  ? `image-${item.image.pageIndex}-${item.image.ref}`
+                  : `para-${item.index}`;
               return (
                 <Fragment key={key}>
                   {item.kind === 'image' ? (
