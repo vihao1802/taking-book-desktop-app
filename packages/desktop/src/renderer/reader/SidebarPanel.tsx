@@ -28,19 +28,29 @@ const TAB_LABEL: Record<SidebarTab, string> = {
  */
 export function SidebarPanel({ tab, onTabChange, onClose, showThumbnails, children }: SidebarPanelProps) {
   const asideRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Clicking outside the panel closes it. The overlay's own bars stop
   // pointerdown propagation, so interacting with them never reaches here and
-  // the sidebar stays open; a click on the document itself closes it.
+  // the sidebar stays open; a click on the document itself closes it. The hit
+  // test uses the panel's rect (not target containment) so a click on the
+  // panel's own scrollbar is still treated as inside and never closes it.
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
-      if (asideRef.current && !asideRef.current.contains(event.target as Node)) {
-        onClose();
-      }
+      const aside = asideRef.current;
+      if (!aside) return;
+      const rect = aside.getBoundingClientRect();
+      const inside =
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom;
+      if (!inside) onCloseRef.current();
     };
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [onClose]);
+  }, []);
 
   return (
     <aside

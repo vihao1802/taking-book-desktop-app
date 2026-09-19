@@ -185,6 +185,10 @@
     border-radius: 5px;
     border: 2px solid var(--bg);
   }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--dash-muted);
+  }
 }
 
 /* ---------- Reader overlay transitions ---------- */

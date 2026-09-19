@@ -19,8 +19,22 @@ interface ThumbnailsViewProps {
  * front. Clicking a thumbnail jumps the main view to that page.
  */
 export function ThumbnailsView({ pdf, total, currentPage, onSelect }: ThumbnailsViewProps) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Keep the active page's thumbnail in view as the reader scrolls, so the
+  // selection never drifts out of sight while scrubbing through the document.
+  useEffect(() => {
+    const active = listRef.current?.querySelector('[aria-current="true"]');
+    active?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [currentPage]);
+
   return (
-    <div className="min-h-0 flex flex-1 flex-col gap-3 overflow-y-auto px-3 py-3" role="list" aria-label="Page thumbnails">
+    <div
+      ref={listRef}
+      className="min-h-0 flex flex-1 flex-col gap-3 overflow-y-auto px-3 py-3"
+      role="list"
+      aria-label="Page thumbnails"
+    >
       {Array.from({ length: total }, (_, i) => (
         <ThumbnailItem
           key={i + 1}

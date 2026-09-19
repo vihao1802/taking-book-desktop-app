@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PdfOutlineNode } from './usePdfOutline';
@@ -17,6 +17,13 @@ interface OutlineViewProps {
  */
 export function OutlineView({ nodes, loading, currentPage, onSelect }: OutlineViewProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Keep the outline entry matching the current page in view while scrolling.
+  useEffect(() => {
+    const active = listRef.current?.querySelector('[aria-current="true"]');
+    active?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [currentPage]);
 
   if (loading) {
     return <p className="text-muted-foreground px-4 py-6 text-center text-sm">Loading outlines…</p>;
@@ -40,7 +47,12 @@ export function OutlineView({ nodes, loading, currentPage, onSelect }: OutlineVi
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2" role="tree" aria-label="Document outlines">
+    <div
+      ref={listRef}
+      className="min-h-0 flex-1 overflow-y-auto px-2 py-2"
+      role="tree"
+      aria-label="Document outlines"
+    >
       {nodes.map((node) => (
         <OutlineRow
           key={node.id}
@@ -83,6 +95,7 @@ function OutlineRow({
           'flex min-w-0 items-center gap-0.5 rounded-md py-1 pr-2',
           active ? 'bg-accent' : 'hover:bg-accent/60',
         )}
+        aria-current={active ? 'true' : undefined}
         style={{ paddingLeft: 8 + depth * 14 }}
       >
         {hasChildren ? (
