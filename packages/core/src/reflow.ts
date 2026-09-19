@@ -54,6 +54,8 @@ export interface ReflowLine {
   text: string;
   /** Styled runs partitioning `text` exactly (`runs.join('') === text`). */
   runs: ReflowRun[];
+  /** True when the line looks like a table row: multi-column with aligned neighbors. */
+  isTable?: boolean;
 }
 
 /** A block of text that can be re-wrapped at render time. */
@@ -68,6 +70,12 @@ export interface ReflowParagraph {
   runs: ReflowRun[];
   /** Horizontal alignment for reflow rendering: 'left' | 'center' | 'right' | 'justify'. */
   align?: 'left' | 'center' | 'right' | 'justify';
+  /**
+   * True when the paragraph came from detected table rows. The renderer keeps
+   * the original (small) font size and scrolls horizontally instead of
+   * re-wrapping, so upscaling body text never breaks the table layout.
+   */
+  isTable?: boolean;
 }
 
 /**
@@ -106,6 +114,12 @@ export interface ReflowOptions {
   fontSizeChangeRatio?: number;
   /** Horizontal gap (× font size) that forces a space between fragments (default 0.2). */
   wordGapRatio?: number;
+  /** Columns a line needs to count as a table-row candidate (default 3). */
+  tableMinColumns?: number;
+  /** Horizontal gap (× font size) that marks a column break inside a table row (default 1.0). */
+  tableGapRatio?: number;
+  /** Column-start alignment tolerance, as a fraction of font size (default 0.75). */
+  tableAlignToleranceRatio?: number;
 }
 
 const DEFAULTS: Required<ReflowOptions> = {
@@ -114,6 +128,9 @@ const DEFAULTS: Required<ReflowOptions> = {
   indentRatio: 1.0,
   fontSizeChangeRatio: 0.15,
   wordGapRatio: 0.2,
+  tableMinColumns: 3,
+  tableGapRatio: 1.0,
+  tableAlignToleranceRatio: 0.75,
 };
 
 function mergeOptions(options: ReflowOptions | undefined): Required<ReflowOptions> {
@@ -166,7 +183,12 @@ export function extractLines(
     target.items.push(item);
   }
 
-  return lines.map((line) => {
+  const fontSizes = lines.map((line) =>
+    Math.max(...line.items.map((i) => i.fontSize)),
+  );
+  const tableFlags = detectTableRows(lines, fontSizes, opts);
+
+  return lines.map((line, lineIndex) => {
     line.items.sort((a, b) => a.x - b.x);
     const joined = joinLineRuns(line.items, opts.wordGapRatio);
     const fontSize = Math.max(...line.items.map((i) => i.fontSize));
@@ -176,7 +198,64 @@ export function extractLines(
       fontSize,
       text: joined.text,
       runs: joined.runs,
+      ...(tableFlags[lineIndex] ? { isTable: true as const } : {}),
     };
+  });
+}
+
+/**
+ * Flags lines that look like table rows: several column groups separated by
+ * wide gaps, with column starts aligning across neighboring rows. Tables are
+ * detected by layout (gaps + alignment), not by font size, so a small-print
+ * table inside body text is still caught. A candidate row needs a neighboring
+ * candidate with overlapping columns; a row with one extra column beyond the
+ * minimum is accepted alone so a lone wide header row is not missed.
+ */
+function detectTableRows(
+  grouped: { items: ReflowTextItem[] }[],
+  fontSizes: number[],
+  opts: Required<ReflowOptions>,
+): boolean[] {
+  const columnStarts: number[][] = grouped.map((line, index) => {
+    const sorted = [...line.items].sort((a, b) => a.x - b.x);
+    const starts: number[] = [];
+    const fontSize = fontSizes[index] ?? 1;
+    let prevRight = -Infinity;
+    for (const item of sorted) {
+      if (starts.length === 0 || item.x - prevRight > opts.tableGapRatio * fontSize) {
+        starts.push(item.x);
+      }
+      prevRight = Math.max(prevRight, item.x + item.width);
+    }
+    return starts;
+  });
+
+  const candidates = columnStarts.map((starts) => starts.length >= opts.tableMinColumns);
+
+  const aligned = (a: number, b: number): boolean => {
+    if (a < 0 || b < 0 || a >= candidates.length || b >= candidates.length) return false;
+    if (!candidates[a] || !candidates[b]) return false;
+    const sizeA = fontSizes[a] ?? 1;
+    const sizeB = fontSizes[b] ?? 1;
+    const tolerance = opts.tableAlignToleranceRatio * Math.max(sizeA, sizeB, 1);
+    const startsA = columnStarts[a] ?? [];
+    const startsB = columnStarts[b] ?? [];
+    let matches = 0;
+    for (const x of startsA) {
+      if (startsB.some((y) => Math.abs(x - y) <= tolerance)) {
+        matches++;
+        if (matches >= 2) return true;
+      }
+    }
+    return false;
+  };
+
+  return candidates.map((isCandidate, index) => {
+    if (!isCandidate) return false;
+    // A row with one column more than the minimum is distinctive enough to
+    // accept without a matching neighbor (e.g. a lone four-column header).
+    if ((columnStarts[index]?.length ?? 0) > opts.tableMinColumns) return true;
+    return aligned(index, index - 1) || aligned(index, index + 1);
   });
 }
 
@@ -252,7 +331,9 @@ function collapseRuns(runs: ReflowRun[]): { text: string; runs: ReflowRun[] } {
  * Groups top-to-bottom lines into paragraphs. A new paragraph starts on:
  * a vertical gap larger than `paragraphGapRatio`× font size, a relative font
  * size change larger than `fontSizeChangeRatio`, or a first-line indent larger
- * than `indentRatio`× font size.
+ * than `indentRatio`× font size. Table rows always start their own paragraph
+ * (one row per paragraph, flagged `isTable`) so rows never merge into flowing
+ * body text and the renderer can keep them unwrapped.
  */
 export function paragraphsFromLines(
   lines: ReflowLine[],
@@ -274,6 +355,22 @@ export function paragraphsFromLines(
         pageIndex,
         y: line.y,
         runs: [...line.runs],
+        ...(line.isTable ? { isTable: true as const } : {}),
+      });
+      return;
+    }
+
+    // Table rows stand alone: never merge a table row into body text, body
+    // text into a table, or two rows into one paragraph.
+    if (line.isTable || prev.isTable) {
+      paragraphs.push({
+        text: line.text,
+        fontSize: line.fontSize,
+        indent: false,
+        pageIndex,
+        y: line.y,
+        runs: [...line.runs],
+        ...(line.isTable ? { isTable: true as const } : {}),
       });
       return;
     }
@@ -328,17 +425,21 @@ export const REFLOW_TARGET_FONT_SIZE = 20;
 /**
  * Returns the font size carrying the most text across the document (weighted
  * by character count), so a long body at 12px beats a repeated 20px heading.
- * A paragraph's text is credited to its first line's size; since paragraph
+ * Table paragraphs are excluded: their small print must not drag the body
+ * scale down, and their own size is left untouched by normalization. A
+ * paragraph's text is credited to its first line's size; since paragraph
  * merging only happens within the font-size-change ratio, the estimate stays
  * close. Used as the denominator for reflow normalization. Returns null for an
- * empty document; length ties break toward the smaller size.
+ * empty (or table-only) document; length ties break toward the smaller size.
  */
 export function dominantFontSize(paragraphs: ReflowParagraph[]): number | null {
   if (paragraphs.length === 0) return null;
   const lengthBySize = new Map<number, number>();
   for (const para of paragraphs) {
+    if (para.isTable) continue;
     lengthBySize.set(para.fontSize, (lengthBySize.get(para.fontSize) ?? 0) + para.text.length);
   }
+  if (lengthBySize.size === 0) return null;
   let dominant = 0;
   let dominantLength = -1;
   for (const [size, length] of lengthBySize) {
@@ -353,8 +454,10 @@ export function dominantFontSize(paragraphs: ReflowParagraph[]): number | null {
 /**
  * Scales every paragraph's font size so the document's dominant size renders
  * at `targetSize` when zoom is 100%. Relative sizes are preserved, so headings
- * stay proportional to body text. Returns new paragraph objects; the input
- * list and its text/runs are left untouched. An empty document passes through.
+ * stay proportional to body text. Table paragraphs keep their original size so
+ * dense tables never blow up to body size and break their layout. Returns new
+ * paragraph objects; the input list and its text/runs are left untouched. An
+ * empty document passes through.
  */
 export function normalizeReflowSizes(
   paragraphs: ReflowParagraph[],
@@ -363,7 +466,9 @@ export function normalizeReflowSizes(
   const dominant = dominantFontSize(paragraphs);
   if (dominant === null) return paragraphs;
   const scale = targetSize / dominant;
-  return paragraphs.map((para) => ({ ...para, fontSize: para.fontSize * scale }));
+  return paragraphs.map((para) =>
+    para.isTable ? { ...para } : { ...para, fontSize: para.fontSize * scale },
+  );
 }
 
 /**

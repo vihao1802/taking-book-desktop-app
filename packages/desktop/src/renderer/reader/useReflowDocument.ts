@@ -203,6 +203,9 @@ export function useReflowDocument(
           const pageWidths = pageWidthsRef.current;
           const pageItems = allItemsRef.current;
           normalized.forEach((para, paraIdx) => {
+            // Table rows stay left-aligned in their scroll container; centering
+            // them would fight the nowrap layout.
+            if (para.isTable) return;
             const pageIdx = para.pageIndex;
             const itemsForPage = pageItems[pageIdx] ?? [];
             const pageWidth = pageWidths[pageIdx] ?? 0;

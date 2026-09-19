@@ -376,6 +376,99 @@ describe('filterBoilerplateParagraphs', () => {
   });
 });
 
+describe('table detection', () => {
+  function cell(str: string, x: number, y: number, fontSize = 9): ReflowTextItem {
+    return { str, x, y, width: 30, fontSize };
+  }
+
+  it('flags aligned multi-column rows as table lines', () => {
+    const lines = extractLines([
+      cell('Name', 0, 100),
+      cell('Age', 150, 100),
+      cell('City', 300, 100),
+      cell('Ann', 0, 115),
+      cell('30', 150, 115),
+      cell('Oslo', 300, 115),
+    ]);
+    expect(lines).toHaveLength(2);
+    expect(lines[0].isTable).toBe(true);
+    expect(lines[1].isTable).toBe(true);
+  });
+
+  it('leaves ordinary body text unflagged', () => {
+    const lines = extractLines([
+      item('hello', 0, 100),
+      item('world', 34, 100),
+      item('next line', 0, 115),
+    ]);
+    expect(lines.every((l) => l.isTable !== true)).toBe(true);
+  });
+
+  it('does not flag a lone three-column line without an aligned neighbor', () => {
+    const lines = extractLines([
+      cell('A', 0, 100),
+      cell('B', 150, 100),
+      cell('C', 300, 100),
+      item('body text continues here', 0, 200),
+    ]);
+    expect(lines[0].isTable).not.toBe(true);
+  });
+
+  it('keeps each table row as its own paragraph so rows never merge into body text', () => {
+    const paragraphs = reflowPage(
+      [
+        cell('Name', 0, 100),
+        cell('Age', 150, 100),
+        cell('City', 300, 100),
+        cell('Ann', 0, 115),
+        cell('30', 150, 115),
+        cell('Oslo', 300, 115),
+      ],
+      0,
+    );
+    expect(paragraphs).toHaveLength(2);
+    expect(paragraphs[0].isTable).toBe(true);
+    expect(paragraphs[1].isTable).toBe(true);
+  });
+
+  it('excludes table paragraphs from the dominant size', () => {
+    function para(text: string, fontSize: number, isTable?: boolean): ReflowParagraph {
+      return {
+        text,
+        fontSize,
+        indent: false,
+        pageIndex: 0,
+        y: 0,
+        runs: [{ text, bold: false, italic: false }],
+        ...(isTable ? { isTable: true as const } : {}),
+      };
+    }
+    const paragraphs = [
+      para('body body body body body', 12),
+      para('Name Age City', 9, true),
+      para('Ann 30 Oslo', 9, true),
+    ];
+    expect(dominantFontSize(paragraphs)).toBe(12);
+  });
+
+  it('leaves table font sizes untouched while scaling body text', () => {
+    function para(text: string, fontSize: number, isTable?: boolean): ReflowParagraph {
+      return {
+        text,
+        fontSize,
+        indent: false,
+        pageIndex: 0,
+        y: 0,
+        runs: [{ text, bold: false, italic: false }],
+        ...(isTable ? { isTable: true as const } : {}),
+      };
+    }
+    const out = normalizeReflowSizes([para('body body body', 12), para('Name Age City', 9, true)]);
+    expect(out[0].fontSize).toBeCloseTo(REFLOW_TARGET_FONT_SIZE);
+    expect(out[1].fontSize).toBeCloseTo(9);
+  });
+});
+
 describe('assignImagePositions', () => {
   function para(text: string, pageIndex: number, y: number): ReflowParagraph {
     return { text, fontSize: 12, indent: false, pageIndex, y, runs: [{ text, bold: false, italic: false }] };
