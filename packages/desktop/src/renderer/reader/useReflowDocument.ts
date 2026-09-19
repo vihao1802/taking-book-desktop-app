@@ -106,24 +106,36 @@ export interface ReflowDocumentOptions {
 }
 
 /**
- * Reads the cached extraction for a book. A missing entry and a read failure
- * both resolve to null so the caller just extracts; failures are logged
- * because a cache that never hits should not go unnoticed.
+ * Reads the cached extraction for a book. A missing entry, a read failure and
+ * an unreachable handler (e.g. a main process started before the cache
+ * existed) all resolve to null so the caller just extracts; failures are
+ * logged because a cache that never hits should not go unnoticed. The cache
+ * is disposable, so it must never be the reason reflow fails to open.
  */
 async function loadReflowCache(fileHash: string): Promise<ReflowCacheEntry | null> {
-  const result = await window.api.getReflowCache(fileHash);
-  if (!isOk(result)) {
-    console.warn(result.error);
+  try {
+    const result = await window.api.getReflowCache(fileHash);
+    if (!isOk(result)) {
+      console.warn(result.error);
+      return null;
+    }
+    return result.data;
+  } catch (error) {
+    console.warn(`Reflow cache lookup failed for ${fileHash}:`, error);
     return null;
   }
-  return result.data;
 }
 
 /** Stores a finished extraction; best-effort, since the cache is disposable. */
 function storeReflowCache(fileHash: string, entry: ReflowCacheEntry): void {
-  void window.api.saveReflowCache(fileHash, entry).then((result) => {
-    if (!isOk(result)) console.warn(result.error);
-  });
+  window.api
+    .saveReflowCache(fileHash, entry)
+    .then((result) => {
+      if (!isOk(result)) console.warn(result.error);
+    })
+    .catch((error: unknown) => {
+      console.warn(`Reflow cache write failed for ${fileHash}:`, error);
+    });
 }
 
 /**
