@@ -324,16 +324,22 @@ export function ReflowReader({
 
   // Restoring a position needs the final article height, so wait until
   // extraction is complete rather than trusting a partial render. A page
-  // location also needs the sections measured.
+  // location also needs the sections measured, and the `pageEdges` state can
+  // still hold the measurement of the empty sections rendered before any text
+  // arrived (every offset ~0, which would land on page 1), so measure the
+  // committed DOM here instead. `pageEdges` stays a dependency only to retry
+  // once layout changes.
   useEffect(() => {
     if (progress !== null || restoredRef.current || paragraphs.length === 0) return;
     if (initialLocation === undefined && initialFraction === undefined) return;
     const el = scrollRef.current;
-    if (!el || el.scrollHeight === 0) return;
+    const article = articleRef.current;
+    if (!el || !article || el.scrollHeight === 0) return;
     let target: number;
     if (initialLocation !== undefined) {
-      if (pageEdges.offsets.length === 0) return;
-      target = offsetForPageLocation(pageEdges.offsets, pageEdges.end, initialLocation);
+      const edges = measurePageEdges(el, article);
+      if (edges.offsets.length === 0) return;
+      target = offsetForPageLocation(edges.offsets, edges.end, initialLocation);
     } else {
       target = (initialFraction ?? 0) * Math.max(el.scrollHeight - el.clientHeight, 0);
     }
