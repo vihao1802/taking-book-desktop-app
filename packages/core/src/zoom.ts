@@ -48,3 +48,17 @@ export function parseCustomZoomPercent(input: string): number | null {
   if (value < ZOOM_MIN_PERCENT || value > ZOOM_MAX_PERCENT) return null;
   return value;
 }
+
+/**
+ * Zoom multiplier one preset step away from `multiplier`, matching what the
+ * overlay's −/+ buttons do so keyboard zoom lands on the same levels.
+ *
+ * @param multiplier - Current zoom (1 = 100%).
+ * @param direction - 'in' for the next preset above, 'out' for the one below.
+ * @returns The new multiplier, or null when already at the limit.
+ */
+export function stepZoomMultiplier(multiplier: number, direction: 'in' | 'out'): number | null {
+  const percent = multiplierToPercent(multiplier);
+  const next = direction === 'in' ? nextPresetPercent(percent) : previousPresetPercent(percent);
+  return next === null ? null : percentToMultiplier(next);
+}

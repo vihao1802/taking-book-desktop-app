@@ -43,6 +43,7 @@ export {
   parseCustomZoomPercent,
   percentToMultiplier,
   previousPresetPercent,
+  stepZoomMultiplier,
 } from './zoom';
 export {
   REFLOW_TARGET_FONT_SIZE,

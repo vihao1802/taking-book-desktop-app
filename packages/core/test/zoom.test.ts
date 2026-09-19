@@ -7,6 +7,7 @@ import {
   parseCustomZoomPercent,
   percentToMultiplier,
   previousPresetPercent,
+  stepZoomMultiplier,
 } from '../src/zoom';
 
 describe('ZOOM_PRESETS', () => {
@@ -112,5 +113,22 @@ describe('parseCustomZoomPercent', () => {
     expect(parseCustomZoomPercent('49')).toBeNull();
     expect(parseCustomZoomPercent('201')).toBeNull();
     expect(parseCustomZoomPercent('-10')).toBeNull();
+  });
+});
+
+describe('stepZoomMultiplier', () => {
+  it('steps to the next preset above and below', () => {
+    expect(stepZoomMultiplier(1, 'in')).toBe(1.25);
+    expect(stepZoomMultiplier(1, 'out')).toBe(0.75);
+  });
+
+  it('snaps a custom zoom to the nearest preset in the requested direction', () => {
+    expect(stepZoomMultiplier(1.1, 'in')).toBe(1.25);
+    expect(stepZoomMultiplier(1.1, 'out')).toBe(1);
+  });
+
+  it('returns null at the limits', () => {
+    expect(stepZoomMultiplier(2, 'in')).toBeNull();
+    expect(stepZoomMultiplier(0.5, 'out')).toBeNull();
   });
 });
