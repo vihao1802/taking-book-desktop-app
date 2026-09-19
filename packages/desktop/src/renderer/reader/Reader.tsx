@@ -232,9 +232,11 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   };
 
   const toggleMode = useCallback(() => {
-    setHandoffLocation(locationRef.current ?? undefined);
+    // The tracked page is the fallback for a location that was never recorded;
+    // handing over nothing would drop the other view onto page 1.
+    setHandoffLocation(locationRef.current ?? { page: currentPage, fraction: 0 });
     setMode((current) => (current === 'page' ? 'reflow' : 'page'));
-  }, []);
+  }, [currentPage]);
 
   const toggleSidebarTab = (tab: SidebarTab) => setSidebarTab((current) => (current === tab ? null : tab));
 

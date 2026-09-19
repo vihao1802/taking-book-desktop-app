@@ -1,7 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import {
-  offsetForPageLocation,
   pageIndexAtOffset,
   pageLocationAtOffset,
   stepZoomMultiplier,
@@ -30,6 +29,7 @@ import {
 import { ReaderBars } from './ReaderBars';
 import { clearSearchHighlights, setSearchHighlights } from './searchHighlights';
 import type { DocumentSearch } from './useDocumentSearch';
+import { useLocationAnchor } from './useLocationAnchor';
 import { useReaderShortcuts } from './useReaderShortcuts';
 
 const HIDE_DELAY_MS = 2500;
@@ -322,31 +322,39 @@ export function ReflowReader({
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
-  // Restoring a position needs the final article height, so wait until
-  // extraction is complete rather than trusting a partial render. A page
-  // location also needs the sections measured, and the `pageEdges` state can
-  // still hold the measurement of the empty sections rendered before any text
-  // arrived (every offset ~0, which would land on page 1), so measure the
-  // committed DOM here instead. `pageEdges` stays a dependency only to retry
-  // once layout changes.
+  // A scroll fraction can only be restored against the final article height, so
+  // wait until extraction is complete rather than trusting a partial render.
   useEffect(() => {
     if (progress !== null || restoredRef.current || paragraphs.length === 0) return;
-    if (initialLocation === undefined && initialFraction === undefined) return;
+    if (initialLocation !== undefined || initialFraction === undefined) return;
     const el = scrollRef.current;
-    const article = articleRef.current;
-    if (!el || !article || el.scrollHeight === 0) return;
-    let target: number;
-    if (initialLocation !== undefined) {
-      const edges = measurePageEdges(el, article);
-      if (edges.offsets.length === 0) return;
-      target = offsetForPageLocation(edges.offsets, edges.end, initialLocation);
-    } else {
-      target = (initialFraction ?? 0) * Math.max(el.scrollHeight - el.clientHeight, 0);
-    }
+    if (!el || el.scrollHeight === 0) return;
     restoredRef.current = true;
-    el.scrollTop = target;
+    el.scrollTop = initialFraction * Math.max(el.scrollHeight - el.clientHeight, 0);
     setScrollTop(el.scrollTop);
-  }, [progress, paragraphs.length, initialFraction, initialLocation, pageEdges]);
+  }, [progress, paragraphs.length, initialFraction, initialLocation]);
+
+  // A page handed over from page mode is held until the reader takes over.
+  // Measuring the DOM here (not the `pageEdges` state) matters: that state can
+  // still describe the empty sections rendered before any text arrived, whose
+  // offsets are all ~0 and would land on page 1. Pages stream in top to bottom,
+  // so the target page's top is already final once the page after it exists.
+  const measureEdges = useCallback((): PageEdges | null => {
+    const container = scrollRef.current;
+    const article = articleRef.current;
+    return container && article ? measurePageEdges(container, article) : null;
+  }, []);
+  const anchorReady =
+    paragraphs.length > 0 &&
+    initialLocation !== undefined &&
+    (progress === null || pageSections.length > initialLocation.page);
+  const positioned = useLocationAnchor({
+    scrollRef,
+    location: initialLocation,
+    measureEdges,
+    ready: anchorReady,
+    layoutKey: pageEdges,
+  });
 
   const scrollReflow = useCallback((targetFor: (el: HTMLDivElement) => number) => {
     const el = scrollRef.current;
@@ -529,7 +537,7 @@ export function ReflowReader({
         </div>
       ) : (
         <div
-          className="absolute inset-0 flex justify-center overflow-y-auto overflow-x-hidden px-4 py-10"
+          className={`absolute inset-0 flex justify-center overflow-y-auto overflow-x-hidden px-4 py-10${positioned ? '' : ' invisible'}`}
           ref={scrollRef}
           onScroll={handleScroll}
           onClick={handleClick}
@@ -567,6 +575,11 @@ export function ReflowReader({
               </section>
             ))}
           </article>
+        </div>
+      )}
+      {paragraphs.length > 0 && !positioned && (
+        <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center">
+          <p>{progress ? `Extracting page ${progress.done} of ${progress.total}…` : 'Reflowing…'}</p>
         </div>
       )}
       {selectionToolbar && (
