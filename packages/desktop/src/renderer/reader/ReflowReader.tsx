@@ -1,6 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import type { PositionedReflowImage, ReflowParagraph, ReflowRun } from '@taking-book/core';
+import { stepZoomMultiplier, type PositionedReflowImage, type ReflowParagraph, type ReflowRun } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import type { ReflowProgress } from './useReflowDocument';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,24 @@ import { usePdfOutline } from './usePdfOutline';
 import { AnnotationPopup } from './AnnotationPopup';
 import { SelectionToolbar } from './SelectionToolbar';
 import { ReflowFigure } from './ReflowFigure';
-import { findRangeIgnoringWhitespace, HIGHLIGHT_FILL, rangeGlobalOffsets, selectionRect } from './highlights';
+import {
+  findRangeIgnoringWhitespace,
+  HIGHLIGHT_FILL,
+  rangeFromOffsets,
+  rangeGlobalOffsets,
+  selectionRect,
+} from './highlights';
+import { ReaderBars } from './ReaderBars';
+import { clearSearchHighlights, setSearchHighlights } from './searchHighlights';
+import type { DocumentSearch } from './useDocumentSearch';
+import { useReaderShortcuts } from './useReaderShortcuts';
 
 const HIDE_DELAY_MS = 2500;
+/** Keyboard paging: fraction of the viewport a screen step scrolls, and a line step in px. */
+const SCREEN_STEP_RATIO = 0.9;
+const LINE_STEP_PX = 48;
+/** Matches painted on each side of the current one; a common word can match tens of thousands of times. */
+const SEARCH_HIGHLIGHT_WINDOW = 500;
 
 /** One block in the reflow flow: a text paragraph or a figure. */
 type FlowItem = { kind: 'para'; para: ReflowParagraph; index: number } | { kind: 'image'; image: PositionedReflowImage };
@@ -44,6 +59,12 @@ interface ReflowReaderProps {
   onScrollFraction?: (fraction: number) => void;
   zoom: number;
   onZoomChange: (zoom: number) => void;
+  search: DocumentSearch;
+  onOpenFind: () => void;
+  /** Non-zero while the go-to-page bar is open. */
+  goToRequest: number;
+  onOpenGoTo: () => void;
+  onCloseGoTo: () => void;
   annotations: Annotation[];
   onCreate: (input: CreateAnnotationInput) => Promise<Annotation | null>;
   onSetNote: (id: number, note: string | null) => Promise<void>;
@@ -65,6 +86,11 @@ export function ReflowReader({
   onScrollFraction,
   zoom,
   onZoomChange,
+  search,
+  onOpenFind,
+  goToRequest,
+  onOpenGoTo,
+  onCloseGoTo,
   annotations,
   onCreate,
   onSetNote,
@@ -261,38 +287,87 @@ export function ReflowReader({
     setScrollTop(el.scrollTop);
   }, [progress, paragraphs.length, initialFraction]);
 
-  useEffect(() => {
-    // Keyboard paging mirrors the page view so scrolling reflow text feels the
-    // same: PageDown/PageUp advance by a screen, arrows nudge, Space pages down.
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSelectionToolbar(null);
-        setActivePopup(null);
-        return;
-      }
-      const targetEl = e.target as HTMLElement | null;
-      const typing =
-        targetEl?.tagName === 'INPUT' ||
-        targetEl?.tagName === 'TEXTAREA' ||
-        targetEl?.isContentEditable;
-      if (typing) return;
-      const el = scrollRef.current;
-      if (!el) return;
-      const step = Math.max(el.clientHeight * 0.9, 1);
-      let target: number | null = null;
-      if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) target = el.scrollTop + step;
-      else if (e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) target = el.scrollTop - step;
-      else if (e.key === 'ArrowDown') target = el.scrollTop + 48;
-      else if (e.key === 'ArrowUp') target = el.scrollTop - 48;
-      else if (e.key === 'Home') target = 0;
-      else if (e.key === 'End') target = el.scrollHeight;
-      if (target === null) return;
-      e.preventDefault();
-      el.scrollTo({ top: target, behavior: 'smooth' });
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+  const scrollReflow = useCallback((targetFor: (el: HTMLDivElement) => number) => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: targetFor(el), behavior: 'smooth' });
   }, []);
+
+  const clearSelectionUi = () => {
+    setSelectionToolbar(null);
+    setActivePopup(null);
+  };
+
+  // Escape peels off one layer at a time: selection toolbar / note popup, find
+  // bar, go-to bar, sidebar, then the reader itself.
+  const dismiss = () => {
+    if (selectionToolbar || activePopup) clearSelectionUi();
+    else if (search.open) search.close();
+    else if (goToRequest !== 0) onCloseGoTo();
+    else if (sidebarTab !== null) setSidebarTab(null);
+    else onClose();
+  };
+
+  // Keyboard paging mirrors the page view so scrolling reflow text feels the
+  // same: PageDown/PageUp/Space advance by a screen, up/down arrows nudge.
+  useReaderShortcuts({
+    find: onOpenFind,
+    findNext: () => (search.open ? search.next() : onOpenFind()),
+    findPrevious: () => (search.open ? search.previous() : onOpenFind()),
+    goToPage: onOpenGoTo,
+    zoomIn: () => {
+      const stepped = stepZoomMultiplier(zoom, 'in');
+      if (stepped !== null) onZoomChange(stepped);
+    },
+    zoomOut: () => {
+      const stepped = stepZoomMultiplier(zoom, 'out');
+      if (stepped !== null) onZoomChange(stepped);
+    },
+    zoomFit: () => onZoomChange(1),
+    firstPage: () => scrollReflow(() => 0),
+    lastPage: () => scrollReflow((el) => el.scrollHeight),
+    nextScreen: () => scrollReflow((el) => el.scrollTop + Math.max(el.clientHeight * SCREEN_STEP_RATIO, 1)),
+    previousScreen: () => scrollReflow((el) => el.scrollTop - Math.max(el.clientHeight * SCREEN_STEP_RATIO, 1)),
+    lineDown: () => scrollReflow((el) => el.scrollTop + LINE_STEP_PX),
+    lineUp: () => scrollReflow((el) => el.scrollTop - LINE_STEP_PX),
+    toggleOutline: () => setSidebarTab((current) => (current === 'outlines' ? null : 'outlines')),
+    toggleReflow: onToggleMode,
+    dismiss,
+  });
+
+  // Paint find-bar matches with the CSS Custom Highlight API. Only a window
+  // around the current match is painted (see SEARCH_HIGHLIGHT_WINDOW).
+  const { open: searchOpen, matches: searchMatches, activeIndex: searchActiveIndex, scrollRequest } = search;
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article || !searchOpen || searchMatches.length === 0) return;
+    const paragraphElements = article.querySelectorAll('p');
+    const first = Math.max(0, searchActiveIndex - SEARCH_HIGHLIGHT_WINDOW);
+    const last = Math.min(searchMatches.length, searchActiveIndex + SEARCH_HIGHLIGHT_WINDOW + 1);
+    const ranges: Range[] = [];
+    let active: Range | null = null;
+    for (let i = first; i < last; i++) {
+      const match = searchMatches[i];
+      const element = paragraphElements[match.textIndex];
+      const range = element ? rangeFromOffsets(element, match.start, match.end) : null;
+      if (!range) continue;
+      ranges.push(range);
+      if (i === searchActiveIndex) active = range;
+    }
+    setSearchHighlights('reflow', ranges, active);
+    return () => clearSearchHighlights('reflow');
+  }, [searchOpen, searchMatches, searchActiveIndex, annotations, paragraphs, zoom]);
+
+  // Bring the current match to the middle of the view once per search request.
+  const handledScrollRequestRef = useRef(0);
+  useEffect(() => {
+    if (!searchOpen || searchActiveIndex < 0 || scrollRequest === handledScrollRequestRef.current) return;
+    const match = searchMatches[searchActiveIndex];
+    const element = articleRef.current?.querySelectorAll('p')[match.textIndex];
+    if (!element) return;
+    const range = rangeFromOffsets(element, match.start, match.end);
+    (range?.startContainer.parentElement ?? element).scrollIntoView({ block: 'center', behavior: 'smooth' });
+    handledScrollRequestRef.current = scrollRequest;
+  }, [searchOpen, searchMatches, searchActiveIndex, scrollRequest]);
 
   const handleMouseUp = useCallback(() => {
     const article = articleRef.current;
@@ -456,6 +531,17 @@ export function ReflowReader({
             setActivePopup(null);
           }}
           onClose={() => setActivePopup(null)}
+        />
+      )}
+      {!error && (
+        <ReaderBars
+          search={search}
+          indexing={null}
+          goToRequest={goToRequest}
+          totalPages={pdf?.numPages ?? 0}
+          currentPage={(paragraphs[currentIndex]?.pageIndex ?? 0) + 1}
+          onGoToPage={selectOutlinePage}
+          onCloseGoTo={onCloseGoTo}
         />
       )}
       {!error && (

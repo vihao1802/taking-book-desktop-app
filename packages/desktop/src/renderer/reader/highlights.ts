@@ -130,3 +130,35 @@ export function computeHighlightRects(
   }
   return rects;
 }
+
+/**
+ * Builds a DOM Range over the `[start, end)` character offsets of the text
+ * inside `root`, counted in text-node order like `rangeGlobalOffsets`. Used
+ * to paint search matches; returns null when the offsets are not all inside
+ * `root` (e.g. the text layer has not rendered yet).
+ */
+export function rangeFromOffsets(root: HTMLElement, start: number, end: number): Range | null {
+  if (start >= end) return null;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let startNode: Text | null = null;
+  let startOffset = 0;
+  let acc = 0;
+  let node = walker.nextNode() as Text | null;
+  while (node) {
+    const nodeStart = acc;
+    const nodeEnd = acc + node.data.length;
+    if (!startNode && start < nodeEnd) {
+      startNode = node;
+      startOffset = start - nodeStart;
+    }
+    if (startNode && end <= nodeEnd) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(node, end - nodeStart);
+      return range;
+    }
+    acc = nodeEnd;
+    node = walker.nextNode() as Text | null;
+  }
+  return null;
+}

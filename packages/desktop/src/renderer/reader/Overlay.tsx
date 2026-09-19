@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Frame, LayoutGrid, ListTree, PanelLeft, Type } from 'lucide-react';
 import { clampZoomPercent } from '@taking-book/core';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { ZoomControl } from './ZoomControl';
 import type { SidebarTab } from './SidebarPanel';
+import { withShortcutHint } from './shortcutHint';
 
 /** Clamps a zoom multiplier (1 = 100%) into the supported range. */
 export function clampZoom(value: number): number {
@@ -57,6 +58,19 @@ export function Overlay({
 }: OverlayProps) {
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
 
+  // Escape closes the open sidebar menu before anything else. Capture phase
+  // plus preventDefault tells the reader-wide shortcut handler it was consumed.
+  useEffect(() => {
+    if (!sidebarMenuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      setSidebarMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [sidebarMenuOpen]);
+
   const openSidebarMenu = () => {
     setSidebarMenuOpen(true);
     onInteract?.();
@@ -92,7 +106,7 @@ export function Overlay({
                 aria-label="Thumbnails and outlines"
                 aria-haspopup="menu"
                 aria-expanded={sidebarMenuOpen}
-                title="Thumbnails and outlines"
+                title={`${withShortcutHint('Thumbnails', 'toggleThumbnails')}, ${withShortcutHint('Outlines', 'toggleOutline')}`}
                 className={cn(sidebarTab !== null && 'bg-accent text-accent-foreground')}
               >
                 <PanelLeft className="size-4" />
@@ -138,7 +152,7 @@ export function Overlay({
               )}
               onClick={onFitWidth}
               aria-label="Fit to width"
-              title="Fit to width"
+              title={withShortcutHint('Fit to width', 'zoomFit')}
             >
               <Frame className="size-4" />
               <span>Fit</span>
@@ -154,9 +168,10 @@ export function Overlay({
             title={
               reflowDisabled
                 ? 'This book is image-based and has no extractable text'
-                : mode === 'reflow'
-                  ? 'Page view'
-                  : 'Reflow (continuous text)'
+                : withShortcutHint(
+                    mode === 'reflow' ? 'Page view' : 'Reflow (continuous text)',
+                    'toggleReflow',
+                  )
             }
           >
             <Type className="size-4" />

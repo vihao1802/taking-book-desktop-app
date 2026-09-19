@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { TextLayer } from 'pdfjs-dist';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
+import type { TextMatch } from '@taking-book/core';
 import type { Annotation, AnnotationColor } from '../../shared/types';
 import { AnnotationPopup } from './AnnotationPopup';
 import { SelectionToolbar } from './SelectionToolbar';
 import {
   computeHighlightRects,
   HIGHLIGHT_FILL,
+  rangeFromOffsets,
   rangeGlobalOffsets,
   selectionRect,
   type HighlightRect,
 } from './highlights';
+import { clearSearchHighlights, setSearchHighlights } from './searchHighlights';
 import { getPageCached } from './pdf';
 
 /** A selected stretch of text anchored to a PDF page's joined text content. */
@@ -28,6 +31,13 @@ interface PdfPageViewProps {
   dpr: number;
   pageText: string;
   annotations: Annotation[];
+  /** Find-bar matches on this page, as offsets into its text layer. */
+  searchMatches: TextMatch[];
+  /** Index into `searchMatches` of the current match, or null when it is on another page. */
+  activeSearchMatch: number | null;
+  /** Non-zero while the current match still needs to be scrolled into view. */
+  pendingReveal: number;
+  onRevealed: (request: number) => void;
   onCreate: (
     selection: PageTextSelection,
     color: AnnotationColor,
@@ -50,6 +60,10 @@ export function PdfPageView({
   dpr,
   pageText,
   annotations,
+  searchMatches,
+  activeSearchMatch,
+  pendingReveal,
+  onRevealed,
   onCreate,
   onSetNote,
   onDelete,
@@ -136,6 +150,46 @@ export function PdfPageView({
     }
     setHighlightRects(byAnnotation);
   }, [textLayerReady, annotations, pageNumber, cssScale]);
+
+  // Paint find-bar matches over the text layer once it has laid out its spans.
+  useEffect(() => {
+    const layer = textLayerRef.current;
+    if (!textLayerReady || !layer || searchMatches.length === 0) return;
+    const ranges = searchMatches.map((match) => rangeFromOffsets(layer, match.start, match.end));
+    const owner = `page-${pageNumber}`;
+    setSearchHighlights(
+      owner,
+      ranges.filter((range): range is Range => range !== null),
+      activeSearchMatch === null ? null : (ranges[activeSearchMatch] ?? null),
+    );
+    return () => clearSearchHighlights(owner);
+  }, [textLayerReady, searchMatches, activeSearchMatch, pageNumber, cssScale]);
+
+  // Bring the current match to the middle of the view. Only the request that
+  // is still pending scrolls, so a page remounting later never re-scrolls.
+  useEffect(() => {
+    const layer = textLayerRef.current;
+    if (!textLayerReady || !layer || activeSearchMatch === null || pendingReveal === 0) return;
+    const match = searchMatches[activeSearchMatch];
+    const range = rangeFromOffsets(layer, match.start, match.end);
+    range?.startContainer.parentElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    onRevealed(pendingReveal);
+  }, [textLayerReady, searchMatches, activeSearchMatch, pendingReveal, onRevealed]);
+
+  // Escape closes the selection toolbar / note popup first. Capture phase plus
+  // preventDefault lets the reader-wide handler see it was consumed and keep
+  // the reader open.
+  useEffect(() => {
+    if (!toolbar && !popup) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      setToolbar(null);
+      setPopup(null);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [toolbar, popup]);
 
   const handleMouseUp = () => {
     const container = pageRef.current;

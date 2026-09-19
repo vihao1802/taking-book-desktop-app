@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { withShortcutHint } from './shortcutHint';
 
 interface ZoomControlProps {
   zoom: number;
@@ -66,6 +67,7 @@ export function ZoomControl({ zoom, onZoomChange, onInteract }: ZoomControlProps
           if (prev !== null) onZoomChange(percentToMultiplier(prev));
         }}
         aria-label="Zoom out"
+        title={withShortcutHint('Zoom out', 'zoomOut')}
       >
         <ZoomOut className="size-4" />
       </Button>
@@ -79,7 +81,11 @@ export function ZoomControl({ zoom, onZoomChange, onInteract }: ZoomControlProps
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') applyDraft();
-            else if (e.key === 'Escape') setEditingCustom(false);
+            else if (e.key === 'Escape') {
+              // Cancelling the field must not also count as leaving the reader.
+              e.stopPropagation();
+              setEditingCustom(false);
+            }
           }}
           // Losing focus discards the draft; Enter is the only way to commit.
           // The very first blur (the select handing focus back to its trigger)
@@ -126,6 +132,7 @@ export function ZoomControl({ zoom, onZoomChange, onInteract }: ZoomControlProps
           if (next !== null) onZoomChange(percentToMultiplier(next));
         }}
         aria-label="Zoom in"
+        title={withShortcutHint('Zoom in', 'zoomIn')}
       >
         <ZoomIn className="size-4" />
       </Button>

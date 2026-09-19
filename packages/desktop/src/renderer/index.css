@@ -16,6 +16,10 @@
   --btn-hover: rgba(0, 0, 0, 0.1);
   --overlay-bg: rgba(250, 249, 247, 0.92);
   --overlay-fg: #1a1a1a;
+  /* Find-bar matches: translucent so they read on the white page canvas and on
+     every reader theme; the current match is stronger than the rest. */
+  --search-match: rgba(250, 204, 21, 0.45);
+  --search-match-active: rgba(249, 115, 22, 0.6);
 
   --dash-bg: #f8f4e9;
   --dash-rail: #fffefa;
@@ -213,6 +217,16 @@
 
 .overlay-bottom.overlay-hidden {
   transform: translateY(12px);
+}
+
+/* ---------- Find-bar matches (CSS Custom Highlight API, see searchHighlights.ts) ---------- */
+
+::highlight(tb-search) {
+  background-color: var(--search-match);
+}
+
+::highlight(tb-search-active) {
+  background-color: var(--search-match-active);
 }
 
 /* ---------- pdf.js text layer over the page canvas ---------- */

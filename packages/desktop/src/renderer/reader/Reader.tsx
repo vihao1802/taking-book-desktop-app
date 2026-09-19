@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { isOk } from '@taking-book/core';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isOk, stepZoomMultiplier } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Overlay, clampZoom } from './Overlay';
@@ -15,6 +15,10 @@ import { useReadingSession } from './useReadingSession';
 import { useAnnotations } from './useAnnotations';
 import { findRangeIgnoringWhitespace } from './highlights';
 import type { PageTextSelection } from './PdfPageView';
+import { ReaderBars } from './ReaderBars';
+import { useDocumentSearch } from './useDocumentSearch';
+import { usePageTexts } from './usePageTexts';
+import { useReaderShortcuts } from './useReaderShortcuts';
 
 const HIDE_DELAY_MS = 2500;
 
@@ -32,6 +36,18 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   } = useReflowDocument(pdf, mode === 'reflow');
   const { annotations, create, setNote, remove } = useAnnotations(file.hash);
   useReadingSession(file.id);
+
+  // Find-in-document searches page text in page mode and paragraph text in
+  // reflow mode. Page text is only extracted once the user first opens find.
+  const paragraphTexts = useMemo(() => paragraphs.map((paragraph) => paragraph.text), [paragraphs]);
+  const [findRequested, setFindRequested] = useState(false);
+  const { texts: searchPageTexts, progress: searchIndexing } = usePageTexts(
+    pdf,
+    mode === 'page' && findRequested,
+  );
+  const search = useDocumentSearch(mode === 'reflow' ? paragraphTexts : searchPageTexts);
+  const { openBar: openSearchBar } = search;
+  const [goToRequest, setGoToRequest] = useState(0);
 
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(true);
@@ -189,25 +205,66 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     pagesRef.current?.scrollToPage(page);
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const typing =
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.isContentEditable;
-      if (typing) return;
-      if (e.key === 'PageDown' || e.key === 'ArrowRight' || e.key === ' ') {
-        e.preventDefault();
-        pagesRef.current?.scrollToPage(currentPage + 1);
-      } else if (e.key === 'PageUp' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        pagesRef.current?.scrollToPage(currentPage - 1);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [currentPage]);
+  const openFind = useCallback(() => {
+    setFindRequested(true);
+    openSearchBar();
+  }, [openSearchBar]);
+  const openGoToPage = useCallback(() => setGoToRequest((request) => request + 1), []);
+  const closeGoToPage = useCallback(() => setGoToRequest(0), []);
+
+  const changeZoom = useCallback((value: number) => {
+    setFitWidth(false);
+    setZoom(clampZoom(value));
+  }, []);
+  const fitToWidth = useCallback(() => {
+    setFitWidth(true);
+    setZoom(1);
+  }, []);
+  const stepZoom = (direction: 'in' | 'out') => {
+    const stepped = stepZoomMultiplier(zoom, direction);
+    if (stepped !== null) changeZoom(stepped);
+  };
+
+  const toggleMode = useCallback(() => {
+    setRestoreFraction(lastFractionRef.current);
+    setMode((current) => (current === 'page' ? 'reflow' : 'page'));
+  }, []);
+
+  const toggleSidebarTab = (tab: SidebarTab) => setSidebarTab((current) => (current === tab ? null : tab));
+
+  // Escape peels off one layer at a time: find bar, go-to bar, sidebar, then
+  // the reader itself. Selection toolbars and note popups close themselves
+  // first (they consume Escape before it gets here).
+  const dismiss = () => {
+    if (search.open) search.close();
+    else if (goToRequest !== 0) closeGoToPage();
+    else if (sidebarTab !== null) setSidebarTab(null);
+    else onClose();
+  };
+
+  // Reflow mode registers its own handlers inside ReflowReader.
+  useReaderShortcuts(
+    {
+      find: openFind,
+      findNext: () => (search.open ? search.next() : openFind()),
+      findPrevious: () => (search.open ? search.previous() : openFind()),
+      goToPage: openGoToPage,
+      zoomIn: () => stepZoom('in'),
+      zoomOut: () => stepZoom('out'),
+      zoomFit: fitToWidth,
+      firstPage: () => pagesRef.current?.scrollToPage(1),
+      lastPage: () => pagesRef.current?.scrollToPage(pdf?.numPages ?? 1),
+      nextScreen: () => pagesRef.current?.scrollToPage(currentPage + 1),
+      nextPage: () => pagesRef.current?.scrollToPage(currentPage + 1),
+      previousScreen: () => pagesRef.current?.scrollToPage(currentPage - 1),
+      previousPage: () => pagesRef.current?.scrollToPage(currentPage - 1),
+      toggleThumbnails: () => toggleSidebarTab('thumbnails'),
+      toggleOutline: () => toggleSidebarTab('outlines'),
+      ...(hasText ? { toggleReflow: toggleMode } : {}),
+      dismiss,
+    },
+    mode === 'page' && !pdfError,
+  );
 
   // A highlight made in page view also gets a best-effort reflow anchor so it
   // appears in reflow mode too (whitespace-insensitive search, since the two
@@ -283,6 +340,11 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
         }}
         zoom={zoom}
         onZoomChange={setZoom}
+        search={search}
+        onOpenFind={openFind}
+        goToRequest={goToRequest}
+        onOpenGoTo={openGoToPage}
+        onCloseGoTo={closeGoToPage}
         annotations={annotations}
         onCreate={create}
         onSetNote={setNote}
@@ -315,6 +377,9 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
               onCurrentPage={setCurrentPage}
               pageTexts={pageTexts}
               annotations={annotations}
+              searchMatches={search.matches}
+              searchActiveIndex={search.activeIndex}
+              searchScrollRequest={search.scrollRequest}
               onCreate={createFromPage}
               onSetNote={setNote}
               onDelete={remove}
@@ -335,24 +400,26 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           mode={mode}
           zoom={zoom}
           fitWidth={fitWidth}
-          onFitWidth={() => {
-            setFitWidth(true);
-            setZoom(1);
-          }}
-          onZoomChange={(z) => {
-            setFitWidth(false);
-            setZoom(clampZoom(z));
-          }}
+          onFitWidth={fitToWidth}
+          onZoomChange={changeZoom}
           reflowDisabled={!hasText}
-          onToggleMode={() => {
-            setRestoreFraction(lastFractionRef.current);
-            setMode(mode === 'page' ? 'reflow' : 'page');
-          }}
+          onToggleMode={toggleMode}
           onClose={onClose}
           onSeek={(p) => pagesRef.current?.scrollToPage(p)}
           onInteract={reveal}
           sidebarTab={sidebarTab}
           onSelectSidebarTab={setSidebarTab}
+        />
+      )}
+      {!error && (
+        <ReaderBars
+          search={search}
+          indexing={searchIndexing}
+          goToRequest={goToRequest}
+          totalPages={total}
+          currentPage={currentPage}
+          onGoToPage={(page) => pagesRef.current?.scrollToPage(page)}
+          onCloseGoTo={closeGoToPage}
         />
       )}
       {sidebarTab !== null && pdf !== null && (
