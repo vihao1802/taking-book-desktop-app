@@ -151,6 +151,27 @@ describe('paragraphsFromLines', () => {
     expect(paragraphs[1].indent).toBe(true);
   });
 
+  it('keeps a hanging-indent list item together instead of splitting after its marker line', () => {
+    const paragraphs = paragraphsFromLines(
+      [
+        line('2. Maintain a cache for each user home timeline, like a mailbox of tweets for', 100, 77, 11),
+        line('each recipient user. When a user posts a tweet, look up all the', 113, 90, 11),
+        line('people who follow that user.', 126, 90, 11),
+      ],
+      0,
+    );
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0].text).toContain('tweets for each recipient user');
+  });
+
+  it('still starts a new paragraph on a first-line indent when the previous line has no list marker', () => {
+    const paragraphs = paragraphsFromLines(
+      [line('Body text that runs the full width.', 100, 0, 11), line('An indented new paragraph.', 113, 20, 11)],
+      0,
+    );
+    expect(paragraphs).toHaveLength(2);
+  });
+
   it('starts a new paragraph on a font-size change', () => {
     const paragraphs = paragraphsFromLines(
       [

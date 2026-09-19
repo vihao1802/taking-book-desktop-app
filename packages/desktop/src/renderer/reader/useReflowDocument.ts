@@ -18,6 +18,12 @@ import {
   getObjectAsync,
   tryGetObject,
 } from './reflowImages';
+import {
+  dropTextInsideFigures,
+  extractVectorFiguresFromOperatorList,
+  parseVectorFigureRef,
+  renderVectorFigure,
+} from './vectorFigures';
 import { getPageCached } from './pdf';
 
 /** Text fragment shape from pdf.js getTextContent(), narrowed to what reflow needs. */
@@ -213,7 +219,9 @@ export function useReflowDocument(
           // Operator lists are cached per page; fetching one here forces the
           // page's fonts into `commonObjs` so each fragment's bold/italic can
           // be resolved from its font name.
-          const [content] = await Promise.all([page.getTextContent(), page.getOperatorList()]);
+          const [content, opList] = await Promise.all([page.getTextContent(), page.getOperatorList()]);
+          const pageView = page.getViewport({ scale: 1 });
+          const figures = extractVectorFiguresFromOperatorList(opList, i - 1, pageView);
           const items: ReturnType<typeof toReflowItem>[] = [];
           const fontStyles = resolveFontStyles(page, content);
           let pageText = '';
@@ -224,7 +232,9 @@ export function useReflowDocument(
             }
           }
           texts.push(pageText);
-          all.push(...reflowPage(items, i - 1));
+          // A drawing's labels would read as body text and table rows; the
+          // drawing itself is shown as a figure instead.
+          all.push(...reflowPage(dropTextInsideFigures(items, figures), i - 1));
           // Intermediate flushes show raw text as soon as possible; the final
           // pass applies the boilerplate filter with the complete document so
           // repeated headers/watermarks are judged against every page. Both
@@ -311,7 +321,10 @@ export function useReflowDocument(
           const viewport = page.getViewport({ scale: 1 });
           areas[i - 1] = viewport.width * viewport.height;
           const opList = await page.getOperatorList();
-          const found = extractImagesFromOperatorList(opList, i - 1, viewport.width);
+          const found = [
+            ...extractImagesFromOperatorList(opList, i - 1, viewport.width),
+            ...extractVectorFiguresFromOperatorList(opList, i - 1, viewport),
+          ];
           for (const image of found) {
             // Running headers, footers, and watermarks sit at the same spot on
             // every page; keep only the first instance of each placement.
@@ -357,6 +370,8 @@ export function useReflowDocument(
     async (pageIndex: number, ref: string): Promise<unknown> => {
       if (!pdf) return undefined;
       const page = await getPageCached(pdf, pageIndex + 1);
+      const vectorRegion = parseVectorFigureRef(ref);
+      if (vectorRegion) return renderVectorFigure(page, vectorRegion);
       // pdf.js resolves a page's operator list as soon as it is built, not once
       // every image it references has finished decoding -- a page's largest
       // image (a full-page cover, most often) can still be mid-decode the

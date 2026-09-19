@@ -332,11 +332,19 @@ function collapseRuns(runs: ReflowRun[]): { text: string; runs: ReflowRun[] } {
   return { text, runs: out };
 }
 
+/** A leading number, letter or bullet that marks the first line of a list item. */
+const LIST_MARKER = /^(\d+[.)]|[a-zA-Z][.)]|[•·▪◦‣–—-])\s/;
+
+function startsWithListMarker(text: string): boolean {
+  return LIST_MARKER.test(text);
+}
+
 /**
  * Groups top-to-bottom lines into paragraphs. A new paragraph starts on:
  * a vertical gap larger than `paragraphGapRatio`× font size, a relative font
  * size change larger than `fontSizeChangeRatio`, or a first-line indent larger
- * than `indentRatio`× font size. Table rows always start their own paragraph
+ * than `indentRatio`× font size (except the hanging indent under a list marker).
+ * Table rows always start their own paragraph
  * (one row per paragraph, flagged `isTable`) so rows never merge into flowing
  * body text and the renderer can keep them unwrapped.
  */
@@ -388,7 +396,11 @@ export function paragraphsFromLines(
     const gap = line.y - lastLine.y;
     const relativeSizeChange =
       Math.abs(line.fontSize - lastLine.fontSize) / Math.max(lastLine.fontSize, 1);
-    const indent = line.x - lastLine.x > opts.indentRatio * line.fontSize;
+    // A list item's text wraps under the words after its marker ("2. Maintain
+    // ... / each recipient ..."), which is a hanging indent, not a new paragraph.
+    const isHangingIndent =
+      paragraphLines[paragraphLines.length - 1].length === 1 && startsWithListMarker(lastLine.text);
+    const indent = !isHangingIndent && line.x - lastLine.x > opts.indentRatio * line.fontSize;
 
     const startsNew =
       gap > opts.paragraphGapRatio * line.fontSize ||

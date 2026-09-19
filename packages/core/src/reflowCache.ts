@@ -7,7 +7,7 @@ import { err, ok, type Result } from './result';
  * PDF (anything in `reflow.ts`, or the post-processing in the desktop reflow
  * hook), so books are re-extracted instead of showing stale text.
  */
-export const REFLOW_CACHE_VERSION = 2;
+export const REFLOW_CACHE_VERSION = 3;
 
 /** The finished result of extracting a whole document for reflow mode. */
 export interface ReflowCacheEntry {

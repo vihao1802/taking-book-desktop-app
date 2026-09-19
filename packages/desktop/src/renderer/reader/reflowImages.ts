@@ -83,12 +83,12 @@ export function getObjectAsync(
 }
 
 /** Applies a PDF transform [a, b, c, d, e, f] to a point and returns [x, y]. */
-function transformPoint(m: readonly number[], x: number, y: number): [number, number] {
+export function transformPoint(m: readonly number[], x: number, y: number): [number, number] {
   return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
 }
 
 /** Concatenates two PDF transforms, matching canvas/PDF row-vector order. */
-function multiply(m1: readonly number[], m2: readonly number[]): number[] {
+export function multiply(m1: readonly number[], m2: readonly number[]): number[] {
   return [
     m1[0] * m2[0] + m1[2] * m2[1],
     m1[1] * m2[0] + m1[3] * m2[1],

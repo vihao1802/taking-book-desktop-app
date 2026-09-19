@@ -85,3 +85,30 @@ the page. A figure is now sized as `image.width / page width` of the reading
 width (scaled by zoom, capped at the viewport), so it takes the same share of
 the view as in page mode. This needs the page width on each `ReflowImage`
 (`pageWidth`), captured at extraction time.
+
+## Amendment: vector figures and hanging indents
+
+Many books draw diagrams with path operators rather than embedding a bitmap
+(e.g. Kleppmann's *Designing Data-Intensive Applications*). Such a figure has no
+image object, so it was invisible to figure extraction, and its labels were
+extracted as body text and one-line table rows.
+
+- **Detection.** `extractVectorFiguresFromOperatorList` clusters painted paths
+  (touching within 6pt) and keeps clusters that contain a curve or a diagonal
+  line, are at least 15% of the page width and 30pt tall, and cover at most 50%
+  of the page. Curves and diagonals (arrows, arrowheads, rounded shapes) are what
+  separates a diagram from a ruled table or underline, which stay as text. The
+  50% cap keeps a decorative frame or slide layout from swallowing a page's text.
+- **Same pipeline as bitmaps.** A detected region is a `ReflowImage` whose `ref`
+  encodes the region (`vector:x:y:w:h`), so placement, proportional sizing, lazy
+  decoding and the URL cache are unchanged. `getImageData` renders the region
+  from the page at 2x on a white canvas.
+- **Text suppression.** Text items centred inside a figure are dropped before
+  paragraphs are built, so labels never enter the flow. Captions sit outside the
+  drawing and remain text.
+- **Hanging indents.** A list item's continuation line sits to the right of its
+  marker line ("2. Maintain ... / each recipient ..."). That is not a first-line
+  indent, so an indent under a line that starts with a list marker no longer
+  starts a new paragraph.
+- `REFLOW_CACHE_VERSION` is bumped to 3, since the extracted paragraphs change.
+
