@@ -121,6 +121,21 @@ describe('applySyncRecords', () => {
     if (isOk(files)) expect(files.data).toHaveLength(0);
   });
 
+  it('round-trips lastReadAt and treats a missing value as null', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    await db.exec(annotationsSchema());
+    await applySyncRecords(
+      db,
+      [record('h', { lastReadAt: 555, updatedAt: 200 }), record('old', { updatedAt: 200 })],
+      () => '/ignored',
+    );
+    const records = await listRecordsForSync(db);
+    if (!isOk(records)) return;
+    expect(records.data.find((r) => r.hash === 'h')?.lastReadAt).toBe(555);
+    expect(records.data.find((r) => r.hash === 'old')?.lastReadAt).toBeNull();
+  });
+
   it('round-trips zoom through list and apply', async () => {
     const db = createMemoryDriver();
     await db.exec(`${filesSchema()} ${annotationsSchema()}`);

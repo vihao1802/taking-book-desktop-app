@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Menu, Moon, Search, Sun, Sunrise } from 'lucide-react';
+import { sortByRecentlyRead } from '@taking-book/core';
 import type { BookFile } from '../../shared/types';
 import { Badge } from '@/components/ui/badge';
 import { BookCover } from '@/components/BookCover';
@@ -52,7 +53,12 @@ export function Home({
   const searchRef = useRef<HTMLInputElement>(null);
   useSearchShortcut(searchRef);
 
-  const inProgress = useMemo(() => files.filter((f) => f.status === 'reading'), [files]);
+  // Most recently read first, so the card resumes what the user touched last
+  // and the arrows step back through older in-progress books.
+  const inProgress = useMemo(
+    () => sortByRecentlyRead(files.filter((f) => f.status === 'reading')),
+    [files],
+  );
 
   const featuredCandidates = useMemo(
     () => (inProgress.length > 0 ? inProgress : files.slice(0, 1)),

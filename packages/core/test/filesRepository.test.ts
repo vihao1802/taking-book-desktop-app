@@ -101,6 +101,18 @@ describe('filesRepository', () => {
     }
   });
 
+  it('stamps lastReadAt when a position is saved and leaves it null before', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/c.pdf', hash: 'h3', title: 'C' });
+    if (!isOk(created)) return;
+    expect(created.data.lastReadAt).toBeNull();
+
+    await saveLastPosition(db, created.data.id, { page: 2, position: 0.1, mode: 'page' }, { updatedAt: 777, updatedBy: 'dev' });
+    const listed = await listFiles(db);
+    if (isOk(listed)) expect(listed.data[0]?.lastReadAt).toBe(777);
+  });
+
   it('round-trips the reflow mode and defaults legacy rows to page mode', async () => {
     const db = createMemoryDriver();
     await db.exec(filesSchema());

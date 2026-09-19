@@ -24,6 +24,7 @@ export {
 export { getSetting, getTheme, setSetting, setTheme, settingsSchema } from './settingsRepository';
 export { createSha256Hasher, sha256Hex, type Sha256Hasher } from './sha256';
 export { normalizePosition, progressFraction } from './position';
+export { sortByRecentlyRead } from './recentlyRead';
 export {
   ZOOM_PRESETS,
   clampZoomPercent,

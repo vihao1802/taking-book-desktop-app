@@ -19,6 +19,7 @@ interface FileRow {
   last_mode: string | null;
   page_count: number | null;
   zoom: number | null;
+  last_read_at: number | null;
   created_at: string;
 }
 
@@ -36,6 +37,7 @@ function toBookFile(row: FileRow): BookFile {
     lastMode: parseMode(row.last_mode),
     pageCount: row.page_count,
     zoom: row.zoom,
+    lastReadAt: row.last_read_at,
     createdAt: row.created_at,
   };
 }
@@ -65,6 +67,7 @@ function rowToRow(row: Record<string, SqlValue>): FileRow {
     last_mode: row.last_mode == null ? null : String(row.last_mode),
     page_count: row.page_count == null ? null : Number(row.page_count),
     zoom: row.zoom == null ? null : Number(row.zoom),
+    last_read_at: row.last_read_at == null ? null : Number(row.last_read_at),
     created_at: String(row.created_at),
   };
 }
@@ -313,7 +316,8 @@ export async function deleteFile(
 /**
  * Persists the resume position for a file. The mode records which reader view
  * the measurement came from, so reopening restores the same view instead of
- * letting one mode's coordinates clobber the other's.
+ * letting one mode's coordinates clobber the other's. Also stamps `last_read_at`
+ * so the home screen can offer the most recently read book.
  */
 export async function saveLastPosition(
   db: SqlDriver,
@@ -324,8 +328,8 @@ export async function saveLastPosition(
   const clock = stamp ?? defaultStamp();
   try {
     await db.run(
-      'UPDATE files SET last_page = ?, last_position = ?, last_mode = ?, updated_at = ?, updated_by = ? WHERE id = ?',
-      [pos.page, pos.position, pos.mode, clock.updatedAt, clock.updatedBy, id],
+      'UPDATE files SET last_page = ?, last_position = ?, last_mode = ?, last_read_at = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [pos.page, pos.position, pos.mode, clock.updatedAt, clock.updatedAt, clock.updatedBy, id],
     );
     return ok(undefined);
   } catch (error) {
