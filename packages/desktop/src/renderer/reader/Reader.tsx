@@ -364,7 +364,10 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           <Button onClick={onClose}>Back</Button>
         </div>
       ) : (
-        <div className="absolute inset-0" ref={scrollRef} onClick={handleClick}>
+        // `isolate` traps the pdf.js text layer (z-10) and highlight rects
+        // (z-20) in their own stacking context; otherwise they paint above
+        // the sidebar (z-5) and swallow every click meant for it.
+        <div className="absolute inset-0 isolate" ref={scrollRef} onClick={handleClick}>
           {ready ? (
             <PdfPages
               ref={pagesRef}
