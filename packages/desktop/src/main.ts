@@ -1,9 +1,10 @@
-import { app, BrowserWindow, net, protocol } from 'electron';
+import { app, BrowserWindow, Menu, net, protocol } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import started from 'electron-squirrel-startup';
 import { config as loadEnv } from 'dotenv';
+import { buildApplicationMenu } from './main/appMenu';
 import { getDriver } from './main/db';
 import { registerIpc } from './main/ipc';
 import { startBackgroundSync } from './main/syncScheduler';
@@ -105,6 +106,7 @@ app.whenReady().then(async () => {
   registerFileProtocol();
   const db = await getDriver();
   registerIpc(db);
+  Menu.setApplicationMenu(buildApplicationMenu());
   createWindow();
   // Pull cloud changes on launch and periodically while the app runs; safe to
   // run even with no account connected (it no-ops).
