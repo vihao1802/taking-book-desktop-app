@@ -18,6 +18,10 @@ interface OverlayProps {
   title: string;
   page: number;
   total: number;
+  /** Page shown in the indicator text when it differs from the slider position (reflow). */
+  indicatorPage?: number;
+  /** Total shown in the indicator text when it differs from the slider range (reflow). */
+  indicatorTotal?: number;
   mode: 'page' | 'reflow';
   zoom: number;
   fitWidth: boolean;
@@ -28,6 +32,8 @@ interface OverlayProps {
   onToggleMode: () => void;
   onClose: () => void;
   onSeek: (page: number) => void;
+  /** Makes the page indicator clickable; opens the go-to-page popup. */
+  onOpenGoTo?: () => void;
   /** Called when an interaction needs the parent to keep the overlay visible. */
   onInteract?: () => void;
   /** Active sidebar tab; null means the sidebar is closed. */
@@ -42,6 +48,8 @@ export function Overlay({
   title,
   page,
   total,
+  indicatorPage = page,
+  indicatorTotal = total,
   mode,
   zoom,
   fitWidth,
@@ -51,6 +59,7 @@ export function Overlay({
   onToggleMode,
   onClose,
   onSeek,
+  onOpenGoTo,
   onInteract,
   sidebarTab = null,
   onSelectSidebarTab,
@@ -198,9 +207,22 @@ export function Overlay({
             aria-label="Position"
             className="flex-1"
           />
-          <span className="text-muted-foreground min-w-[5.5ch] shrink-0 text-right text-sm tabular-nums">
-            {page} / {total}
-          </span>
+          {onOpenGoTo ? (
+            <button
+              type="button"
+              onClick={onOpenGoTo}
+              aria-label="Go to page"
+              aria-haspopup="dialog"
+              title={withShortcutHint('Go to page', 'goToPage')}
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 min-w-[5.5ch] shrink-0 cursor-pointer rounded-sm text-right text-sm tabular-nums outline-none focus-visible:ring-2"
+            >
+              {indicatorPage} / {indicatorTotal}
+            </button>
+          ) : (
+            <span className="text-muted-foreground min-w-[5.5ch] shrink-0 text-right text-sm tabular-nums">
+              {indicatorPage} / {indicatorTotal}
+            </span>
+          )}
         </div>
       </div>
     </div>

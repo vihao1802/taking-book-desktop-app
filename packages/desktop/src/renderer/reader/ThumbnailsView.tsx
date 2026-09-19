@@ -20,7 +20,7 @@ interface ThumbnailsViewProps {
  */
 export function ThumbnailsView({ pdf, total, currentPage, onSelect }: ThumbnailsViewProps) {
   return (
-    <div className="flex flex-col gap-3 overflow-y-auto px-3 py-3" role="list" aria-label="Page thumbnails">
+    <div className="min-h-0 flex flex-1 flex-col gap-3 overflow-y-auto px-3 py-3" role="list" aria-label="Page thumbnails">
       {Array.from({ length: total }, (_, i) => (
         <ThumbnailItem
           key={i + 1}

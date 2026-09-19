@@ -406,6 +406,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           onToggleMode={toggleMode}
           onClose={onClose}
           onSeek={(p) => pagesRef.current?.scrollToPage(p)}
+          onOpenGoTo={openGoToPage}
           onInteract={reveal}
           sidebarTab={sidebarTab}
           onSelectSidebarTab={setSidebarTab}

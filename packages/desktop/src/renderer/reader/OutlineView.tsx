@@ -40,7 +40,7 @@ export function OutlineView({ nodes, loading, currentPage, onSelect }: OutlineVi
   };
 
   return (
-    <div className="overflow-y-auto px-2 py-2" role="tree" aria-label="Document outlines">
+    <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2" role="tree" aria-label="Document outlines">
       {nodes.map((node) => (
         <OutlineRow
           key={node.id}

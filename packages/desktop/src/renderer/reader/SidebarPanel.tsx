@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { LayoutGrid, ListTree, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -27,10 +27,26 @@ const TAB_LABEL: Record<SidebarTab, string> = {
  * reader overlay.
  */
 export function SidebarPanel({ tab, onTabChange, onClose, showThumbnails, children }: SidebarPanelProps) {
+  const asideRef = useRef<HTMLElement>(null);
+
+  // Clicking outside the panel closes it. The overlay's own bars stop
+  // pointerdown propagation, so interacting with them never reaches here and
+  // the sidebar stays open; a click on the document itself closes it.
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (asideRef.current && !asideRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [onClose]);
+
   return (
     <aside
+      ref={asideRef}
       aria-label={TAB_LABEL[tab]}
-      className="bg-overlay text-foreground pointer-events-auto absolute top-14 bottom-14 left-2 z-[5] flex w-60 flex-col overflow-hidden rounded-lg shadow-lg backdrop-blur-md"
+      className="bg-overlay text-foreground pointer-events-auto absolute top-16 bottom-16 left-2 z-[5] flex w-60 flex-col overflow-hidden rounded-lg shadow-lg backdrop-blur-md"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

@@ -3,19 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { parsePageNumber } from './parsePageNumber';
 
 interface GoToPageBarProps {
   total: number;
   currentPage: number;
   onGoTo: (page: number) => void;
   onClose: () => void;
-}
-
-/** Parses a whole page number in `[1, total]`, or null when the input is not one. */
-function parsePageNumber(input: string, total: number): number | null {
-  if (!/^\d+$/.test(input.trim())) return null;
-  const page = Number(input);
-  return page >= 1 && page <= total ? page : null;
 }
 
 /**

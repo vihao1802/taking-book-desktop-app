@@ -162,6 +162,9 @@ export function ReflowReader({
     Math.max(Math.round((scrollTop / Math.max(scrollable, 1)) * Math.max(total - 1, 0)), 0),
     Math.max(total - 1, 0),
   );
+  // The slider scrubs paragraphs, but users think in PDF pages, so the
+  // indicator, go-to-page and outline all report the paragraph's source page.
+  const currentPdfPage = (paragraphs[currentIndex]?.pageIndex ?? 0) + 1;
   const position = useRef({ page: 1, position: 0 });
   const saveTimerRef = useRef<number>(0);
 
@@ -539,7 +542,7 @@ export function ReflowReader({
           indexing={null}
           goToRequest={goToRequest}
           totalPages={pdf?.numPages ?? 0}
-          currentPage={(paragraphs[currentIndex]?.pageIndex ?? 0) + 1}
+          currentPage={currentPdfPage}
           onGoToPage={selectOutlinePage}
           onCloseGoTo={onCloseGoTo}
         />
@@ -550,6 +553,8 @@ export function ReflowReader({
           title={`${file.title} — reflow`}
           page={currentIndex + 1}
           total={total}
+          indicatorPage={currentPdfPage}
+          indicatorTotal={pdf?.numPages ?? 0}
           mode="reflow"
           zoom={zoom}
           fitWidth={false}
@@ -558,6 +563,7 @@ export function ReflowReader({
           onToggleMode={onToggleMode}
           onClose={onClose}
           onSeek={(n) => seekToParagraph(n - 1)}
+          onOpenGoTo={onOpenGoTo}
           onInteract={reveal}
           sidebarTab={sidebarTab}
           onSelectSidebarTab={setSidebarTab}
@@ -574,7 +580,7 @@ export function ReflowReader({
           <OutlineView
             nodes={outlineNodes}
             loading={outlineLoading}
-            currentPage={(paragraphs[currentIndex]?.pageIndex ?? 0) + 1}
+            currentPage={currentPdfPage}
             onSelect={selectOutlinePage}
           />
         </SidebarPanel>

@@ -15,9 +15,10 @@ interface ReaderBarsProps {
 }
 
 /**
- * The reader's on-demand bars (find and go to page), stacked top right below
- * the overlay. Neither is visible until its shortcut is pressed, so the
- * reading view stays free of permanent controls.
+ * The reader's on-demand bars. Find sits top right below the overlay; go to
+ * page sits bottom right above the overlay, next to the page indicator that
+ * opens it. Neither is visible until its shortcut or the indicator is used,
+ * so the reading view stays free of permanent controls.
  */
 export function ReaderBars({
   search,
@@ -30,29 +31,33 @@ export function ReaderBars({
 }: ReaderBarsProps) {
   if (!search.open && goToRequest === 0) return null;
   return (
-    <div className="pointer-events-none fixed top-16 right-4 z-30 flex flex-col items-end gap-2">
+    <>
       {search.open && (
-        <FindBar
-          query={search.query}
-          activeIndex={search.activeIndex}
-          matchCount={search.matches.length}
-          indexing={indexing}
-          focusRequest={search.focusRequest}
-          onQueryChange={search.setQuery}
-          onNext={search.next}
-          onPrevious={search.previous}
-          onClose={search.close}
-        />
+        <div className="pointer-events-none fixed top-16 right-4 z-30">
+          <FindBar
+            query={search.query}
+            activeIndex={search.activeIndex}
+            matchCount={search.matches.length}
+            indexing={indexing}
+            focusRequest={search.focusRequest}
+            onQueryChange={search.setQuery}
+            onNext={search.next}
+            onPrevious={search.previous}
+            onClose={search.close}
+          />
+        </div>
       )}
       {goToRequest !== 0 && (
-        <GoToPageBar
-          key={goToRequest}
-          total={totalPages}
-          currentPage={currentPage}
-          onGoTo={onGoToPage}
-          onClose={onCloseGoTo}
-        />
+        <div className="pointer-events-none fixed right-4 bottom-16 z-30">
+          <GoToPageBar
+            key={goToRequest}
+            total={totalPages}
+            currentPage={currentPage}
+            onGoTo={onGoToPage}
+            onClose={onCloseGoTo}
+          />
+        </div>
       )}
-    </div>
+    </>
   );
 }
