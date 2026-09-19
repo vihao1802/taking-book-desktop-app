@@ -88,6 +88,8 @@ export interface ReflowParagraph {
  */
 export interface ReflowImage {
   pageIndex: number;
+  /** Width of the PDF page the image sits on, so a figure can be sized as a share of it. */
+  pageWidth: number;
   x: number;
   y: number;
   width: number;

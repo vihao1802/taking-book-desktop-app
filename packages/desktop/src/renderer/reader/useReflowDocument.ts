@@ -311,7 +311,7 @@ export function useReflowDocument(
           const viewport = page.getViewport({ scale: 1 });
           areas[i - 1] = viewport.width * viewport.height;
           const opList = await page.getOperatorList();
-          const found = extractImagesFromOperatorList(opList, i - 1);
+          const found = extractImagesFromOperatorList(opList, i - 1, viewport.width);
           for (const image of found) {
             // Running headers, footers, and watermarks sit at the same spot on
             // every page; keep only the first instance of each placement.

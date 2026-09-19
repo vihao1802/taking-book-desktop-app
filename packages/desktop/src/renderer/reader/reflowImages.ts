@@ -108,7 +108,11 @@ function multiply(m1: readonly number[], m2: readonly number[]): number[] {
  * PDF user space (origin bottom-left, y grows upward), so the y axis is negated
  * to make `y` the figure's top edge, consistent with text fragment positions.
  */
-function bboxFromTransform(m: readonly number[], pageIndex: number, ref: string): ReflowImage {
+function bboxFromTransform(
+  m: readonly number[],
+  page: { index: number; width: number },
+  ref: string,
+): ReflowImage {
   const corners = [
     transformPoint(m, 0, 0),
     transformPoint(m, 1, 0),
@@ -121,20 +125,31 @@ function bboxFromTransform(m: readonly number[], pageIndex: number, ref: string)
   const minY = Math.min(...ys);
   const maxX = Math.max(...xs);
   const maxY = Math.max(...ys);
-  return { pageIndex, x: minX, y: -maxY, width: maxX - minX, height: maxY - minY, ref };
+  return {
+    pageIndex: page.index,
+    pageWidth: page.width,
+    x: minX,
+    y: -maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+    ref,
+  };
 }
 
 /**
  * Walks a page's operator list and returns the images painted on it, each with
  * its placed bounding box. The current transform is tracked through
  * save/restore/transform operations, and each named image is emitted once per
- * page (repeated paints of the same object are deduped). Background filtering
+ * page (repeated paints of the same object are deduped). `pageWidth` is the
+ * page's width in the same units as the bbox, kept so a figure can later be
+ * sized as a share of its page. Background filtering
  * is not done here — it needs per-page text presence, so the caller applies
  * `filterBackgroundFigures`.
  */
 export function extractImagesFromOperatorList(
   opList: ReflowOperatorList,
   pageIndex: number,
+  pageWidth: number,
 ): ReflowImage[] {
   const images: ReflowImage[] = [];
   const seen = new Set<string>();
@@ -158,7 +173,11 @@ export function extractImagesFromOperatorList(
       const [ref] = args as [string];
       if (!ref || seen.has(ref)) continue;
       seen.add(ref);
-      images.push(bboxFromTransform(transformStack[transformStack.length - 1], pageIndex, ref));
+      images.push(bboxFromTransform(
+          transformStack[transformStack.length - 1],
+          { index: pageIndex, width: pageWidth },
+          ref,
+        ));
     }
   }
 

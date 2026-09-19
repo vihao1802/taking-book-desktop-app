@@ -19,10 +19,13 @@ interface ReflowFigureProps {
 }
 
 /**
- * Renders one reflow figure at its PDF size scaled by zoom (never larger than
- * the viewport). Pixel data is fetched and decoded only once the figure is near
- * the viewport, and the decoded object URL is shared through the bounded cache
- * so off-screen figures cost no decoded memory.
+ * Renders one reflow figure at the same share of the reading width it takes of
+ * its PDF page (as in page mode), scaled by zoom and never wider than the
+ * viewport. Sizing by proportion rather than PDF points keeps a figure from
+ * shrinking to a thumbnail in a wide window or dwarfing the text in a narrow one.
+ * Pixel data is fetched and decoded only once the figure is near the viewport,
+ * and the decoded object URL is shared through the bounded cache so off-screen
+ * figures cost no decoded memory.
  */
 export const ReflowFigure = memo(function ReflowFigure({
   image,
@@ -77,7 +80,7 @@ export const ReflowFigure = memo(function ReflowFigure({
   }, [image, fileHash, getImageData, decoder]);
 
   const boxStyle = {
-    width: image.width * zoom,
+    width: `${(image.width / image.pageWidth) * zoom * 100}%`,
     aspectRatio: `${image.width} / ${image.height}`,
   };
 

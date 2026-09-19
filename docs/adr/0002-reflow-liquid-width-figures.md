@@ -75,3 +75,13 @@ reindexes paragraphs would silently corrupt saved highlights.
 - Running the image pass requires a full `getOperatorList` over the document,
   which is heavier than text extraction; it runs only while reflow mode is
   active, and `pdf.cleanup()` bounds the transient memory cost.
+
+## Amendment: proportional figure sizing
+
+Figures were first sized at their PDF point size times zoom, which ignored the
+window: they shrank to thumbnails in a wide window and, with text re-wrapping
+to the full width, no longer related to the surrounding text the way they do on
+the page. A figure is now sized as `image.width / page width` of the reading
+width (scaled by zoom, capped at the viewport), so it takes the same share of
+the view as in page mode. This needs the page width on each `ReflowImage`
+(`pageWidth`), captured at extraction time.

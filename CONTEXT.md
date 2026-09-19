@@ -9,7 +9,7 @@ Shared vocabulary for the taking-book monorepo. When a term is defined here, use
 - **Reflow mode**: the reader view that renders a book as continuous, re-wrapped text extracted from the PDF. It mirrors page mode's page numbering: the page shown, sought to, and carried across a mode toggle is always the real PDF page number.
 - **Overlay**: the auto-hiding toolbar (top and bottom) shown in the reader.
 - **Fit-to-width**: the page-mode layout where each page is scaled to fill the container width. Identified by a `Fit` button in the overlay. Page mode only — reflow text always re-wraps to the full viewport width instead.
-- **Reflow figure**: an image extracted from a PDF page and rendered in reflow mode as a block that sits in the reading flow at its original PDF position, scaled to the viewport width only if it would otherwise overflow. Figures are never selectable; text around them is.
+- **Reflow figure**: an image extracted from a PDF page and rendered in reflow mode as a block that sits in the reading flow at its original PDF position, sized as the same share of the reading width that it takes of its PDF page (as in page mode), scaled by zoom and capped at the viewport width. Figures are never selectable; text around them is.
 - **Page separator**: the thin rule with a small page number shown at the end of every PDF page in reflow mode, including pages with no extractable text, so continuous text still signals page boundaries and no page number is skipped.
 - **Zoom**: the page/reflow scale factor, expressed as a percentage, clamped to the range [50, 200].
 - **Zoom preset**: one of the discrete levels 50/75/100/125/150/175/200 offered in the zoom dropdown.

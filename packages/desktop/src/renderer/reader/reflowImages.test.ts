@@ -36,14 +36,17 @@ function opList(ops: Array<[number, unknown[]]>): { fnArray: number[]; argsArray
   };
 }
 
+const PAGE_WIDTH = 600;
+
 describe('extractImagesFromOperatorList', () => {
   it('returns a painted image with its identity-transform bbox (a unit square)', () => {
     const images = extractImagesFromOperatorList(
       opList([[OPS.paintImageXObject, ['img_p0_1', 100, 40]]]),
       0,
+      PAGE_WIDTH,
     );
     expect(images).toEqual([
-      { pageIndex: 0, x: 0, y: -1, width: 1, height: 1, ref: 'img_p0_1' },
+      { pageIndex: 0, pageWidth: PAGE_WIDTH, x: 0, y: -1, width: 1, height: 1, ref: 'img_p0_1' },
     ]);
   });
 
@@ -54,6 +57,7 @@ describe('extractImagesFromOperatorList', () => {
         [OPS.paintImageXObject, ['img_p0_1', 100, 50]],
       ]),
       0,
+      PAGE_WIDTH,
     );
     expect(images[0]).toMatchObject({ x: 10, y: -22, width: 2, height: 2 });
   });
@@ -68,6 +72,7 @@ describe('extractImagesFromOperatorList', () => {
         [OPS.paintImageXObject, ['img_p0_2', 10, 10]],
       ]),
       0,
+      PAGE_WIDTH,
     );
     expect(images[0]).toMatchObject({ x: 50, y: -61 });
     expect(images[1]).toMatchObject({ x: 0, y: -1 });
@@ -80,6 +85,7 @@ describe('extractImagesFromOperatorList', () => {
         [OPS.paintImageXObject, ['img_p0_1', 100, 50]],
       ]),
       0,
+      PAGE_WIDTH,
     );
     expect(images[0]).toMatchObject({ x: 0, y: -1, width: 1, height: 1 });
   });
@@ -91,6 +97,7 @@ describe('extractImagesFromOperatorList', () => {
         [OPS.paintImageXObject, ['logo', 20, 20]],
       ]),
       0,
+      PAGE_WIDTH,
     );
     expect(images).toHaveLength(1);
   });
@@ -100,7 +107,7 @@ describe('filterBackgroundFigures', () => {
   const pageArea = 100 * 200;
 
   function img(pageIndex: number, width: number, height: number, ref = `img${pageIndex}`): ReflowImage {
-    return { pageIndex, x: 0, y: 0, width, height, ref };
+    return { pageIndex, pageWidth: 100, x: 0, y: 0, width, height, ref };
   }
 
   it('keeps a full-page image on a page with no text (a cover)', () => {

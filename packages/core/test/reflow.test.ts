@@ -514,7 +514,7 @@ describe('assignImagePositions', () => {
   }
 
   function img(pageIndex: number, y: number, ref = 'img'): ReflowImage {
-    return { pageIndex, x: 0, y, width: 100, height: 50, ref };
+    return { pageIndex, pageWidth: 600, x: 0, y, width: 100, height: 50, ref };
   }
 
   it('places an image before the first paragraph at or below its y on the same page', () => {
