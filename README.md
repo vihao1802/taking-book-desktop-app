@@ -16,6 +16,8 @@ desktop app + React Native mobile app, backed by SQLite and cloud-drive sync.
 See [AGENTS.md](./AGENTS.md) — the monorepo coding rules (structure, TS strictness,
 Result-style data access, testing).
 
+Keyboard shortcuts for the reader and library: [docs/shortcuts.md](./docs/shortcuts.md).
+
 ## Scripts
 
 ```bash
