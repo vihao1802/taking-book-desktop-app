@@ -6,6 +6,9 @@ import { getPageCached } from './pdf';
 /** CSS width of each thumbnail in pixels; height follows the page aspect ratio. */
 const THUMB_WIDTH = 148;
 
+/** Height/width ratio used until the first page's real size is known. */
+const DEFAULT_ASPECT = 1.3;
+
 interface ThumbnailsViewProps {
   pdf: PDFDocumentProxy;
   total: number;
@@ -20,13 +23,45 @@ interface ThumbnailsViewProps {
  */
 export function ThumbnailsView({ pdf, total, currentPage, onSelect }: ThumbnailsViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
+  const hasScrolledRef = useRef(false);
+  const [placeholderAspect, setPlaceholderAspect] = useState<number | null>(null);
 
-  // Keep the active page's thumbnail in view as the reader scrolls, so the
-  // selection never drifts out of sight while scrubbing through the document.
+  // Thumbnails that haven't rendered yet reserve the first page's aspect
+  // ratio, so their height is already right when the list first lays out.
+  // Without this every unrendered thumbnail is a few pixels tall and the list
+  // reflows as canvases fill in, leaving the active page scrolled out of view.
   useEffect(() => {
+    let cancelled = false;
+    getPageCached(pdf, 1)
+      .then((page) => {
+        if (cancelled) return;
+        const viewport = page.getViewport({ scale: 1 });
+        setPlaceholderAspect(viewport.height / viewport.width);
+      })
+      .catch((err: unknown) => {
+        if (cancelled || pdf.loadingTask.destroyed) return;
+        console.error('Failed to measure first page for thumbnail placeholders', err);
+        setPlaceholderAspect(DEFAULT_ASPECT);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf]);
+
+  // Bring the active thumbnail into view: instantly and centered when the
+  // sidebar opens, then smoothly as the reader scrolls so the selection never
+  // drifts out of sight while scrubbing through the document.
+  const ready = placeholderAspect !== null;
+  useEffect(() => {
+    if (!ready) return;
     const active = listRef.current?.querySelector('[aria-current="true"]');
-    active?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [currentPage]);
+    if (!active) return;
+    const initial = !hasScrolledRef.current;
+    hasScrolledRef.current = true;
+    active.scrollIntoView(
+      initial ? { block: 'center', behavior: 'instant' } : { block: 'nearest', behavior: 'smooth' },
+    );
+  }, [currentPage, ready]);
 
   return (
     <div
@@ -35,15 +70,17 @@ export function ThumbnailsView({ pdf, total, currentPage, onSelect }: Thumbnails
       role="list"
       aria-label="Page thumbnails"
     >
-      {Array.from({ length: total }, (_, i) => (
-        <ThumbnailItem
-          key={i + 1}
-          pdf={pdf}
-          pageNumber={i + 1}
-          active={i + 1 === currentPage}
-          onSelect={onSelect}
-        />
-      ))}
+      {ready &&
+        Array.from({ length: total }, (_, i) => (
+          <ThumbnailItem
+            key={i + 1}
+            pdf={pdf}
+            pageNumber={i + 1}
+            placeholderAspect={placeholderAspect}
+            active={i + 1 === currentPage}
+            onSelect={onSelect}
+          />
+        ))}
     </div>
   );
 }
@@ -51,17 +88,20 @@ export function ThumbnailsView({ pdf, total, currentPage, onSelect }: Thumbnails
 function ThumbnailItem({
   pdf,
   pageNumber,
+  placeholderAspect,
   active,
   onSelect,
 }: {
   pdf: PDFDocumentProxy;
   pageNumber: number;
+  placeholderAspect: number;
   active: boolean;
   onSelect: (page: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const holderRef = useRef<HTMLButtonElement>(null);
   const [failed, setFailed] = useState(false);
+  const [renderedAspect, setRenderedAspect] = useState<number | null>(null);
 
   useEffect(() => {
     const holder = holderRef.current;
@@ -81,6 +121,7 @@ function ThumbnailItem({
         canvas.width = Math.ceil(scaled.width);
         canvas.height = Math.ceil(scaled.height);
         await page.render({ canvas, viewport: scaled }).promise;
+        if (!cancelled) setRenderedAspect(scaled.height / scaled.width);
       } catch (err) {
         if (cancelled || pdf.loadingTask.destroyed) return;
         console.error(`Failed to render thumbnail for page ${pageNumber}`, err);
@@ -105,6 +146,8 @@ function ThumbnailItem({
     };
   }, [pdf, pageNumber]);
 
+  const thumbHeight = THUMB_WIDTH * (renderedAspect ?? placeholderAspect);
+
   return (
     <button
       ref={holderRef}
@@ -120,7 +163,7 @@ function ThumbnailItem({
       )}
     >
       {failed ? (
-        <span className="bg-muted text-muted-foreground flex items-center justify-center text-xs" style={{ width: THUMB_WIDTH, height: THUMB_WIDTH * 1.3 }}>
+        <span className="bg-muted text-muted-foreground flex items-center justify-center text-xs" style={{ width: THUMB_WIDTH, height: thumbHeight }}>
           {pageNumber}
         </span>
       ) : (
@@ -130,7 +173,7 @@ function ThumbnailItem({
             'block rounded-[2px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.18)]',
             active && 'ring-primary ring-2',
           )}
-          style={{ width: THUMB_WIDTH }}
+          style={{ width: THUMB_WIDTH, height: thumbHeight }}
         />
       )}
       <span
