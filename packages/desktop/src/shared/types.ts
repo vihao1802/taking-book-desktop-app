@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, OpenFileResult, ReadMode, ReadingStats, Result, SyncSummary, Theme } from '@taking-book/core';
+import type { Annotation, AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, OpenFileResult, ReadMode, ReadingStats, ReflowCacheEntry, Result, SyncSummary, Theme } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -8,6 +8,8 @@ export interface ReaderApi {
   saveLastPosition(id: number, page: number, position: number, mode: ReadMode): Promise<Result<void>>;
   getCoverData(hash: string): Promise<Result<string | null>>;
   saveCoverData(hash: string, dataUrl: string): Promise<Result<void>>;
+  getReflowCache(hash: string): Promise<Result<ReflowCacheEntry | null>>;
+  saveReflowCache(hash: string, entry: ReflowCacheEntry): Promise<Result<void>>;
   setFilePageCount(id: number, pageCount: number): Promise<Result<void>>;
   getFileZoom(id: number): Promise<Result<number | null>>;
   setFileZoom(id: number, zoom: number): Promise<Result<void>>;

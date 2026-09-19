@@ -3,9 +3,11 @@ import {
   assignImagePositions,
   filterBoilerplateParagraphs,
   fontStyleFromName,
+  isOk,
   normalizeReflowSizes,
   reflowPage,
   type PositionedReflowImage,
+  type ReflowCacheEntry,
   type ReflowImage,
   type ReflowParagraph,
   type ReflowTextItem,
@@ -96,9 +98,32 @@ export const MIN_REFLOW_CHARS = 400;
 
 const FLUSH_EVERY_PAGES = 10;
 
-export interface ReflowImageOptions {
+export interface ReflowDocumentOptions {
+  /** Content hash of the book; keys the on-disk cache of extracted text. */
+  fileHash: string;
   /** Fraction of the page area a background image must not cover to be kept. */
   maxPageAreaRatio?: number;
+}
+
+/**
+ * Reads the cached extraction for a book. A missing entry and a read failure
+ * both resolve to null so the caller just extracts; failures are logged
+ * because a cache that never hits should not go unnoticed.
+ */
+async function loadReflowCache(fileHash: string): Promise<ReflowCacheEntry | null> {
+  const result = await window.api.getReflowCache(fileHash);
+  if (!isOk(result)) {
+    console.warn(result.error);
+    return null;
+  }
+  return result.data;
+}
+
+/** Stores a finished extraction; best-effort, since the cache is disposable. */
+function storeReflowCache(fileHash: string, entry: ReflowCacheEntry): void {
+  void window.api.saveReflowCache(fileHash, entry).then((result) => {
+    if (!isOk(result)) console.warn(result.error);
+  });
 }
 
 /**
@@ -109,6 +134,11 @@ export interface ReflowImageOptions {
  * each page's operator list; the pixel data itself is decoded lazily through
  * `getImageData` so off-screen figures cost no decoded memory.
  *
+ * The finished text is cached on disk by content hash, so only the first time
+ * a book enters reflow mode pays for extraction; later opens load the cached
+ * paragraphs directly. Figures are not cached: their pixel data must still be
+ * resolved from the live pdf.js document.
+ *
  * `enabled` must be false in page mode: full-document text extraction issues
  * one worker round-trip per page and would starve layout and page rendering
  * on large documents. It is only run when the user enters reflow mode.
@@ -116,7 +146,7 @@ export interface ReflowImageOptions {
 export function useReflowDocument(
   pdf: PDFDocumentProxy | null,
   enabled: boolean,
-  imageOptions: ReflowImageOptions = {},
+  options: ReflowDocumentOptions,
 ): {
   paragraphs: ReflowParagraph[];
   pageTexts: string[];
@@ -142,6 +172,7 @@ export function useReflowDocument(
   const [pageAreas, setPageAreas] = useState<Array<number | undefined>>([]);
   const [imagesReady, setImagesReady] = useState(false);
   const allItemsRef = useRef<ReflowTextItem[][]>([]);
+  const { fileHash, maxPageAreaRatio } = options;
 
   useEffect(() => {
     if (!pdf || !enabled) {
@@ -160,6 +191,16 @@ export function useReflowDocument(
     allItemsRef.current = [];
     (async () => {
       try {
+        const cached = await loadReflowCache(fileHash);
+        if (cancelled) return;
+        if (cached) {
+          const chars = cached.paragraphs.reduce((sum, para) => sum + para.text.length, 0);
+          setPageTexts(cached.pageTexts);
+          setParagraphs(cached.paragraphs);
+          setHasText(chars >= MIN_REFLOW_CHARS);
+          setProgress(null);
+          return;
+        }
         const all: ReflowParagraph[] = [];
         const texts: string[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -232,6 +273,7 @@ export function useReflowDocument(
           setParagraphs(normalized);
           setHasText(chars >= MIN_REFLOW_CHARS);
           setProgress(null);
+          storeReflowCache(fileHash, { paragraphs: normalized, pageTexts: texts });
         }
       } catch (err) {
         if (!cancelled) {
@@ -244,7 +286,7 @@ export function useReflowDocument(
     return () => {
       cancelled = true;
     };
-  }, [pdf, enabled]);
+  }, [pdf, enabled, fileHash]);
 
   // Cheap scan check while in page mode (full extraction is deferred until
   // reflow mode): sample the first pages so scanned PDFs still disable the
@@ -334,10 +376,10 @@ export function useReflowDocument(
   const images = useMemo(() => {
     const pagesWithText = new Set(paragraphs.map((para) => para.pageIndex));
     const kept = filterBackgroundFigures(rawImages, pageAreas, pagesWithText, {
-      maxPageAreaRatio: imageOptions.maxPageAreaRatio,
+      maxPageAreaRatio,
     });
     return assignImagePositions(paragraphs, kept);
-  }, [paragraphs, rawImages, pageAreas, imageOptions.maxPageAreaRatio]);
+  }, [paragraphs, rawImages, pageAreas, maxPageAreaRatio]);
 
   const getImageData = useCallback(
     async (pageIndex: number, ref: string): Promise<unknown> => {

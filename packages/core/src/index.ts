@@ -64,6 +64,12 @@ export {
   type ReflowTextItem,
 } from './reflow';
 export {
+  REFLOW_CACHE_VERSION,
+  parseReflowCache,
+  serializeReflowCache,
+  type ReflowCacheEntry,
+} from './reflowCache';
+export {
   defaultStamp,
   migrateFilesSchema,
   applySyncRecords,

@@ -11,8 +11,10 @@ import {
   isOk,
   listAnnotations,
   listFiles,
+  parseReflowCache,
   recordReadingSession,
   saveLastPosition,
+  serializeReflowCache,
   setAnnotationNote,
   setFileFavorite,
   setFilePageCount,
@@ -23,7 +25,7 @@ import {
   setTheme,
   upsertFile,
 } from '@taking-book/core';
-import type { BookFile, BookStatus, CloudAccount, CreateAnnotationInput, ReadMode, Result, SqlDriver, SyncStamp } from '@taking-book/core';
+import type { BookFile, BookStatus, CloudAccount, CreateAnnotationInput, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { sha256File } from './hash';
@@ -154,6 +156,42 @@ export function registerIpc(db: SqlDriver): void {
       return { ok: false, error: `Failed to cache cover: ${errorMessage(error)}` };
     }
   });
+
+  // Extracting a whole document for reflow costs one pdf.js round-trip per
+  // page, so the finished result is cached as JSON keyed by content hash and
+  // later opens skip extraction entirely. The cache is local-only (never
+  // synced) and disposable: any read problem just means re-extracting.
+
+  const reflowCacheFile = (hash: string) => join(app.getPath('userData'), 'reflow', `${hash}.json`);
+
+  ipcMain.handle('reflow:get', async (_event, hash: string): Promise<Result<ReflowCacheEntry | null>> => {
+    let json: string;
+    try {
+      json = await readFile(reflowCacheFile(hash), 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { ok: true, data: null };
+      return { ok: false, error: `Failed to read reflow cache for ${hash}: ${errorMessage(error)}` };
+    }
+    const parsed = parseReflowCache(json);
+    if (!isOk(parsed)) {
+      console.error(`Discarding reflow cache for ${hash}: ${parsed.error}`);
+      return { ok: true, data: null };
+    }
+    return parsed;
+  });
+
+  ipcMain.handle(
+    'reflow:save',
+    async (_event, hash: string, entry: ReflowCacheEntry): Promise<Result<void>> => {
+      try {
+        await mkdir(join(app.getPath('userData'), 'reflow'), { recursive: true });
+        await writeFile(reflowCacheFile(hash), serializeReflowCache(entry));
+        return { ok: true, data: undefined };
+      } catch (error) {
+        return { ok: false, error: `Failed to cache reflow text for ${hash}: ${errorMessage(error)}` };
+      }
+    },
+  );
 
   ipcMain.handle('files:list', () => listFiles(db));
 

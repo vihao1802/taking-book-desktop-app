@@ -33,7 +33,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     hasText,
     images,
     getImageData,
-  } = useReflowDocument(pdf, mode === 'reflow');
+  } = useReflowDocument(pdf, mode === 'reflow', { fileHash: file.hash });
   const { annotations, create, setNote, remove } = useAnnotations(file.hash);
   useReadingSession(file.id);
 

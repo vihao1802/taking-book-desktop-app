@@ -9,6 +9,8 @@ const api: ReaderApi = {
     ipcRenderer.invoke('files:last-position:set', id, page, position, mode),
   getCoverData: (hash) => ipcRenderer.invoke('covers:get', hash),
   saveCoverData: (hash, dataUrl) => ipcRenderer.invoke('covers:save', hash, dataUrl),
+  getReflowCache: (hash) => ipcRenderer.invoke('reflow:get', hash),
+  saveReflowCache: (hash, entry) => ipcRenderer.invoke('reflow:save', hash, entry),
   setFilePageCount: (id, pageCount) => ipcRenderer.invoke('files:page-count:set', id, pageCount),
   getFileZoom: (id) => ipcRenderer.invoke('files:zoom:get', id),
   setFileZoom: (id, zoom) => ipcRenderer.invoke('files:zoom:set', id, zoom),
