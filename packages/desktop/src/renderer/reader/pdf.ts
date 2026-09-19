@@ -3,6 +3,7 @@ import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 // eslint-disable-next-line import/no-unresolved
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
+import { pageIndexAtOffset } from '@taking-book/core';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -224,15 +225,7 @@ export function usePageLayout(pdf: PDFDocumentProxy | null, containerWidth: numb
 }
 
 export function pageFromOffset(layout: PageLayout, scrollTop: number): number {
-  const { offsets } = layout;
-  let lo = 0;
-  let hi = offsets.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (offsets[mid] <= scrollTop) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo;
+  return pageIndexAtOffset(layout.offsets, scrollTop);
 }
 
 export function useLatest<T>(value: T): MutableRefObject<T> {

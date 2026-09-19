@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { isOk, stepZoomMultiplier } from '@taking-book/core';
+import { isOk, stepZoomMultiplier, type PageLocation } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Overlay, clampZoom } from './Overlay';
@@ -69,8 +69,15 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const layout = usePageLayout(pdf, viewWidth);
 
   const [initialPosition, setInitialPosition] = useState<number | undefined>(undefined);
-  const [restoreFraction, setRestoreFraction] = useState<number | undefined>(undefined);
-  const lastFractionRef = useRef(0);
+  // Where the reader is right now, as a page plus how far down it. Both views
+  // report it, and it is handed to the other view on a mode toggle: a scroll
+  // fraction means different places in a PDF layout and in re-wrapped text, but
+  // a page number means the same place in both.
+  const locationRef = useRef<PageLocation | null>(null);
+  const [handoffLocation, setHandoffLocation] = useState<PageLocation | undefined>(undefined);
+  const recordLocation = useCallback((location: PageLocation) => {
+    locationRef.current = location;
+  }, []);
   const [currentPage, setCurrentPage] = useState(1);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
@@ -136,7 +143,6 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const savePosition = useCallback(
     (page: number, position: number, mode: 'page' | 'reflow' = 'page') => {
       positionRef.current = { page, position, mode };
-      lastFractionRef.current = position;
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = window.setTimeout(() => {
         window.api.saveLastPosition(
@@ -226,7 +232,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   };
 
   const toggleMode = useCallback(() => {
-    setRestoreFraction(lastFractionRef.current);
+    setHandoffLocation(locationRef.current ?? undefined);
     setMode((current) => (current === 'page' ? 'reflow' : 'page'));
   }, []);
 
@@ -330,14 +336,9 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
         error={reflowError}
         progress={reflowProgress}
         onClose={onClose}
-        initialFraction={restoreFraction}
-        onScrollFraction={(frac) => {
-          lastFractionRef.current = frac;
-        }}
-        onToggleMode={() => {
-          setRestoreFraction(lastFractionRef.current);
-          setMode('page');
-        }}
+        initialLocation={handoffLocation}
+        onLocationChange={recordLocation}
+        onToggleMode={toggleMode}
         zoom={zoom}
         onZoomChange={setZoom}
         search={search}
@@ -372,7 +373,9 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
               containerWidth={viewWidth}
               containerHeight={height}
               dpr={dpr}
-              initialPosition={restoreFraction ?? initialPosition}
+              initialPosition={initialPosition}
+              initialLocation={handoffLocation}
+              onLocationChange={recordLocation}
               onScrollPosition={savePosition}
               onCurrentPage={setCurrentPage}
               pageTexts={pageTexts}

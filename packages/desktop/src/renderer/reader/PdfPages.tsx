@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import type { IndexedTextMatch } from '@taking-book/core';
+import { offsetForPageLocation, pageLocationAtOffset, type IndexedTextMatch, type PageLocation } from '@taking-book/core';
 import type { Annotation, AnnotationColor } from '../../shared/types';
 import { pageFromOffset, type PageLayout } from './pdf';
 import { PdfPageView, type PageTextSelection } from './PdfPageView';
@@ -18,7 +18,11 @@ interface PdfPagesProps {
   containerHeight: number;
   dpr: number;
   initialPosition: number;
+  /** Page position to open at (e.g. carried over from reflow); wins over `initialPosition`. */
+  initialLocation?: PageLocation;
   onScrollPosition: (page: number, position: number) => void;
+  /** Called as the view scrolls, with the page and how far down it the viewport top is. */
+  onLocationChange?: (location: PageLocation) => void;
   onCurrentPage: (page: number) => void;
   pageTexts: string[];
   annotations: Annotation[];
@@ -45,7 +49,9 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
     containerHeight,
     dpr,
     initialPosition,
+    initialLocation,
     onScrollPosition,
+    onLocationChange,
     onCurrentPage,
     pageTexts,
     annotations,
@@ -67,6 +73,8 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
   onScrollPositionRef.current = onScrollPosition;
   const onCurrentPageRef = useRef(onCurrentPage);
   onCurrentPageRef.current = onCurrentPage;
+  const onLocationChangeRef = useRef(onLocationChange);
+  onLocationChangeRef.current = onLocationChange;
 
   const currentPage = pageFromOffset(layout, scrollTop) + 1;
 
@@ -82,6 +90,7 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
       const position = scrollable > 0 ? st / scrollable : 0;
       onCurrentPageRef.current(page);
       onScrollPositionRef.current(page, position);
+      onLocationChangeRef.current?.(pageLocationAtOffset(layout.offsets, layout.totalHeight, st));
     });
   }, [layout]);
 
@@ -90,10 +99,12 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
     if (!el || restoredRef.current) return;
     restoredRef.current = true;
     const scrollable = Math.max(layout.totalHeight - el.clientHeight, 0);
-    const target = Math.min(initialPosition, 1) * scrollable;
+    const target = initialLocation
+      ? offsetForPageLocation(layout.offsets, layout.totalHeight, initialLocation)
+      : Math.min(initialPosition, 1) * scrollable;
     el.scrollTop = target;
     setScrollTop(target);
-  }, [layout, initialPosition]);
+  }, [layout, initialPosition, initialLocation]);
 
   useEffect(() => {
     cancelAnimationFrame(rafRef.current);

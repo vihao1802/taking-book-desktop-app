@@ -64,6 +64,12 @@ export {
   type ReflowTextItem,
 } from './reflow';
 export {
+  offsetForPageLocation,
+  pageIndexAtOffset,
+  pageLocationAtOffset,
+  type PageLocation,
+} from './reflowPages';
+export {
   REFLOW_CACHE_VERSION,
   parseReflowCache,
   serializeReflowCache,

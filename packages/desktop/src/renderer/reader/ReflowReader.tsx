@@ -1,6 +1,15 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { stepZoomMultiplier, type PositionedReflowImage, type ReflowParagraph, type ReflowRun } from '@taking-book/core';
+import {
+  offsetForPageLocation,
+  pageIndexAtOffset,
+  pageLocationAtOffset,
+  stepZoomMultiplier,
+  type PageLocation,
+  type PositionedReflowImage,
+  type ReflowParagraph,
+  type ReflowRun,
+} from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import type { ReflowProgress } from './useReflowDocument';
 import { Button } from '@/components/ui/button';
@@ -27,6 +36,12 @@ const HIDE_DELAY_MS = 2500;
 /** Keyboard paging: fraction of the viewport a screen step scrolls, and a line step in px. */
 const SCREEN_STEP_RATIO = 0.9;
 const LINE_STEP_PX = 48;
+/**
+ * A page counts as current once its top is within this many px of the viewport
+ * top. Page tops are fractional layout positions while scrollTop is rounded, so
+ * a page scrolled to exactly would otherwise read as the previous one.
+ */
+const PAGE_PROBE_PX = 2;
 /** Matches painted on each side of the current one; a common word can match tens of thousands of times. */
 const SEARCH_HIGHLIGHT_WINDOW = 500;
 
@@ -56,7 +71,10 @@ interface ReflowReaderProps {
   onClose: () => void;
   onToggleMode: () => void;
   initialFraction?: number;
-  onScrollFraction?: (fraction: number) => void;
+  /** Page position to open at (e.g. carried over from page mode); wins over `initialFraction`. */
+  initialLocation?: PageLocation;
+  /** Called as the reader scrolls, with the page and how far down it the viewport top is. */
+  onLocationChange?: (location: PageLocation) => void;
   zoom: number;
   onZoomChange: (zoom: number) => void;
   search: DocumentSearch;
@@ -83,7 +101,8 @@ export function ReflowReader({
   onClose,
   onToggleMode,
   initialFraction,
-  onScrollFraction,
+  initialLocation,
+  onLocationChange,
   zoom,
   onZoomChange,
   search,
@@ -155,21 +174,60 @@ export function ReflowReader({
     return items;
   }, [paragraphs, images]);
 
-  const total = paragraphs.length;
-  const el = scrollRef.current;
-  const scrollable = Math.max((el?.scrollHeight ?? 0) - (el?.clientHeight ?? 0), 0);
-  const currentIndex = Math.min(
-    Math.max(Math.round((scrollTop / Math.max(scrollable, 1)) * Math.max(total - 1, 0)), 0),
-    Math.max(total - 1, 0),
-  );
-  // The slider scrubs paragraphs, but users think in PDF pages, so the
-  // indicator, go-to-page and outline all report the paragraph's source page.
-  const currentPdfPage = (paragraphs[currentIndex]?.pageIndex ?? 0) + 1;
+  // Every PDF page gets a section, even ones with no text, so reflow numbers
+  // pages exactly like page mode. While extraction is still streaming only the
+  // pages read so far exist yet.
+  const pageSections = useMemo(() => {
+    let lastPageIndex = -1;
+    for (const item of flowItems) lastPageIndex = Math.max(lastPageIndex, flowItemPage(item));
+    const pageCount = progress === null ? Math.max(pdf?.numPages ?? 0, lastPageIndex + 1) : lastPageIndex + 1;
+    const sections: FlowItem[][] = Array.from({ length: pageCount }, () => []);
+    for (const item of flowItems) sections[flowItemPage(item)].push(item);
+    return sections;
+  }, [flowItems, progress, pdf]);
+
+  // Top of each page section (and the bottom of the last) in scroll-content
+  // coordinates, measured from the DOM: text height per page is unknowable
+  // ahead of layout, so the page under the viewport can only be found by
+  // looking at where the sections actually landed.
+  const [pageEdges, setPageEdges] = useState<PageEdges>(NO_PAGE_EDGES);
+  const pageEdgesRef = useRef(pageEdges);
+  pageEdgesRef.current = pageEdges;
+
+  const measurePages = useCallback(() => {
+    const container = scrollRef.current;
+    const article = articleRef.current;
+    if (!container || !article) return;
+    const next = measurePageEdges(container, article);
+    setPageEdges((current) => (samePageEdges(current, next) ? current : next));
+  }, []);
+
+  // Sections move whenever the text re-wraps (zoom, window resize) or a page
+  // is added, so re-measure after those layouts, and on any later change to
+  // the article's height.
+  const hasArticle = paragraphs.length > 0;
+  useLayoutEffect(measurePages, [measurePages, pageSections, zoom]);
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measurePages);
+    });
+    observer.observe(article);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [measurePages, hasArticle]);
+
+  const currentPage = pageIndexAtOffset(pageEdges.offsets, scrollTop + PAGE_PROBE_PX) + 1;
   const position = useRef({ page: 1, position: 0 });
   const saveTimerRef = useRef<number>(0);
 
-  const onScrollFractionRef = useRef(onScrollFraction);
-  onScrollFractionRef.current = onScrollFraction;
+  const onLocationChangeRef = useRef(onLocationChange);
+  onLocationChangeRef.current = onLocationChange;
 
   const savePosition = useCallback(() => {
     const el = scrollRef.current;
@@ -177,7 +235,8 @@ export function ReflowReader({
     const scrollable = Math.max(el.scrollHeight - el.clientHeight, 0);
     const frac = scrollable > 0 ? el.scrollTop / scrollable : 0;
     position.current = { page: 1, position: frac };
-    onScrollFractionRef.current?.(frac);
+    const { offsets, end } = pageEdgesRef.current;
+    onLocationChangeRef.current?.(pageLocationAtOffset(offsets, end, el.scrollTop + PAGE_PROBE_PX));
     window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
       window.api.saveLastPosition(file.id, 1, position.current.position, 'reflow');
@@ -242,26 +301,12 @@ export function ReflowReader({
     });
   }, [startHideTimer]);
 
-  const seekToParagraph = useCallback(
-    (index: number) => {
-      const el = scrollRef.current;
-      if (!el || total === 0) return;
-      const scrollable = Math.max(el.scrollHeight - el.clientHeight, 0);
-      const target = (index / Math.max(total - 1, 1)) * scrollable;
-      el.scrollTo({ top: target, behavior: 'smooth' });
-    },
-    [total],
-  );
-
-  // Outlines resolve to PDF pages; reflow jumps to the first paragraph
-  // extracted from that page.
-  const selectOutlinePage = useCallback(
-    (page: number) => {
-      const index = paragraphs.findIndex((para) => para.pageIndex === page - 1);
-      seekToParagraph(index === -1 ? 0 : index);
-    },
-    [paragraphs, seekToParagraph],
-  );
+  const scrollToPage = useCallback((page: number) => {
+    const el = scrollRef.current;
+    const { offsets } = pageEdgesRef.current;
+    if (!el || page < 1 || page > offsets.length) return;
+    el.scrollTo({ top: offsets[page - 1], behavior: 'smooth' });
+  }, []);
 
   // Scroll updates are coalesced to one state write per frame; a raw setState
   // per scroll event re-rendered the whole article on every tick.
@@ -277,18 +322,25 @@ export function ReflowReader({
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
-  // Restoring the saved fraction needs the final article height, so wait
-  // until extraction is complete rather than trusting a partial render.
+  // Restoring a position needs the final article height, so wait until
+  // extraction is complete rather than trusting a partial render. A page
+  // location also needs the sections measured.
   useEffect(() => {
-    if (progress !== null) return;
-    if (restoredRef.current || paragraphs.length === 0 || initialFraction === undefined) return;
+    if (progress !== null || restoredRef.current || paragraphs.length === 0) return;
+    if (initialLocation === undefined && initialFraction === undefined) return;
     const el = scrollRef.current;
     if (!el || el.scrollHeight === 0) return;
+    let target: number;
+    if (initialLocation !== undefined) {
+      if (pageEdges.offsets.length === 0) return;
+      target = offsetForPageLocation(pageEdges.offsets, pageEdges.end, initialLocation);
+    } else {
+      target = (initialFraction ?? 0) * Math.max(el.scrollHeight - el.clientHeight, 0);
+    }
     restoredRef.current = true;
-    const scrollable = Math.max(el.scrollHeight - el.clientHeight, 0);
-    el.scrollTop = initialFraction * scrollable;
+    el.scrollTop = target;
     setScrollTop(el.scrollTop);
-  }, [progress, paragraphs.length, initialFraction]);
+  }, [progress, paragraphs.length, initialFraction, initialLocation, pageEdges]);
 
   const scrollReflow = useCallback((targetFor: (el: HTMLDivElement) => number) => {
     const el = scrollRef.current;
@@ -482,36 +534,32 @@ export function ReflowReader({
             style={{ fontSize: baseSize * zoom }}
             onMouseUp={handleMouseUp}
           >
-            {flowItems.map((item, i) => {
-              const isEndOfPage =
-                i === flowItems.length - 1 || flowItemPage(item) !== flowItemPage(flowItems[i + 1]);
-              // A pdf.js ref can be painted on several pages (shared logos, rules), so
-              // the ref alone is not unique across the flow.
-              const key =
-                item.kind === 'image'
-                  ? `image-${item.image.pageIndex}-${item.image.ref}`
-                  : `para-${item.index}`;
-              return (
-                <Fragment key={key}>
-                  {item.kind === 'image' ? (
-                    <ReflowFigure
-                      image={item.image}
-                      zoom={zoom}
-                      fileHash={file.hash}
-                      getImageData={getImageData}
-                    />
-                  ) : (
-                    <Paragraph
-                      paragraph={item.para}
-                      zoom={zoom}
-                      marks={annotationsByPara.get(item.index) ?? EMPTY_MARKS}
-                      onOpen={setActivePopup}
-                    />
-                  )}
-                  {isEndOfPage && <PageSeparator page={flowItemPage(item) + 1} />}
-                </Fragment>
-              );
-            })}
+            {pageSections.map((items, pageIndex) => (
+              <section key={pageIndex} data-reflow-page={pageIndex}>
+                {items.map((item) => (
+                  // A pdf.js ref can be painted on several pages (shared logos, rules), so
+                  // the ref alone is not unique across the flow.
+                  <Fragment key={item.kind === 'image' ? `image-${item.image.pageIndex}-${item.image.ref}` : `para-${item.index}`}>
+                    {item.kind === 'image' ? (
+                      <ReflowFigure
+                        image={item.image}
+                        zoom={zoom}
+                        fileHash={file.hash}
+                        getImageData={getImageData}
+                      />
+                    ) : (
+                      <Paragraph
+                        paragraph={item.para}
+                        zoom={zoom}
+                        marks={annotationsByPara.get(item.index) ?? EMPTY_MARKS}
+                        onOpen={setActivePopup}
+                      />
+                    )}
+                  </Fragment>
+                ))}
+                <PageSeparator page={pageIndex + 1} />
+              </section>
+            ))}
           </article>
         </div>
       )}
@@ -542,8 +590,8 @@ export function ReflowReader({
           indexing={null}
           goToRequest={goToRequest}
           totalPages={pdf?.numPages ?? 0}
-          currentPage={currentPdfPage}
-          onGoToPage={selectOutlinePage}
+          currentPage={currentPage}
+          onGoToPage={scrollToPage}
           onCloseGoTo={onCloseGoTo}
         />
       )}
@@ -551,10 +599,8 @@ export function ReflowReader({
         <Overlay
           visible={overlayVisible}
           title={`${file.title} — reflow`}
-          page={currentIndex + 1}
-          total={total}
-          indicatorPage={currentPdfPage}
-          indicatorTotal={pdf?.numPages ?? 0}
+          page={currentPage}
+          total={pdf?.numPages ?? pageSections.length}
           mode="reflow"
           zoom={zoom}
           fitWidth={false}
@@ -562,7 +608,7 @@ export function ReflowReader({
           onZoomChange={onZoomChange}
           onToggleMode={onToggleMode}
           onClose={onClose}
-          onSeek={(n) => seekToParagraph(n - 1)}
+          onSeek={scrollToPage}
           onOpenGoTo={onOpenGoTo}
           onInteract={reveal}
           sidebarTab={sidebarTab}
@@ -580,8 +626,8 @@ export function ReflowReader({
           <OutlineView
             nodes={outlineNodes}
             loading={outlineLoading}
-            currentPage={currentPdfPage}
-            onSelect={selectOutlinePage}
+            currentPage={currentPage}
+            onSelect={scrollToPage}
           />
         </SidebarPanel>
       )}
@@ -705,15 +751,52 @@ function renderStyled(
 
 const EMPTY_MARKS: Annotation[] = [];
 
-/** Full-width rule with a small page number marking the end of a page in reflow text. */
+/**
+ * Full-width rule with a small page number marking the end of a page in reflow
+ * text. The number is drawn by CSS (`content: attr(data-page)`) rather than
+ * rendered as a text node, so it stays out of copied text and out of the text
+ * offsets that selections and highlights are computed from.
+ */
 function PageSeparator({ page }: { page: number }) {
   return (
     <div className="flex w-full items-center justify-center gap-4 py-8 select-none" aria-hidden>
       <span className="bg-border h-px flex-1" />
-      <span className="text-muted-foreground text-xs font-medium tabular-nums px-1">{page}</span>
+      <span
+        data-page={page}
+        className="text-muted-foreground text-xs font-medium tabular-nums px-1 after:content-[attr(data-page)]"
+      />
       <span className="bg-border h-px flex-1" />
     </div>
   );
+}
+
+/** Measured vertical extent of the page sections, in scroll-content pixels. */
+interface PageEdges {
+  /** Top of each page section; `offsets[i]` is page `i + 1`. */
+  offsets: number[];
+  /** Bottom of the last page section. */
+  end: number;
+}
+
+const NO_PAGE_EDGES: PageEdges = { offsets: [], end: 0 };
+
+function measurePageEdges(container: HTMLElement, article: HTMLElement): PageEdges {
+  const containerTop = container.getBoundingClientRect().top - container.scrollTop;
+  const sections = article.querySelectorAll<HTMLElement>(':scope > section');
+  const offsets: number[] = [];
+  let end = 0;
+  for (const section of sections) {
+    const rect = section.getBoundingClientRect();
+    offsets.push(rect.top - containerTop);
+    end = rect.bottom - containerTop;
+  }
+  return { offsets, end };
+}
+
+/** Sub-pixel jitter between measurements must not trigger a re-render loop. */
+function samePageEdges(a: PageEdges, b: PageEdges): boolean {
+  if (a.offsets.length !== b.offsets.length || Math.abs(a.end - b.end) > 0.5) return false;
+  return a.offsets.every((offset, i) => Math.abs(offset - b.offsets[i]) <= 0.5);
 }
 
 /** Maps global text offsets over the article back to per-paragraph ranges. */
