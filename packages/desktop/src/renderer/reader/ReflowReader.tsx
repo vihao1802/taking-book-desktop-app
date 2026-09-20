@@ -34,9 +34,10 @@ import { useLocationAnchor } from './useLocationAnchor';
 import { useReaderShortcuts } from './useReaderShortcuts';
 
 const HIDE_DELAY_MS = 2500;
-/** Table-of-contents entries: indent per nesting level, and the hanging indent for wrapped lines (em). */
+/** Table-of-contents entries: indent per nesting level, and the shortest dotted leader before the page number (em). */
 const CONTENTS_INDENT_EM = 1.25;
-const CONTENTS_HANGING_EM = 1.5;
+const CONTENTS_LEADER_MIN_EM = 1.5;
+const CONTENTS_LEADER_OPACITY = 0.45;
 /** Keyboard paging: fraction of the viewport a screen step scrolls, and a line step in px. */
 const SCREEN_STEP_RATIO = 0.9;
 const LINE_STEP_PX = 48;
@@ -673,61 +674,109 @@ const Paragraph = memo(function Paragraph({
   onOpen: (entry: { annotation: Annotation; x: number; y: number }) => void;
 }) {
   const offsets = useMemo(() => runOffsets(paragraph), [paragraph]);
-  const nodes: ReactNode[] = [];
-  let cursor = 0;
-  for (const mark of marks) {
-    const start = Math.max(cursor, mark.paraStart!);
-    const end = Math.min(paragraph.text.length, mark.paraEnd!);
-    if (end <= start) continue;
-    if (start > cursor) nodes.push(...renderStyled(paragraph, offsets, cursor, start));
-    nodes.push(
-      <mark
-        key={mark.id}
-        className="cursor-pointer rounded-[2px]"
-        style={{ backgroundColor: HIGHLIGHT_FILL[mark.color], padding: '0 1px' }}
-        onClick={(e) => {
-          e.stopPropagation();
-          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          onOpen({ annotation: mark, x: rect.left, y: rect.bottom + 8 });
-        }}
-        title={mark.note ?? undefined}
-      >
-        {renderStyled(paragraph, offsets, start, end)}
-      </mark>,
+
+  // Renders the `[from, to)` slice of the paragraph, wrapping the highlights
+  // that intersect it. A highlight crossing `to` is clipped there and resumes
+  // in the next slice, which is how a contents entry splits title from page.
+  const renderRange = (from: number, to: number): ReactNode[] => {
+    const nodes: ReactNode[] = [];
+    let cursor = from;
+    for (const mark of marks) {
+      const start = Math.max(cursor, mark.paraStart!);
+      const end = Math.min(to, mark.paraEnd!);
+      if (end <= start) continue;
+      if (start > cursor) nodes.push(...renderStyled(paragraph, offsets, cursor, start));
+      nodes.push(
+        <mark
+          key={mark.id}
+          className="cursor-pointer rounded-[2px]"
+          style={{ backgroundColor: HIGHLIGHT_FILL[mark.color], padding: '0 1px' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            onOpen({ annotation: mark, x: rect.left, y: rect.bottom + 8 });
+          }}
+          title={mark.note ?? undefined}
+        >
+          {renderStyled(paragraph, offsets, start, end)}
+        </mark>,
+      );
+      cursor = end;
+    }
+    if (cursor < to) nodes.push(...renderStyled(paragraph, offsets, cursor, to));
+    return nodes;
+  };
+
+  if (paragraph.contents) {
+    return (
+      <ContentsEntry
+        fontSize={paragraph.fontSize * zoom}
+        level={paragraph.contents.level}
+        title={renderRange(0, paragraph.contents.pageStart)}
+        page={renderRange(paragraph.contents.pageStart, paragraph.text.length)}
+      />
     );
-    cursor = end;
   }
-  if (cursor < paragraph.text.length) nodes.push(...renderStyled(paragraph, offsets, cursor, paragraph.text.length));
 
   return (
     <p
-      className={paragraph.contents ? 'mb-[0.4em]' : 'mb-[1em]'}
+      className="mb-[1em]"
       style={{
         fontSize: paragraph.fontSize * zoom,
-        // Contents entries indent by nesting depth and hang their wrapped
-        // lines under the title, so a long entry stays readable when narrow.
-        paddingLeft: paragraph.contents ? `${paragraph.contents.level * CONTENTS_INDENT_EM + CONTENTS_HANGING_EM}em` : undefined,
         // Table rows keep their original small size and never wrap: each row
         // scrolls horizontally instead of reflowing, so columns stay on one
         // line and body-text upscaling can't break the table layout.
-        textAlign: paragraph.isTable || paragraph.contents ? 'left' : (paragraph.align ?? 'justify'),
-        textIndent: paragraph.contents
-          ? `-${CONTENTS_HANGING_EM}em`
-          : paragraph.isTable
-            ? undefined
-            : paragraph.indent
-              ? '1.6em'
-              : undefined,
+        textAlign: paragraph.isTable ? 'left' : (paragraph.align ?? 'justify'),
+        textIndent: paragraph.isTable ? undefined : paragraph.indent ? '1.6em' : undefined,
         whiteSpace: paragraph.isTable ? 'nowrap' : undefined,
         overflowX: paragraph.isTable ? 'auto' : undefined,
         maxWidth: paragraph.isTable ? '100%' : undefined,
         fontVariantNumeric: paragraph.isTable ? 'tabular-nums' : undefined,
       }}
     >
-      {nodes}
+      {renderRange(0, paragraph.text.length)}
     </p>
   );
 });
+
+/**
+ * One table-of-contents entry laid out like the PDF page: the title on the
+ * left, a dotted leader filling the gap, and the page number right-aligned.
+ * The leader is a text-free element, so it never shifts the paragraph's text
+ * offsets that highlights and selections are anchored to.
+ */
+function ContentsEntry({
+  fontSize,
+  level,
+  title,
+  page,
+}: {
+  fontSize: number;
+  level: number;
+  title: ReactNode;
+  page: ReactNode;
+}) {
+  return (
+    <p
+      className="mb-[0.4em] flex items-baseline"
+      style={{ fontSize, paddingLeft: `${level * CONTENTS_INDENT_EM}em` }}
+    >
+      <span className="min-w-0">{title}</span>
+      <span
+        aria-hidden
+        className="mx-[0.4em] self-end border-b-2 border-dotted"
+        style={{
+          flex: '1 1 0',
+          minWidth: `${CONTENTS_LEADER_MIN_EM}em`,
+          borderColor: 'currentColor',
+          opacity: CONTENTS_LEADER_OPACITY,
+          marginBottom: '0.3em',
+        }}
+      />
+      <span className="whitespace-nowrap tabular-nums">{page}</span>
+    </p>
+  );
+}
 
 /** Offsets into `paragraph.text` per run, so runs and highlight anchors (also text offsets) slice against each other. */
 function runOffsets(paragraph: ReflowParagraph): Array<{ run: ReflowRun; start: number; end: number }> {

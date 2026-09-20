@@ -81,11 +81,12 @@ export interface ReflowParagraph {
    */
   isTable?: boolean;
   /**
-   * Set when the paragraph is one table-of-contents entry ("title … page").
-   * Entries stand alone instead of merging into body text, and `level` is the
-   * nesting depth the renderer indents by.
+   * Set when the paragraph is one table-of-contents entry ("title page").
+   * Entries stand alone instead of merging into body text; `level` is the
+   * nesting depth the renderer indents by and `pageStart` the offset in `text`
+   * where the page label begins, so the renderer can right-align it.
    */
-  contents?: { level: number };
+  contents?: { level: number; pageStart: number };
 }
 
 /**
@@ -361,7 +362,7 @@ function standaloneParagraph(
     y: line.y,
     runs: entry ? entry.runs : [...line.runs],
     ...(line.isTable ? { isTable: true as const } : {}),
-    ...(entry ? { contents: { level: entry.level } } : {}),
+    ...(entry ? { contents: { level: entry.level, pageStart: entry.pageStart } } : {}),
   };
 }
 

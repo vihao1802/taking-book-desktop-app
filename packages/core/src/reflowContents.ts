@@ -10,10 +10,13 @@ import type { ReflowLine, ReflowRun } from './reflow';
 
 /** A recognized contents line, with its leaders cleaned out and its nesting depth. */
 export interface ContentsEntry {
+  /** "title page": the dot leaders are dropped, the renderer draws its own. */
   text: string;
   runs: ReflowRun[];
   /** Nesting depth on the page, 0 for the outermost entries. */
   level: number;
+  /** Offset in `text` where the page label starts, so the renderer can right-align it. */
+  pageStart: number;
 }
 
 /** Four or more leader characters in a row, e.g. ". . . . ." or "……". */
@@ -77,8 +80,8 @@ function stripLeaders(line: ReflowLine): { text: string; runs: ReflowRun[] } {
   const start = match.index;
   const end = start + match[0].length;
   return {
-    text: `${line.text.slice(0, start)} … ${line.text.slice(end)}`,
-    runs: spliceRuns(line.runs, start, end, ' … '),
+    text: `${line.text.slice(0, start)} ${line.text.slice(end)}`,
+    runs: spliceRuns(line.runs, start, end, ' '),
   };
 }
 
@@ -121,6 +124,7 @@ export function detectContentsEntries(lines: ReflowLine[]): Array<ContentsEntry 
 
   return lines.map((line, index) => {
     if (!entryFlags[index]) return null;
-    return { ...stripLeaders(line), level: levels.get(line.x) ?? 0 };
+    const { text, runs } = stripLeaders(line);
+    return { text, runs, level: levels.get(line.x) ?? 0, pageStart: text.lastIndexOf(' ') + 1 };
   });
 }

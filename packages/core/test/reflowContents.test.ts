@@ -29,9 +29,15 @@ describe('detectContentsEntries', () => {
     expect(entries.every((entry) => entry !== null)).toBe(true);
   });
 
-  it('replaces dot leaders with a single ellipsis', () => {
+  it('drops dot leaders and reports where the page label starts', () => {
     const [first] = detectContentsEntries(CONTENTS_PAGE);
-    expect(first?.text).toBe('1. Reliable Applications … 3');
+    expect(first?.text).toBe('1. Reliable Applications 3');
+    expect(first?.text.slice(first?.pageStart)).toBe('3');
+  });
+
+  it('finds the page label of an entry that never had leaders', () => {
+    const entries = detectContentsEntries(CONTENTS_PAGE);
+    expect(entries[1]?.text.slice(entries[1]?.pageStart)).toBe('6');
   });
 
   it('keeps runs joined to the cleaned text, preserving bold', () => {
@@ -57,7 +63,8 @@ describe('detectContentsEntries', () => {
       line('Preface . . . . . . . . vii', 100),
       line('Foreword . . . . . . . . xi', 113),
     ]);
-    expect(entries[0]?.text).toBe('Preface … vii');
+    expect(entries[0]?.text).toBe('Preface vii');
+    expect(entries[0]?.text.slice(entries[0]?.pageStart)).toBe('vii');
   });
 
   it('leaves body lines ending in a digit alone on an ordinary page', () => {
@@ -87,6 +94,7 @@ describe('paragraphsFromLines with a contents page', () => {
     const paragraphs = paragraphsFromLines(CONTENTS_PAGE, 0);
     expect(paragraphs).toHaveLength(CONTENTS_PAGE.length);
     expect(paragraphs.map((paragraph) => paragraph.contents?.level)).toEqual([0, 1, 2, 0, 1]);
+    expect(paragraphs[0].text.slice(paragraphs[0].contents?.pageStart)).toBe('3');
   });
 
   it('keeps a heading above the entries separate from them', () => {
@@ -96,6 +104,6 @@ describe('paragraphsFromLines with a contents page', () => {
     );
     expect(paragraphs[0].text).toBe('Table of Contents');
     expect(paragraphs[0].contents).toBeUndefined();
-    expect(paragraphs[1].contents).toEqual({ level: 0 });
+    expect(paragraphs[1].contents?.level).toBe(0);
   });
 });
