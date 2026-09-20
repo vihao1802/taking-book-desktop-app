@@ -12,7 +12,6 @@ const PAD_LEFT = 34;
 const TICK_FONT_SIZE = 9;
 const Y_LABEL_GAP = 6;
 const X_LABEL_OFFSET = 4;
-const HIT_RADIUS = 10;
 const POINT_RADIUS = 4;
 const TOOLTIP_WIDTH = 92;
 const TOOLTIP_HEIGHT = 28;
@@ -85,7 +84,14 @@ export function AreaChart({ data, ariaLabel }: AreaChartProps) {
       <path d={linePath} className="text-primary" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
       <circle cx={lastPoint[0]} cy={lastPoint[1]} r={POINT_RADIUS} className="text-primary" fill="currentColor" />
 
-      <HoverTargets points={view.points} onHover={setHoveredIndex} />
+      <HoverTargets
+        points={view.points}
+        plotLeft={PAD_LEFT}
+        plotRight={WIDTH - PAD_RIGHT}
+        plotTop={PAD_TOP}
+        plotHeight={view.plotH}
+        onHover={setHoveredIndex}
+      />
 
       {hovered && (
         <ChartTooltip
@@ -165,12 +171,45 @@ function XAxisLabels({
   );
 }
 
-function HoverTargets({ points, onHover }: { points: Point[]; onHover: (i: number) => void }) {
+/**
+ * One full-height, transparent column per point, so the tooltip follows the
+ * pointer's X position instead of only updating when it lands on a small
+ * circle around the point (which left dead gaps between points that sit at
+ * different heights, making the tooltip feel like it lagged behind).
+ */
+function HoverTargets({
+  points,
+  plotLeft,
+  plotRight,
+  plotTop,
+  plotHeight,
+  onHover,
+}: {
+  points: Point[];
+  plotLeft: number;
+  plotRight: number;
+  plotTop: number;
+  plotHeight: number;
+  onHover: (i: number) => void;
+}) {
+  const columnWidth = points.length <= 1 ? plotRight - plotLeft : (plotRight - plotLeft) / (points.length - 1);
   return (
     <>
-      {points.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r={HIT_RADIUS} fill="transparent" onPointerEnter={() => onHover(i)} />
-      ))}
+      {points.map(([x], i) => {
+        const left = Math.max(x - columnWidth / 2, plotLeft);
+        const right = Math.min(x + columnWidth / 2, plotRight);
+        return (
+          <rect
+            key={i}
+            x={left}
+            y={plotTop}
+            width={right - left}
+            height={plotHeight}
+            fill="transparent"
+            onPointerEnter={() => onHover(i)}
+          />
+        );
+      })}
     </>
   );
 }
