@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { isOk } from '@taking-book/core';
 import type { Annotation } from '../../shared/types';
+import { useAnnotationEditActions } from '../reader/useAnnotationEditActions';
+import type { NoteEditActions } from '../reader/useAnnotations';
 
 interface LibraryAnnotationsState {
   /** The live annotations of every library book; empty until loaded. */
@@ -8,32 +10,43 @@ interface LibraryAnnotationsState {
   loading: boolean;
   /** A user-facing message when the annotations could not be loaded; null otherwise. */
   error: string | null;
+  /** Stores edits to and deletions of one annotation and applies them to `annotations` at once. */
+  editActions: NoteEditActions;
 }
 
 const LOAD_FAILED_MESSAGE = 'Your notes could not be loaded.';
 
-function loadFailed(detail: unknown): LibraryAnnotationsState {
-  console.error('Could not load the Notes view:', detail);
-  return { annotations: [], loading: false, error: LOAD_FAILED_MESSAGE };
-}
-
-/** Loads the annotations of every library book each time the Notes view opens. */
+/**
+ * Loads the annotations of every library book each time the Notes view opens,
+ * and keeps them current as the reader edits or deletes Notes there.
+ */
 export function useLibraryAnnotations(): LibraryAnnotationsState {
-  const [state, setState] = useState<LibraryAnnotationsState>({ annotations: [], loading: true, error: null });
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const editActions = useAnnotationEditActions(setAnnotations);
 
   useEffect(() => {
     let cancelled = false;
+    const fail = (detail: unknown): void => {
+      console.error('Could not load the Notes view:', detail);
+      if (!cancelled) setError(LOAD_FAILED_MESSAGE);
+    };
     window.api
       .listLibraryAnnotations()
-      .then((result) => (isOk(result) ? { annotations: result.data, loading: false, error: null } : loadFailed(result.error)))
-      .catch(loadFailed)
-      .then((next) => {
-        if (!cancelled) setState(next);
+      .then((result) => {
+        if (cancelled) return;
+        if (isOk(result)) setAnnotations(result.data);
+        else fail(result.error);
+      })
+      .catch(fail)
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  return state;
+  return { annotations, loading, error, editActions };
 }

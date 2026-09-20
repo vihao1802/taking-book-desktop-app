@@ -23,7 +23,8 @@ interface NotesViewProps {
  */
 export function NotesView({ onOpenNote }: NotesViewProps): ReactElement {
   const { files } = useLibrary();
-  const { annotations, loading, error } = useLibraryAnnotations();
+  const { annotations, loading, error, editActions } = useLibraryAnnotations();
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   const [showHighlights, setShowHighlights] = useState(false);
   const { openNote, error: openError, dismissError } = useOpenNote(onOpenNote);
@@ -76,7 +77,15 @@ export function NotesView({ onOpenNote }: NotesViewProps): ReactElement {
       {groups.length > 0 && (
         <div className="flex flex-col gap-6">
           {groups.map((group) => (
-            <BookNotesSection key={group.file.id} {...group} onOpenNote={openNote} />
+            <BookNotesSection
+              key={group.file.id}
+              {...group}
+              onOpenNote={openNote}
+              editingId={editingId}
+              editActions={editActions}
+              onEdit={(note) => setEditingId(note.id)}
+              onStopEditing={() => setEditingId(null)}
+            />
           ))}
         </div>
       )}

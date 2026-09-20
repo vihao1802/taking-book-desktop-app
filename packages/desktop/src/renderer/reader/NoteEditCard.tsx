@@ -19,7 +19,7 @@ interface NoteEditCardProps {
 const DELETE_QUESTIONS = { note: 'Delete this note?', highlight: 'Delete this highlight and its note?' } as const;
 
 /**
- * A Notes sidebar card in edit mode. The text and highlight color of the Note
+ * A Note card in edit mode, in the Notes sidebar or the Notes view. The text and highlight color of the Note
  * change in place; Cmd/Ctrl+Enter or Save stores the text and Escape or Cancel
  * closes the card. Both delete controls are trash-can icons: the one beside the
  * text deletes the Note (keeping its Highlight), the one beside the colors
