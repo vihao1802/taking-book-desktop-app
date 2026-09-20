@@ -2,7 +2,7 @@ import * as pdfjs from 'pdfjs-dist';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 // eslint-disable-next-line import/no-unresolved
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import { pageIndexAtOffset } from '@taking-book/core';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -205,8 +205,21 @@ export function usePageLayout(pdf: PDFDocumentProxy | null, containerWidth: numb
     };
   }, [pdf]);
 
-  if (!baseViewports || containerWidth <= 0) return null;
+  // Memoized so the layout keeps its identity across the reader's unrelated
+  // re-renders (a page change, the overlay showing): everything that scrolls or
+  // measures against it re-runs when it changes.
+  return useMemo(
+    () => (baseViewports && containerWidth > 0 ? layoutPages(baseViewports, containerWidth, complete) : null),
+    [baseViewports, containerWidth, complete],
+  );
+}
 
+/** Lays the pages out one under another at `containerWidth`; unmeasured pages take the first measured size. */
+function layoutPages(
+  baseViewports: readonly ({ width: number; height: number } | null)[],
+  containerWidth: number,
+  complete: boolean,
+): PageLayout {
   const fallback = baseViewports.find((vp) => vp != null) ?? FALLBACK_PAGE;
   const heights: number[] = [];
   const offsets: number[] = [];
