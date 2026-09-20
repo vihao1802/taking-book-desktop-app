@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FilePlus2, X } from 'lucide-react';
-import { findNearestNote, isPageNote } from '@taking-book/core';
+import { findNearestNote } from '@taking-book/core';
 import { Button } from '@/components/ui/button';
 import type { Annotation } from '../../shared/types';
 import { NoteCard } from './NoteCard';
@@ -122,7 +122,7 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
                   annotation={note}
                   selected={note.id === selectedId}
                   onJump={onJump}
-                  onEdit={isPageNote(note) ? state.editAnnotation : undefined}
+                  onEdit={state.editAnnotation}
                 />
               ),
             )}

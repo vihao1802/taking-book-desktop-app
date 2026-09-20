@@ -12,9 +12,8 @@ interface NoteCardProps {
   onJump?: (annotation: Annotation) => void;
   /**
    * Called when the reader asks to edit the Note. Shown as a pencil beside the
-   * card where the Note has no Highlight on the page to click (a Page note in
-   * the Notes sidebar, or any Note in the Notes view); without it the card
-   * offers no edit control.
+   * card, so a Note can be edited (and deleted, from its edit card) without
+   * finding its Highlight on the page; without it the card offers no edit control.
    */
   onEdit?: (annotation: Annotation) => void;
 }
