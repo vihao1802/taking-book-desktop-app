@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { isOk, type Result } from '@taking-book/core';
+import { isOk, isPageNote, type Result } from '@taking-book/core';
 import type { Annotation, AnnotationColor, CreateAnnotationInput, NoteDraft } from '../../shared/types';
 
 /**
@@ -59,7 +59,10 @@ export function useAnnotations(fileHash: string): {
 
   const saveNoteDraft = useCallback(
     async (draft: NoteDraft): Promise<Result<Annotation>> => {
-      const result = await window.api.saveNoteDraft(fileHash, draft);
+      // A draft with no passage is a Page note, which is stored by its own rules.
+      const result = isPageNote(draft)
+        ? await window.api.savePageNote(fileHash, { page: draft.page, text: draft.text })
+        : await window.api.saveNoteDraft(fileHash, draft);
       if (isOk(result)) setAnnotations((prev) => [...prev, result.data]);
       return result;
     },

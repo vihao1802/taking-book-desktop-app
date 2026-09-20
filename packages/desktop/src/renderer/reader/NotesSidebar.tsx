@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
-import { findNearestNote } from '@taking-book/core';
+import { FilePlus2, X } from 'lucide-react';
+import { findNearestNote, isPageNote } from '@taking-book/core';
 import { Button } from '@/components/ui/button';
 import type { Annotation } from '../../shared/types';
 import { NoteCard } from './NoteCard';
@@ -16,7 +16,7 @@ interface NotesSidebarProps {
   state: NotesSidebarState;
   /** The Note being written, if any; its card is listed first. */
   noteDraft: NoteDraftState;
-  /** The PDF page the reader is on; only its value when the sidebar opens matters (see below). */
+  /** The real PDF page the reader is on: the page a new Page note is attached to, and where the list first scrolls (see below). */
   readingPage: number;
   /** Stores edits to and deletions of the annotation whose card is in edit mode. */
   editActions: NoteEditActions;
@@ -61,6 +61,12 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
     list.scrollTop += card.getBoundingClientRect().top - list.getBoundingClientRect().top;
   }, [pageWhenOpened]);
 
+  const addPageNote = () => {
+    // The draft card that opens is the one card being worked on, as when a passage is selected.
+    stopEditing();
+    noteDraft.startPageNote(readingPage);
+  };
+
   return (
     <aside
       ref={asideRef}
@@ -74,6 +80,12 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
         <h2 className="flex-1 text-sm font-medium">Notes</h2>
         <Button variant="ghost" size="icon" onClick={close} aria-label="Close notes" className="size-7">
           <X className="size-4" />
+        </Button>
+      </div>
+      <div className="border-border/60 flex border-b px-2 py-1.5">
+        <Button variant="ghost" size="sm" className="h-auto gap-1.5 px-1.5 py-1 text-xs" onClick={addPageNote}>
+          <FilePlus2 className="size-3.5" />
+          Page note
         </Button>
       </div>
       <label className="border-border/60 text-muted-foreground flex cursor-pointer items-center gap-2 border-b py-2 pr-2 pl-3.5 text-xs">
@@ -98,7 +110,12 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
               note.id === editingId ? (
                 <NoteEditCard key={note.id} annotation={note} actions={editActions} onDone={stopEditing} />
               ) : (
-                <NoteCard key={note.id} annotation={note} onJump={onJump} />
+                <NoteCard
+                  key={note.id}
+                  annotation={note}
+                  onJump={onJump}
+                  onEdit={isPageNote(note) ? state.editAnnotation : undefined}
+                />
               ),
             )}
           </ul>

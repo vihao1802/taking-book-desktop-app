@@ -17,7 +17,7 @@ export {
   type CreateAnnotationOptions,
 } from './annotationsRepository';
 export { deriveAnnotationUid, resolveAnnotationUid, type AnnotationUidGenerator } from './annotationUid';
-export { deleteNote, saveNoteDraft, saveNoteText, type NoteAnchor, type NoteDraft } from './notesRepository';
+export { deleteNote, saveNoteDraft, saveNoteText, savePageNote, type NoteAnchor, type NoteDraft, type PageNoteInput } from './notesRepository';
 export {
   computeCurrentStreak,
   computeLongestStreak,

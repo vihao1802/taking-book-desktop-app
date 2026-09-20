@@ -15,10 +15,10 @@ export function hasNoteText(annotation: Annotation): boolean {
 }
 
 /**
- * True for a Page note: an annotation with no quoted passage. It has no
+ * True for a Page note: an annotation (or a draft) with no quoted passage. It has no
  * Highlight, so unlike a Note on a Highlight it is nothing without its text.
  */
-export function isPageNote(annotation: Annotation): boolean {
+export function isPageNote(annotation: Pick<Annotation, 'quote'>): boolean {
   return annotation.quote.trim().length === 0;
 }
 

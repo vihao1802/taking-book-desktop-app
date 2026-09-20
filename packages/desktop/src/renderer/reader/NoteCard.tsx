@@ -1,11 +1,19 @@
 import { hasNoteText } from '@taking-book/core';
+import { Pencil } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
+import { Button } from '@/components/ui/button';
 import { HIGHLIGHT_FILL } from './highlights';
 
 interface NoteCardProps {
   annotation: Annotation;
   /** Called when the reader clicks the card, to jump to where the Note was written; without it the card is not clickable. */
   onJump?: (annotation: Annotation) => void;
+  /**
+   * Called when the reader asks to edit the Note. Shown as a pencil beside the
+   * card for a Note that has no Highlight on the page to click (a Page note);
+   * without it the card offers no edit control.
+   */
+  onEdit?: (annotation: Annotation) => void;
 }
 
 const CARD_CLASS = 'border-border/60 bg-background/40 flex h-full w-full flex-col gap-1.5 rounded-md border p-2.5 text-left';
@@ -15,9 +23,10 @@ const CARD_CLASS = 'border-border/60 bg-background/40 flex h-full w-full flex-co
  * quotes, the note text and the highlight color. A Highlight without note text
  * (shown only when the sidebar's filter asks for it) has no text block. With an
  * `onJump` the whole card is one button that jumps to the Note; its parts are
- * spans because a button may only hold phrasing content.
+ * spans because a button may only hold phrasing content, which is also why the
+ * edit pencil is a sibling of that button rather than inside it.
  */
-export function NoteCard({ annotation, onJump }: NoteCardProps) {
+export function NoteCard({ annotation, onJump, onEdit }: NoteCardProps) {
   const hasQuote = annotation.quote.trim().length > 0;
 
   const content = (
@@ -47,7 +56,7 @@ export function NoteCard({ annotation, onJump }: NoteCardProps) {
   );
 
   return (
-    <li data-note-id={annotation.id}>
+    <li data-note-id={annotation.id} className="relative">
       {onJump ? (
         <button
           type="button"
@@ -58,6 +67,18 @@ export function NoteCard({ annotation, onJump }: NoteCardProps) {
         </button>
       ) : (
         <div className={CARD_CLASS}>{content}</div>
+      )}
+      {onEdit && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground absolute top-1 right-1 size-6"
+          aria-label="Edit note"
+          title="Edit note"
+          onClick={() => onEdit(annotation)}
+        >
+          <Pencil className="size-3.5" />
+        </Button>
       )}
     </li>
   );

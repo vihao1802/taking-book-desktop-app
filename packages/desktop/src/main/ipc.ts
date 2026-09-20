@@ -22,6 +22,7 @@ import {
   saveLastPosition,
   saveNoteDraft,
   saveNoteText,
+  savePageNote,
   serializeReflowCache,
   setAnnotationColor,
   setFileFavorite,
@@ -35,7 +36,7 @@ import {
   setTheme,
   upsertFile,
 } from '@taking-book/core';
-import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, NoteDraft, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
+import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, NoteDraft, PageNoteInput, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { sha256File } from './hash';
@@ -231,6 +232,10 @@ export function registerIpc(db: SqlDriver): void {
 
   ipcMain.handle('annotations:draft:save', async (_event, fileHash: string, draft: NoteDraft) =>
     saveNoteDraft(db, fileHash, draft, { stamp: await stamp(), generateUid: randomUUID }),
+  );
+
+  ipcMain.handle('annotations:pageNote:save', async (_event, fileHash: string, input: PageNoteInput) =>
+    savePageNote(db, fileHash, input, { stamp: await stamp(), generateUid: randomUUID }),
   );
 
   ipcMain.handle('annotations:note:save', async (_event, id: number, text: string) =>

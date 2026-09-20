@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   annotationsSchema,
+  applyRecordAnnotations,
   createAnnotation,
   deleteAnnotation,
   deleteNote,
@@ -13,6 +14,7 @@ import {
   listNotes,
   saveNoteDraft,
   saveNoteText,
+  savePageNote,
   setAnnotationColor,
   upsertFile,
 } from '../src';
@@ -187,6 +189,101 @@ async function addAnnotation(db: SqlDriver, overrides: Partial<NoteDraft> & { no
 }
 
 const EDIT_STAMP = { updatedAt: 200, updatedBy: 'dev-b' };
+
+describe('savePageNote', () => {
+  async function savePage(db: SqlDriver, page: number, text: string) {
+    return savePageNote(db, 'h1', { page, text }, { generateUid: sequentialUids('dev-a') });
+  }
+
+  it('stores the text on the page with no quoted passage and no anchors', async () => {
+    const db = await dbWithBook();
+
+    const saved = await savePage(db, 5, 'about this page');
+
+    expect(isOk(saved)).toBe(true);
+    const stored = await liveAnnotations(db);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({
+      page: 5,
+      quote: '',
+      note: 'about this page',
+      pageStart: null,
+      pageEnd: null,
+      paraIndex: null,
+      paraStart: null,
+      paraEnd: null,
+    });
+    expect(isPageNote(stored[0])).toBe(true);
+    expect(listNotes(stored).map((note) => note.note)).toEqual(['about this page']);
+  });
+
+  it('trims the text but keeps inner line breaks', async () => {
+    const db = await dbWithBook();
+
+    await savePage(db, 1, '\n  first line\nsecond line \n');
+
+    expect((await liveAnnotations(db))[0].note).toBe('first line\nsecond line');
+  });
+
+  it.each(['', '   ', '\n \t\n'])('does not save empty text (%j)', async (text) => {
+    const db = await dbWithBook();
+
+    const saved = await savePage(db, 2, text);
+
+    expect(isOk(saved)).toBe(false);
+    expect(await liveAnnotations(db)).toEqual([]);
+  });
+
+  it('allows several Page notes on one page and lists them in the order they were written', async () => {
+    const db = await dbWithBook();
+
+    await savePage(db, 4, 'first');
+    await savePage(db, 4, 'second');
+    await savePage(db, 3, 'earlier page');
+
+    expect(listNotes(await liveAnnotations(db)).map((note) => note.note)).toEqual(['earlier page', 'first', 'second']);
+  });
+
+  it('lists a Page note ahead of a Note on a passage of the same page', async () => {
+    const db = await dbWithBook();
+    await save(db, draft({ page: 4, text: 'about a passage' }));
+
+    await savePage(db, 4, 'about the page');
+
+    expect(listNotes(await liveAnnotations(db)).map((note) => note.note)).toEqual(['about the page', 'about a passage']);
+  });
+
+  it('stamps the write with the given sync clock', async () => {
+    const db = await dbWithBook();
+
+    await savePageNote(
+      db,
+      'h1',
+      { page: 1, text: 'stamped' },
+      { generateUid: sequentialUids('dev-a'), stamp: { updatedAt: 500, updatedBy: 'dev-a' } },
+    );
+
+    const synced = await listAnnotationsForSync(db, 'h1');
+    if (!isOk(synced)) throw new Error(synced.error);
+    expect(synced.data[0]).toMatchObject({ quote: '', note: 'stamped', updatedAt: 500, updatedBy: 'dev-a', deleted: false });
+  });
+
+  it('reaches another device through sync and is matched by its uid there', async () => {
+    const db = await dbWithBook();
+    await savePage(db, 6, 'shared thought');
+    const synced = await listAnnotationsForSync(db, 'h1');
+    if (!isOk(synced)) throw new Error(synced.error);
+    const other = await dbWithBook();
+
+    await applyRecordAnnotations(other, 'h1', synced.data);
+    await applyRecordAnnotations(other, 'h1', synced.data);
+
+    const arrived = await liveAnnotations(other);
+    expect(arrived).toHaveLength(1);
+    expect(arrived[0]).toMatchObject({ page: 6, quote: '', note: 'shared thought' });
+    expect(isPageNote(arrived[0])).toBe(true);
+  });
+});
 
 describe('saveNoteText', () => {
   it('replaces the note text of an existing Note and stamps the edit for sync', async () => {

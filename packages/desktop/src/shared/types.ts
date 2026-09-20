@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, ReadMode, ReadingStats, ReflowCacheEntry, Result, SyncSummary, Theme } from '@taking-book/core';
+import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, ReadingStats, ReflowCacheEntry, Result, SyncSummary, Theme } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -25,6 +25,7 @@ export interface ReaderApi {
   listLibraryAnnotations(): Promise<Result<Annotation[]>>;
   createAnnotation(fileHash: string, input: CreateAnnotationInput): Promise<Result<Annotation>>;
   saveNoteDraft(fileHash: string, draft: NoteDraft): Promise<Result<Annotation>>;
+  savePageNote(fileHash: string, input: PageNoteInput): Promise<Result<Annotation>>;
   /** Saves the text of a Note; empty text on a Highlight removes only the text (see core `saveNoteText`). */
   saveNoteText(id: number, text: string): Promise<Result<Annotation>>;
   /** Deletes a Note: the Highlight stays with its text removed, or null when a Page note was deleted entirely. */
@@ -47,4 +48,4 @@ export interface ReaderApi {
   onFullScreenChange(listener: (fullScreen: boolean) => void): () => void;
 }
 
-export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, ReadMode, ReadingStats, Result, SyncSummary, Theme };
+export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, ReadingStats, Result, SyncSummary, Theme };

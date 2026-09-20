@@ -12,6 +12,8 @@ import { err, isErr, ok } from './result';
 import type { SqlDriver } from './sql';
 import type { SyncStamp } from './sync/types';
 
+const DEFAULT_PAGE_NOTE_COLOR: AnnotationColor = 'yellow';
+
 /**
  * The passage a reader selected and where to find it again: the same anchors a
  * stored annotation has (page text and reflow paragraph, either of which may be
@@ -37,7 +39,7 @@ export interface NoteDraft extends NoteAnchor {
  * Highlight instead of failing, so a reader can turn a note back into a
  * marking. Surrounding whitespace is trimmed, inner line breaks are kept. A
  * draft without a quoted passage would be a Page note, which is a separate
- * kind of Note, so it is rejected here.
+ * kind of Note (see `savePageNote`), so it is rejected here.
  *
  * @param db - The data-access driver.
  * @param fileHash - Content hash of the book the draft belongs to.
@@ -55,6 +57,53 @@ export async function saveNoteDraft(
   const { text, ...anchor } = draft;
   const trimmed = text.trim();
   return createAnnotation(db, fileHash, { ...anchor, note: trimmed.length > 0 ? trimmed : null }, options);
+}
+
+/** A Note on a page as a whole: which page, and what the reader wrote. */
+export interface PageNoteInput {
+  /** Real PDF page number, in both reader modes. */
+  page: number;
+  text: string;
+}
+
+/**
+ * Stores a Page note: a Note attached to a PDF page with no quoted passage, no
+ * anchors and no visible color. Several may exist on one page. Unlike a Note on
+ * a Highlight it is nothing without its text, so empty (or whitespace-only) text
+ * is rejected and nothing is stored. Surrounding whitespace is trimmed, inner
+ * line breaks are kept.
+ *
+ * @param db - The data-access driver.
+ * @param fileHash - Content hash of the book the page belongs to.
+ * @param input - The page and the text.
+ * @param options - The uid generator and optional sync clock for the new annotation.
+ * @returns The stored annotation, or an error message when nothing was stored.
+ */
+export async function savePageNote(
+  db: SqlDriver,
+  fileHash: string,
+  input: PageNoteInput,
+  options: CreateAnnotationOptions,
+): Promise<Result<Annotation>> {
+  const trimmed = input.text.trim();
+  if (trimmed.length === 0) return err('A page note needs text');
+  return createAnnotation(
+    db,
+    fileHash,
+    {
+      page: input.page,
+      pageStart: null,
+      pageEnd: null,
+      quote: '',
+      // Never shown for a Page note; the stored column just needs a valid value.
+      color: DEFAULT_PAGE_NOTE_COLOR,
+      note: trimmed,
+      paraIndex: null,
+      paraStart: null,
+      paraEnd: null,
+    },
+    options,
+  );
 }
 
 /**

@@ -1,11 +1,16 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { isOk, type Result } from '@taking-book/core';
+import { isOk, isPageNote, type Result } from '@taking-book/core';
 import type { Annotation, AnnotationColor, NoteAnchor, NoteDraft } from '../../shared/types';
 
 /** Local id of the stand-in annotation that paints a draft's temporary highlight; real rows never have one. */
 const DRAFT_ANNOTATION_ID = -1;
 
 const DEFAULT_DRAFT_COLOR: AnnotationColor = 'yellow';
+
+/** A Page note quotes nothing and is anchored to nothing on the page, only to the page itself. */
+function pageNoteAnchor(page: number): NoteAnchor {
+  return { page, pageStart: null, pageEnd: null, quote: '', paraIndex: null, paraStart: null, paraEnd: null };
+}
 
 /** The unsaved Note, if any, and everything the Notes sidebar needs to edit it. */
 export interface NoteDraftState {
@@ -18,6 +23,8 @@ export interface NoteDraftState {
   error: string | null;
   /** Begins a draft on a passage, replacing any open draft without asking. */
   start: (anchor: NoteAnchor) => void;
+  /** Begins a draft of a Page note on the given PDF page, replacing any open draft without asking. */
+  startPageNote: (page: number) => void;
   changeText: (text: string) => void;
   changeColor: (color: AnnotationColor) => void;
   /** Discards the draft and its temporary highlight; nothing is stored. */
@@ -62,6 +69,8 @@ export function useNoteDraft({ fileHash, saveNote }: UseNoteDraftOptions): NoteD
     setOpen({ key, anchor, color: DEFAULT_DRAFT_COLOR, text: '' });
   }, []);
 
+  const startPageNote = useCallback((page: number) => start(pageNoteAnchor(page)), [start]);
+
   const edit = useCallback(
     (change: Partial<Pick<OpenDraft, 'text' | 'color'>>) =>
       setOpen((current) => (current ? { ...current, ...change } : current)),
@@ -103,13 +112,14 @@ export function useNoteDraft({ fileHash, saveNote }: UseNoteDraftOptions): NoteD
   const anchor = open?.anchor;
   const color = open?.color;
   const highlight = useMemo(
-    () => (anchor && color ? draftHighlight(fileHash, anchor, color) : null),
+    // A Page note has no passage, so the page shows nothing for it.
+    () => (anchor && color && !isPageNote(anchor) ? draftHighlight(fileHash, anchor, color) : null),
     [fileHash, anchor, color],
   );
 
   const draft = useMemo(() => (open ? { ...open.anchor, color: open.color, text: open.text } : null), [open]);
 
-  return { draft, draftKey: open?.key ?? 0, saving, error, start, changeText, changeColor, cancel, save, highlight };
+  return { draft, draftKey: open?.key ?? 0, saving, error, start, startPageNote, changeText, changeColor, cancel, save, highlight };
 }
 
 function draftHighlight(fileHash: string, anchor: NoteAnchor, color: AnnotationColor): Annotation {
