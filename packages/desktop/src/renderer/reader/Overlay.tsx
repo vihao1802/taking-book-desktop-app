@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Frame, LayoutGrid, ListTree, PanelLeft, Type } from 'lucide-react';
+import { ArrowLeft, FileText, Frame, LayoutGrid, ListTree, PanelLeft, TextWrap } from 'lucide-react';
 import { clampZoomPercent } from '@taking-book/core';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -184,6 +184,8 @@ export function Overlay({
             onClick={onToggleMode}
             disabled={reflowDisabled}
             aria-label="Toggle reflow"
+            aria-pressed={mode === 'reflow'}
+            className={cn(mode === 'reflow' && 'bg-accent text-accent-foreground')}
             title={
               reflowDisabled
                 ? 'This book is image-based and has no extractable text'
@@ -193,7 +195,7 @@ export function Overlay({
                   )
             }
           >
-            <Type className="size-4" />
+            {mode === 'reflow' ? <FileText className="size-4" /> : <TextWrap className="size-4" />}
           </Button>
         </div>
       </div>
