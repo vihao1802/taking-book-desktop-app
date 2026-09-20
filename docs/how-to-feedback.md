@@ -1,87 +1,87 @@
-# Cách gửi feedback sau khi xong một tính năng
+# How to give feedback after a feature ships
 
-Ghi chú cá nhân: sau khi dùng app và có góp ý, làm gì, ở đâu, với lệnh nào.
-Áp dụng cho mọi tính năng, ví dụ tính năng Notes (spec là issue #2, các ticket là #3 đến #12).
+Personal notes: what to do, where, and with which command once you have used the app and have feedback.
+This applies to every feature, for example the Notes feature (the spec is issue #2, the tickets are #3 to #12).
 
-## Nguyên tắc chung
+## General rules
 
-- **Nơi lưu feedback luôn là GitHub Issues** của `vihao1802/taking-book-desktop-app`, thao tác bằng `gh`. Chi tiết lệnh: `docs/agents/issue-tracker.md`.
-- **Mỗi issue một việc.** Gom nhiều thứ vào một issue thì không vừa một context window của `/implement`.
-- **Không sửa issue cũ đã xong** (spec hay ticket). Chúng là lịch sử. Feedback luôn là issue mới, có thể trỏ tới ticket liên quan ("liên quan #7").
-- **Mỗi feedback xử lý trong một session mới** (`/clear`), không làm trong session đã dài.
-- **Nếu feedback trái với `CONTEXT.md` hoặc một ADR**, không sửa thẳng code. Cập nhật tài liệu trước bằng `/grill-with-docs`, để code và tài liệu không lệch nhau.
-- Các nhãn triage dùng trong repo (xem `docs/agents/triage-labels.md`): `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
+- **Feedback always lives in GitHub Issues** of `vihao1802/taking-book-desktop-app`, handled with `gh`. Command details: `docs/agents/issue-tracker.md`.
+- **One issue, one thing.** Bundling several things into one issue means `/implement` cannot fit it in a single context window.
+- **Do not edit finished issues** (the spec or its tickets). They are history. Feedback is always a new issue, which may point to a related ticket ("related to #7").
+- **Handle each piece of feedback in a fresh session** (`/clear`), not in a session that is already long.
+- **If the feedback contradicts `CONTEXT.md` or an ADR**, do not change the code directly. Update the documents first with `/grill-with-docs`, so code and documents never drift apart.
+- The triage labels used in this repo (see `docs/agents/triage-labels.md`): `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
 
-## Chọn cách xử lý theo loại feedback
+## Choosing an approach by kind of feedback
 
-| Loại feedback | Ví dụ | Cách làm |
+| Kind of feedback | Example | What to do |
 |---|---|---|
-| Lỗi rõ ràng | "Bấm vào note mà không nhảy tới trang" | Tạo issue có cách tái hiện, `/triage` rồi `/implement #số` |
-| Lỗi khó | Chỉ xảy ra thỉnh thoảng; sync mất note | `/diagnosing-bugs` |
-| Chỉnh nhỏ | Đổi màu, đổi nhãn, đổi thứ tự | Tạo issue nhỏ rồi `/implement #số` |
-| Đổi quyết định đã chốt | Muốn sidebar overlay thay vì đẩy trang; thêm export | `/grill-with-docs`, sau đó `/to-spec` và `/to-tickets` |
-| Ý tưởng lớn mới | Một tính năng mới hoàn toàn | Bắt đầu lại main flow từ `/grill-with-docs` |
-| Nhiều feedback dồn lại | Cả tuần dùng app ghi được 10 điều | Tạo từng issue rồi chạy `/triage` một lượt |
+| Plain bug | "Clicking a note does not jump to its page" | Create an issue with reproduction steps, then `/triage`, then `/implement #number` |
+| Hard bug | Only happens sometimes; sync loses a note | `/diagnosing-bugs` |
+| Small tweak | Change a color, a label, or an order | Create a small issue, then `/implement #number` |
+| Changing a decision already made | Wanting the sidebar to overlay instead of push the page; adding export | `/grill-with-docs`, then `/to-spec` and `/to-tickets` |
+| New big idea | An entirely new feature | Restart the main flow from `/grill-with-docs` |
+| Many pieces of feedback piled up | A week of use produced 10 observations | Create one issue each, then run `/triage` once over all of them |
 
-Tiền tố lệnh đầy đủ là `/mattpocock-skills:<tên>`; nếu quên tên, dùng `/mattpocock-skills:ask-matt`.
+The full command prefix is `/mattpocock-skills:<name>`; if you forget a name, use `/mattpocock-skills:ask-matt`.
 
-## Quy trình từng loại
+## Step by step for each kind
 
-### 1. Lỗi rõ ràng hoặc chỉnh nhỏ
+### 1. Plain bug or small tweak
 
-1. Tạo issue (mẫu ở phần dưới):
+1. Create an issue (template below):
    ```
    gh issue create --title "..." --label needs-triage --body "..."
    ```
-2. Session mới: `/triage` để phân loại; issue đủ thông tin sẽ được gắn `ready-for-agent`, còn thiếu thì `needs-info`.
-3. Session mới: `/implement #số`.
-4. `/implement` tự chạy TDD từng lát, `/code-review`, chạy `npm run build`, `typecheck`, `lint`, `test` và commit.
+2. New session: `/triage` to classify it; an issue with enough information gets `ready-for-agent`, one that lacks information gets `needs-info`.
+3. New session: `/implement #number`.
+4. `/implement` drives TDD one slice at a time, runs `/code-review`, runs `npm run build`, `typecheck`, `lint` and `test`, and commits.
 
-Ghi chú: `/triage` chỉ dành cho issue do người khác tạo hoặc feedback thô. Ticket do `/to-tickets` sinh ra đã sẵn sàng cho agent, không cần triage.
+Note: `/triage` is only for issues someone else created, or raw feedback. Tickets produced by `/to-tickets` are already agent-ready and need no triage.
 
-### 2. Lỗi khó
+### 2. Hard bug
 
-Session mới: `/diagnosing-bugs` kèm mô tả ngắn. Nó không đoán nguyên nhân trước khi có **một lệnh tái hiện chắc chắn**, sửa xong thêm test hồi quy. Nếu kết luận là "không có chỗ nào tốt để khóa lỗi bằng test", nó sẽ gợi ý `/improve-codebase-architecture`.
+New session: `/diagnosing-bugs` with a short description. It refuses to guess a cause before it has **one command that reliably reproduces the bug**, and adds a regression test with the fix. If it concludes that "there is no good seam to pin the bug down with a test", it will suggest `/improve-codebase-architecture`.
 
-### 3. Đổi quyết định hoặc ý tưởng mới
+### 3. Changing a decision or a new idea
 
-1. Session mới: `/grill-with-docs` kèm đoạn mô tả ý bạn muốn.
-2. Nếu câu hỏi cần chạy thử mới trả lời được (nhìn giao diện, hành vi): `/handoff` ra session mới, `/prototype`, rồi `/handoff` kết quả về.
-3. Chốt xong thì `/to-spec` rồi `/to-tickets` (cùng context với bước 1).
-4. Mỗi ticket: `/clear` rồi `/implement #số`.
+1. New session: `/grill-with-docs` with a description of what you want.
+2. If a question can only be answered by running something (looking at the UI, seeing behavior): `/handoff` out to a new session, `/prototype`, then `/handoff` the result back.
+3. Once settled, `/to-spec` then `/to-tickets` (in the same context as step 1).
+4. For each ticket: `/clear`, then `/implement #number`.
 
-## Mẫu issue lỗi
+## Bug issue template
 
 ```
-## Hiện tượng
-Bấm vào card note trong sidebar nhưng không nhảy tới trang.
+## What happens
+Clicking a note card in the sidebar does not jump to its page.
 
-## Cách tái hiện
-1. Mở sách X ở reflow mode.
-2. Tạo note ở trang 3, sang trang 20.
-3. Mở Notes sidebar và bấm card note.
+## How to reproduce
+1. Open book X in reflow mode.
+2. Create a note on page 3, then go to page 20.
+3. Open the Notes sidebar and click the note card.
 
-## Kết quả mong đợi
-Nhảy tới trang 3 và flash highlight.
+## Expected
+Jumps to page 3 and flashes the highlight.
 
-## Kết quả thực tế
-Không có gì xảy ra.
+## Actual
+Nothing happens.
 
-## Môi trường
-Theme (light/dark/sepia), page mode hay reflow mode, có mở Reader sidebar không.
+## Environment
+Theme (light/dark/sepia), page mode or reflow mode, whether the Reader sidebar is open.
 
-## Liên quan
+## Related
 #7
 ```
 
-## Trước khi tuyên bố xong một tính năng
+## Before calling a feature done
 
-- Review cả cụm thay đổi một lần, so với commit cố định trước ticket đầu tiên:
+- Review the whole set of changes once, against the fixed commit just before the first ticket:
   ```
   /mattpocock-skills:code-review since <commit>
   ```
-  Nó kiểm tra Standards (theo `AGENTS.md`) và Spec (theo issue). Với Notes, điểm cố định là `0c6e0b0`.
-- Tự chạy app (`TB_DISABLE_GPU=1 npm start` khi không có GPU) và kiểm tra:
-  - ba theme: light, dark, sepia;
-  - page mode và reflow mode (reader có hai nhánh render riêng);
-  - mở đồng thời Reader sidebar và Notes sidebar.
+  It checks Standards (per `AGENTS.md`) and Spec (per the issue). For Notes, the fixed point is `0c6e0b0`.
+- Run the app yourself (`TB_DISABLE_GPU=1 npm start` when there is no GPU) and check:
+  - the three themes: light, dark, sepia;
+  - page mode and reflow mode (the reader has two separate render branches);
+  - the Reader sidebar and the Notes sidebar open at the same time.
