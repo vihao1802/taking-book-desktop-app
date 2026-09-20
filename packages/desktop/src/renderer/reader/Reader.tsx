@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isOk, stepZoomMultiplier, type LastPosition, type PageLocation, type ReadMode } from '@taking-book/core';
-import type { Annotation, AnnotationColor, BookFile, NoteAnchor } from '../../shared/types';
+import type { Annotation, BookFile } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Overlay, clampZoom } from './Overlay';
 import { SidebarPanel, type SidebarTab } from './SidebarPanel';
@@ -11,16 +11,10 @@ import { usePdfOutline } from './usePdfOutline';
 import { fileUrl, getScrollbarWidth, useElementSize, usePageLayout, usePdfDocument } from './pdf';
 import { PdfPages, type PdfPagesHandle } from './PdfPages';
 import { ReaderToast, type ReaderNotice } from './ReaderToast';
+import { useReaderNotes } from './useReaderNotes';
 import { ReflowReader } from './ReflowReader';
 import { useReflowDocument } from './useReflowDocument';
 import { useReadingSession } from './useReadingSession';
-import { useAnnotations } from './useAnnotations';
-import { useNotesSidebar } from './useNotesSidebar';
-import { useNoteDraft } from './useNoteDraft';
-import { useNoteJump } from './useNoteJump';
-import { useOpenToNote } from './useOpenToNote';
-import { findRangeIgnoringWhitespace } from './highlights';
-import type { PageTextSelection } from './PdfPageView';
 import { ReaderBars } from './ReaderBars';
 import { useDocumentSearch } from './useDocumentSearch';
 import { usePageTexts } from './usePageTexts';
@@ -57,17 +51,34 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
     images,
     getImageData,
   } = useReflowDocument(pdf, mode === 'reflow', { fileHash: file.hash });
-  const { annotations, create, saveNoteDraft, editActions } = useAnnotations(file.hash);
-  const notesSidebar = useNotesSidebar(annotations);
-  const noteDraft = useNoteDraft({ fileHash: file.hash, saveNote: saveNoteDraft });
-  // The draft's passage is painted as a temporary highlight next to the saved
-  // ones, but stays out of the Notes list, which only shows what is stored.
-  const { highlight: draftHighlight } = noteDraft;
-  const paintedAnnotations = useMemo(
-    () => (draftHighlight ? [...annotations, draftHighlight] : annotations),
-    [annotations, draftHighlight],
-  );
-  const { noteJump, jumpToNote, finishNoteJump } = useNoteJump(mode, setNotice);
+  const [initialPosition, setInitialPosition] = useState<number | undefined>(undefined);
+  // The saved position and its reader mode are applied together, so a defined
+  // initial position means the mode a jump is planned in is the one the book
+  // will be shown in. Reflow also has to finish extracting its text: the
+  // highlight to flash is drawn from it, and paragraph indexes are only final
+  // after the last extraction pass.
+  const reflowTextReady = reflowProgress === null && paragraphs.length > 0;
+  const {
+    create,
+    editActions,
+    notesSidebar,
+    noteDraft,
+    noteJump,
+    jumpToNote,
+    finishNoteJump,
+    paintedAnnotations,
+    createFromPage,
+    startNote,
+    startNoteFromPage,
+    openAnnotation,
+  } = useReaderNotes({
+    fileHash: file.hash,
+    mode,
+    paragraphs,
+    showNotice: setNotice,
+    noteToOpen,
+    viewReady: initialPosition !== undefined && (mode === 'page' || reflowTextReady),
+  });
   useReadingSession(file.id);
 
   // Find-in-document searches page text in page mode and paragraph text in
@@ -108,20 +119,6 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
   const viewWidth = Math.max(Math.floor(fitWidth ? contentWidth : contentWidth * zoom), 1);
   const layout = usePageLayout(pdf, viewWidth);
 
-  const [initialPosition, setInitialPosition] = useState<number | undefined>(undefined);
-  // The saved position and its reader mode are applied together, so a defined
-  // initial position means the mode a jump is planned in is the one the book
-  // will be shown in. Reflow also has to finish extracting its text: the
-  // highlight to flash is drawn from it, and paragraph indexes are only final
-  // after the last extraction pass.
-  const reflowTextReady = reflowProgress === null && paragraphs.length > 0;
-  useOpenToNote({
-    note: noteToOpen,
-    viewReady: initialPosition !== undefined && (mode === 'page' || reflowTextReady),
-    annotations,
-    jumpToNote,
-    selectAnnotation: notesSidebar.selectAnnotation,
-  });
   // Where the reader is right now, as a page plus how far down it. Both views
   // report it, and it is handed to the other view on a mode toggle: a scroll
   // fraction means different places in a PDF layout and in re-wrapped text, but
@@ -315,68 +312,6 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
       dismiss,
     },
     mode === 'page' && !pdfError,
-  );
-
-  // A selection made in page view also gets a best-effort reflow anchor so its
-  // highlight appears in reflow mode too (whitespace-insensitive search, since
-  // the two views join fragments differently).
-  const anchorFromPage = useCallback(
-    (selection: PageTextSelection): NoteAnchor => {
-      let paraIndex: number | null = null;
-      let paraStart: number | null = null;
-      let paraEnd: number | null = null;
-      for (let i = 0; i < paragraphs.length; i++) {
-        if (paragraphs[i].pageIndex !== selection.page - 1) continue;
-        const range = findRangeIgnoringWhitespace(paragraphs[i].text, selection.quote);
-        if (range) {
-          paraIndex = i;
-          paraStart = range[0];
-          paraEnd = range[1];
-          break;
-        }
-      }
-      return {
-        page: selection.page,
-        pageStart: selection.start,
-        pageEnd: selection.end,
-        quote: selection.quote,
-        paraIndex,
-        paraStart,
-        paraEnd,
-      };
-    },
-    [paragraphs],
-  );
-
-  const createFromPage = useCallback(
-    (selection: PageTextSelection, color: AnnotationColor): Promise<Annotation | null> =>
-      create({ ...anchorFromPage(selection), color, note: null }),
-    [anchorFromPage, create],
-  );
-
-  // Choosing "Add note" opens the Notes sidebar on a fresh draft card.
-  const { start: startDraft } = noteDraft;
-  const { show: showNotesSidebar } = notesSidebar;
-  const startNote = useCallback(
-    (anchor: NoteAnchor) => {
-      startDraft(anchor);
-      showNotesSidebar();
-    },
-    [startDraft, showNotesSidebar],
-  );
-  // Clicking a highlight edits its card. The draft's temporary highlight is
-  // painted like a stored one but has no card to edit, so it is skipped.
-  const { editAnnotation } = notesSidebar;
-  const openAnnotation = useCallback(
-    (annotation: Annotation) => {
-      const stored = annotations.find((candidate) => candidate.id === annotation.id);
-      if (stored) editAnnotation(stored);
-    },
-    [annotations, editAnnotation],
-  );
-  const startNoteFromPage = useCallback(
-    (selection: PageTextSelection) => startNote(anchorFromPage(selection)),
-    [startNote, anchorFromPage],
   );
 
   // A document with no extractable text (e.g. scanned pages) can only be read
