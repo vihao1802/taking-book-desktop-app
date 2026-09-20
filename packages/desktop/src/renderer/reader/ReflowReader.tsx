@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Loader2 } from 'lucide-react';
 import {
@@ -544,39 +544,17 @@ export function ReflowReader({
           onScroll={handleScroll}
           onClick={handleClick}
         >
-          <article
-            ref={articleRef}
-            className="text-foreground w-full max-w-full leading-[1.65]"
-            style={{ fontSize: baseSize * zoom }}
+          <ReflowArticle
+            articleRef={articleRef}
+            sections={pageSections}
+            zoom={zoom}
+            baseSize={baseSize}
+            fileHash={file.hash}
+            annotationsByPara={annotationsByPara}
+            getImageData={getImageData}
+            onOpenAnnotation={setActivePopup}
             onMouseUp={handleMouseUp}
-          >
-            {pageSections.map((items, pageIndex) => (
-              <section key={pageIndex} data-reflow-page={pageIndex}>
-                {items.map((item) => (
-                  // A pdf.js ref can be painted on several pages (shared logos, rules), so
-                  // the ref alone is not unique across the flow.
-                  <Fragment key={item.kind === 'image' ? `image-${item.image.pageIndex}-${item.image.ref}` : `para-${item.index}`}>
-                    {item.kind === 'image' ? (
-                      <ReflowFigure
-                        image={item.image}
-                        zoom={zoom}
-                        fileHash={file.hash}
-                        getImageData={getImageData}
-                      />
-                    ) : (
-                      <Paragraph
-                        paragraph={item.para}
-                        zoom={zoom}
-                        marks={annotationsByPara.get(item.index) ?? EMPTY_MARKS}
-                        onOpen={setActivePopup}
-                      />
-                    )}
-                  </Fragment>
-                ))}
-                <PageSeparator page={pageIndex + 1} />
-              </section>
-            ))}
-          </article>
+          />
         </div>
       )}
       {paragraphs.length > 0 && !positioned && (
@@ -655,6 +633,64 @@ export function ReflowReader({
     </div>
   );
 }
+
+/**
+ * The whole document as page sections. Memoized so that state that changes
+ * while reading (scroll position, overlay, selection toolbar, note popup) does
+ * not re-reconcile every paragraph: only zoom, new text or highlight changes do.
+ */
+const ReflowArticle = memo(function ReflowArticle({
+  articleRef,
+  sections,
+  zoom,
+  baseSize,
+  fileHash,
+  annotationsByPara,
+  getImageData,
+  onOpenAnnotation,
+  onMouseUp,
+}: {
+  articleRef: RefObject<HTMLElement | null>;
+  sections: FlowItem[][];
+  zoom: number;
+  baseSize: number;
+  fileHash: string;
+  annotationsByPara: Map<number, Annotation[]>;
+  getImageData: (pageIndex: number, ref: string) => Promise<unknown>;
+  onOpenAnnotation: (entry: { annotation: Annotation; x: number; y: number }) => void;
+  onMouseUp: () => void;
+}) {
+  return (
+    <article
+      ref={articleRef}
+      className="text-foreground w-full max-w-full leading-[1.65]"
+      style={{ fontSize: baseSize * zoom }}
+      onMouseUp={onMouseUp}
+    >
+      {sections.map((items, pageIndex) => (
+        <section key={pageIndex} data-reflow-page={pageIndex}>
+          {items.map((item) => (
+            // A pdf.js ref can be painted on several pages (shared logos, rules), so
+            // the ref alone is not unique across the flow.
+            <Fragment key={item.kind === 'image' ? `image-${item.image.pageIndex}-${item.image.ref}` : `para-${item.index}`}>
+              {item.kind === 'image' ? (
+                <ReflowFigure image={item.image} zoom={zoom} fileHash={fileHash} getImageData={getImageData} />
+              ) : (
+                <Paragraph
+                  paragraph={item.para}
+                  zoom={zoom}
+                  marks={annotationsByPara.get(item.index) ?? EMPTY_MARKS}
+                  onOpen={onOpenAnnotation}
+                />
+              )}
+            </Fragment>
+          ))}
+          <PageSeparator page={pageIndex + 1} />
+        </section>
+      ))}
+    </article>
+  );
+});
 
 /**
  * Renders one reflow paragraph, splitting it around the highlights that
