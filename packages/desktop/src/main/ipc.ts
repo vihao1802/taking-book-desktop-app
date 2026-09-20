@@ -246,6 +246,21 @@ export function registerIpc(db: SqlDriver): void {
     setTheme(db, theme),
   );
 
+  ipcMain.handle('window:fullscreen:get', (event): Result<boolean> => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win ? { ok: true, data: win.isFullScreen() } : { ok: false, error: 'No window found.' };
+  });
+
+  ipcMain.handle('window:fullscreen:toggle', (event): Result<boolean> => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return { ok: false, error: 'No window found.' };
+    // setFullScreen applies asynchronously on some platforms, so return the
+    // requested state rather than re-reading isFullScreen().
+    const next = !win.isFullScreen();
+    win.setFullScreen(next);
+    return { ok: true, data: next };
+  });
+
   ipcMain.handle('cloud:status', async (): Promise<Result<CloudAccount | null>> => {
     const provider = await cloudProvider();
     if (!isOk(provider)) return provider;

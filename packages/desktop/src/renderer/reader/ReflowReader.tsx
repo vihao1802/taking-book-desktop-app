@@ -31,6 +31,7 @@ import {
 import { ReaderBars } from './ReaderBars';
 import { clearSearchHighlights, setSearchHighlights } from './searchHighlights';
 import type { DocumentSearch } from './useDocumentSearch';
+import { useFullScreen } from './useFullScreen';
 import { useLocationAnchor } from './useLocationAnchor';
 import { useReaderShortcuts } from './useReaderShortcuts';
 
@@ -123,6 +124,7 @@ export function ReflowReader({
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
+  const { fullScreen, toggleFullScreen } = useFullScreen();
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; x: number; y: number } | null>(null);
   const [activePopup, setActivePopup] = useState<{ annotation: Annotation; x: number; y: number } | null>(null);
@@ -573,7 +575,9 @@ export function ReflowReader({
           mode="reflow"
           zoom={zoom}
           fitWidth={false}
+          fullScreen={fullScreen}
           onFitWidth={() => {}}
+          onToggleFullScreen={toggleFullScreen}
           onZoomChange={onZoomChange}
           onToggleMode={onToggleMode}
           onClose={onClose}

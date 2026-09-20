@@ -30,6 +30,10 @@ export interface ReaderApi {
   connectCloud(): Promise<Result<CloudAccount>>;
   disconnectCloud(): Promise<Result<void>>;
   runSync(): Promise<Result<SyncSummary>>;
+  isFullScreen(): Promise<Result<boolean>>;
+  toggleFullScreen(): Promise<Result<boolean>>;
+  /** Subscribes to full-screen changes (including menu/F11); returns an unsubscribe function. */
+  onFullScreenChange(listener: (fullScreen: boolean) => void): () => void;
 }
 
 export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, OpenFileResult, ReadMode, ReadingStats, Result, SyncSummary, Theme };

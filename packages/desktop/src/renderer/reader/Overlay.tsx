@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, FileText, Frame, LayoutGrid, ListTree, PanelLeft, TextWrap } from 'lucide-react';
+import { ArrowLeft, FileText, Frame, LayoutGrid, ListTree, Maximize, Minimize, PanelLeft, TextWrap } from 'lucide-react';
 import { clampZoomPercent } from '@taking-book/core';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,9 +26,11 @@ interface OverlayProps {
   mode: 'page' | 'reflow';
   zoom: number;
   fitWidth: boolean;
+  fullScreen: boolean;
   /** When true, the reflow toggle is disabled because the document has no extractable text. */
   reflowDisabled?: boolean;
   onFitWidth: () => void;
+  onToggleFullScreen: () => void;
   onZoomChange: (zoom: number) => void;
   onToggleMode: () => void;
   onClose: () => void;
@@ -54,8 +56,10 @@ export function Overlay({
   mode,
   zoom,
   fitWidth,
+  fullScreen,
   reflowDisabled = false,
   onFitWidth,
+  onToggleFullScreen,
   onZoomChange,
   onToggleMode,
   onClose,
@@ -194,6 +198,16 @@ export function Overlay({
             }
           >
             {mode === 'reflow' ? <FileText className="size-4" /> : <TextWrap className="size-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleFullScreen}
+            aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}
+            aria-pressed={fullScreen}
+            title={fullScreen ? 'Exit full screen' : 'Full screen'}
+          >
+            {fullScreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
           </Button>
         </div>
       </div>

@@ -31,6 +31,14 @@ const api: ReaderApi = {
   connectCloud: () => ipcRenderer.invoke('cloud:connect'),
   disconnectCloud: () => ipcRenderer.invoke('cloud:disconnect'),
   runSync: () => ipcRenderer.invoke('sync:run'),
+  isFullScreen: () => ipcRenderer.invoke('window:fullscreen:get'),
+  toggleFullScreen: () => ipcRenderer.invoke('window:fullscreen:toggle'),
+  onFullScreenChange: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, fullScreen: boolean): void =>
+      listener(fullScreen);
+    ipcRenderer.on('window:fullscreen:changed', handler);
+    return () => ipcRenderer.removeListener('window:fullscreen:changed', handler);
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);

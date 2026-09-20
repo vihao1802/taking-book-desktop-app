@@ -91,6 +91,14 @@ const createWindow = () => {
     },
   });
 
+  // Menu/F11 can toggle full screen too, so the renderer follows the window's
+  // real state instead of tracking its own toggle clicks.
+  const notifyFullScreen = (fullScreen: boolean): void => {
+    mainWindow.webContents.send('window:fullscreen:changed', fullScreen);
+  };
+  mainWindow.on('enter-full-screen', () => notifyFullScreen(true));
+  mainWindow.on('leave-full-screen', () => notifyFullScreen(false));
+
   // Open DevTools in development to debug white screen
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.webContents.openDevTools();

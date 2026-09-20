@@ -20,6 +20,7 @@ import { ReaderBars } from './ReaderBars';
 import { useDocumentSearch } from './useDocumentSearch';
 import { usePageTexts } from './usePageTexts';
 import { useReaderShortcuts } from './useReaderShortcuts';
+import { useFullScreen } from './useFullScreen';
 import { usePersistedZoom } from './usePersistedZoom';
 
 const HIDE_DELAY_MS = 2500;
@@ -62,6 +63,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const restorePageZoom = useCallback((restored: number) => setFitWidth(restored === 1), []);
   const [zoom, setZoom] = usePersistedZoom(file.id, 'page', restorePageZoom);
   const [reflowZoom, setReflowZoom] = usePersistedZoom(file.id, 'reflow');
+  const { fullScreen, toggleFullScreen } = useFullScreen();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pagesRef = useRef<PdfPagesHandle>(null);
@@ -406,7 +408,9 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           mode={mode}
           zoom={zoom}
           fitWidth={fitWidth}
+          fullScreen={fullScreen}
           onFitWidth={fitToWidth}
+          onToggleFullScreen={toggleFullScreen}
           onZoomChange={changeZoom}
           reflowDisabled={!hasText}
           onToggleMode={toggleMode}
