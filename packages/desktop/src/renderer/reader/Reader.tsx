@@ -109,11 +109,15 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
   const layout = usePageLayout(pdf, viewWidth);
 
   const [initialPosition, setInitialPosition] = useState<number | undefined>(undefined);
-  // The saved position and its reader mode are applied together, so this also
-  // says the mode a jump is planned in is the one the book will be shown in.
+  // The saved position and its reader mode are applied together, so a defined
+  // initial position means the mode a jump is planned in is the one the book
+  // will be shown in. Reflow also has to finish extracting its text: the
+  // highlight to flash is drawn from it, and paragraph indexes are only final
+  // after the last extraction pass.
+  const reflowTextReady = reflowProgress === null && paragraphs.length > 0;
   useOpenToNote({
     note: noteToOpen,
-    modeApplied: initialPosition !== undefined,
+    viewReady: initialPosition !== undefined && (mode === 'page' || reflowTextReady),
     annotations,
     jumpToNote,
     editAnnotation: notesSidebar.editAnnotation,
