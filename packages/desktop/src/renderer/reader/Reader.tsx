@@ -18,6 +18,7 @@ import { useAnnotations } from './useAnnotations';
 import { useNotesSidebar } from './useNotesSidebar';
 import { useNoteDraft } from './useNoteDraft';
 import { useNoteJump } from './useNoteJump';
+import { useOpenToNote } from './useOpenToNote';
 import { findRangeIgnoringWhitespace } from './highlights';
 import type { PageTextSelection } from './PdfPageView';
 import { ReaderBars } from './ReaderBars';
@@ -36,7 +37,14 @@ const MODE_LABELS: Record<ReadMode, string> = {
   reflow: 'Reflow view',
 };
 
-export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
+interface ReaderProps {
+  file: BookFile;
+  onClose: () => void;
+  /** A Note chosen in the Notes view: the book opens at it with the Notes sidebar on its card. Null for a normal open. */
+  noteToOpen?: Annotation | null;
+}
+
+export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
   const [mode, setMode] = useState<ReadMode>('page');
   const [notice, setNotice] = useState<ReaderNotice | null>(null);
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
@@ -101,6 +109,15 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const layout = usePageLayout(pdf, viewWidth);
 
   const [initialPosition, setInitialPosition] = useState<number | undefined>(undefined);
+  // The saved position and its reader mode are applied together, so this also
+  // says the mode a jump is planned in is the one the book will be shown in.
+  useOpenToNote({
+    note: noteToOpen,
+    modeApplied: initialPosition !== undefined,
+    annotations,
+    jumpToNote,
+    editAnnotation: notesSidebar.editAnnotation,
+  });
   // Where the reader is right now, as a page plus how far down it. Both views
   // report it, and it is handed to the other view on a mode toggle: a scroll
   // fraction means different places in a PDF layout and in re-wrapped text, but

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { BookFile } from '../shared/types';
+import type { Annotation, BookFile } from '../shared/types';
 import { AddPdfFab } from './components/AddPdfFab';
 import { NavRail, type View } from './components/NavRail';
 import { Favorites } from './favorites/Favorites';
@@ -14,6 +14,8 @@ import { ThemeProvider } from './theme';
 
 export function App() {
   const [file, setFile] = useState<BookFile | null>(null);
+  // A Note chosen in the Notes view, which the reader opens the book at; null for every other way of opening a book.
+  const [noteToOpen, setNoteToOpen] = useState<Annotation | null>(null);
   const [view, setView] = useState<View>('home');
 
   const navigate = (next: View) => {
@@ -21,10 +23,19 @@ export function App() {
     window.scrollTo(0, 0);
   };
 
+  const openBookAtNote = (book: BookFile, note: Annotation) => {
+    setNoteToOpen(note);
+    setFile(book);
+  };
+  const closeReader = () => {
+    setFile(null);
+    setNoteToOpen(null);
+  };
+
   if (file) {
     return (
       <ThemeProvider>
-        <Reader key={file.id} file={file} onClose={() => setFile(null)} />
+        <Reader key={file.id} file={file} noteToOpen={noteToOpen} onClose={closeReader} />
       </ThemeProvider>
     );
   }
@@ -42,7 +53,7 @@ export function App() {
             ) : view === 'favorites' ? (
               <Favorites onOpen={setFile} onNavigate={navigate} />
             ) : view === 'notes' ? (
-              <NotesView />
+              <NotesView onOpenNote={openBookAtNote} />
             ) : view === 'statistics' ? (
               <Statistics onOpen={setFile} />
             ) : (

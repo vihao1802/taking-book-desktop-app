@@ -4,6 +4,8 @@ import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, Cl
 export interface ReaderApi {
   openFile(): Promise<Result<OpenFileResult | null>>;
   deleteFile(id: number): Promise<Result<void>>;
+  /** Whether a book's stored file can still be read; the error says why not, in words fit to show the reader. */
+  checkFileReadable(filePath: string): Promise<Result<void>>;
   getLastPosition(id: number): Promise<Result<LastPosition | null>>;
   saveLastPosition(id: number, page: number, position: number, mode: ReadMode): Promise<Result<void>>;
   getCoverData(hash: string): Promise<Result<string | null>>;

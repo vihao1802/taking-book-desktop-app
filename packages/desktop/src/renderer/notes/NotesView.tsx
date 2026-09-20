@@ -1,11 +1,19 @@
 import { useMemo, useRef, useState, type ReactElement } from 'react';
 import { listLibraryNotes } from '@taking-book/core';
+import { X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSearchShortcut } from '@/lib/useSearchShortcut';
 import { useLibrary } from '../library/useLibrary';
 import { BookNotesSection } from './BookNotesSection';
 import { NotesEmptyState } from './NotesEmptyState';
 import { useLibraryAnnotations } from './useLibraryAnnotations';
+import { useOpenNote, type OpenBookAtNote } from './useOpenNote';
+
+interface NotesViewProps {
+  /** Opens a book at one of its Notes; called only for a book whose file can be read. */
+  onOpenNote: OpenBookAtNote;
+}
 
 /**
  * The app-level Notes view: the Notes of every book in the library, grouped by
@@ -13,11 +21,12 @@ import { useLibraryAnnotations } from './useLibraryAnnotations';
  * too" filter live only as long as the view is open and are separate from the
  * reader's Notes sidebar filter.
  */
-export function NotesView(): ReactElement {
+export function NotesView({ onOpenNote }: NotesViewProps): ReactElement {
   const { files } = useLibrary();
   const { annotations, loading, error } = useLibraryAnnotations();
   const [query, setQuery] = useState('');
   const [showHighlights, setShowHighlights] = useState(false);
+  const { openNote, error: openError, dismissError } = useOpenNote(onOpenNote);
   const searchRef = useRef<HTMLInputElement>(null);
   useSearchShortcut(searchRef);
 
@@ -50,6 +59,14 @@ export function NotesView(): ReactElement {
         />
       </header>
 
+      {openError && (
+        <div role="alert" className="border-destructive/40 bg-destructive/10 text-destructive flex items-center gap-2 rounded-md border py-2 pr-2 pl-3 text-sm">
+          <p className="flex-1">{openError}</p>
+          <Button variant="ghost" size="icon" className="size-6" onClick={dismissError} aria-label="Dismiss message">
+            <X className="size-4" />
+          </Button>
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-destructive">
           {error}
@@ -59,7 +76,7 @@ export function NotesView(): ReactElement {
       {groups.length > 0 && (
         <div className="flex flex-col gap-6">
           {groups.map((group) => (
-            <BookNotesSection key={group.file.id} {...group} />
+            <BookNotesSection key={group.file.id} {...group} onOpenNote={openNote} />
           ))}
         </div>
       )}

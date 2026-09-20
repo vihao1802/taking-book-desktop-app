@@ -38,7 +38,8 @@ import {
 } from '@taking-book/core';
 import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, NoteDraft, PageNoteInput, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { sha256File } from './hash';
 import {
   createCloudProvider,
@@ -121,6 +122,20 @@ export function registerIpc(db: SqlDriver): void {
       }
     })();
     return { ok: true, data: undefined };
+  });
+
+  // A book's stored path can stop working (the local copy was moved or removed
+  // outside the app), and the reader only finds out when pdf.js fails to load
+  // it. Callers that must not navigate into a broken reader ask first.
+  ipcMain.handle('files:check-readable', async (_event, filePath: string): Promise<Result<void>> => {
+    try {
+      await access(filePath, constants.R_OK);
+      return { ok: true, data: undefined };
+    } catch (error) {
+      console.error(`Book file is not readable (${filePath}): ${errorMessage(error)}`);
+      const missing = (error as NodeJS.ErrnoException).code === 'ENOENT';
+      return { ok: false, error: missing ? 'Its file has been moved or deleted.' : 'Its file could not be read.' };
+    }
   });
 
   ipcMain.handle('files:last-position:get', (_event, id: number) => getLastPosition(db, id));

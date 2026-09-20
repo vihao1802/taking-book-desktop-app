@@ -4,6 +4,7 @@ import type { ReaderApi } from './shared/types';
 const api: ReaderApi = {
   openFile: () => ipcRenderer.invoke('files:open'),
   deleteFile: (id) => ipcRenderer.invoke('files:delete', id),
+  checkFileReadable: (filePath) => ipcRenderer.invoke('files:check-readable', filePath),
   getLastPosition: (id) => ipcRenderer.invoke('files:last-position:get', id),
   saveLastPosition: (id, page, position, mode) =>
     ipcRenderer.invoke('files:last-position:set', id, page, position, mode),
