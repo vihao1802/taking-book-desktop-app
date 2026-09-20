@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { isOk } from '@taking-book/core';
-import type { Annotation, CreateAnnotationInput } from '../../shared/types';
+import { isOk, type Result } from '@taking-book/core';
+import type { Annotation, CreateAnnotationInput, NoteDraft } from '../../shared/types';
 
 /**
  * Loads and mutates the highlights/notes for one book. Mutations optimistically
@@ -11,6 +11,7 @@ export function useAnnotations(fileHash: string): {
   annotations: Annotation[];
   error: string | null;
   create: (input: CreateAnnotationInput) => Promise<Annotation | null>;
+  saveNoteDraft: (draft: NoteDraft) => Promise<Result<Annotation>>;
   setNote: (id: number, note: string | null) => Promise<void>;
   remove: (id: number) => Promise<void>;
 } {
@@ -42,6 +43,15 @@ export function useAnnotations(fileHash: string): {
     [fileHash],
   );
 
+  const saveNoteDraft = useCallback(
+    async (draft: NoteDraft): Promise<Result<Annotation>> => {
+      const result = await window.api.saveNoteDraft(fileHash, draft);
+      if (isOk(result)) setAnnotations((prev) => [...prev, result.data]);
+      return result;
+    },
+    [fileHash],
+  );
+
   const setNote = useCallback(async (id: number, note: string | null) => {
     const result = await window.api.setAnnotationNote(id, note);
     if (!isOk(result)) {
@@ -60,5 +70,5 @@ export function useAnnotations(fileHash: string): {
     setAnnotations((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
-  return { annotations, error, create, setNote, remove };
+  return { annotations, error, create, saveNoteDraft, setNote, remove };
 }

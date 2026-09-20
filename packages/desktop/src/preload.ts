@@ -24,6 +24,7 @@ const api: ReaderApi = {
   listAnnotations: (fileHash) => ipcRenderer.invoke('annotations:list', fileHash),
   listLibraryAnnotations: () => ipcRenderer.invoke('annotations:listLibrary'),
   createAnnotation: (fileHash, input) => ipcRenderer.invoke('annotations:create', fileHash, input),
+  saveNoteDraft: (fileHash, draft) => ipcRenderer.invoke('annotations:draft:save', fileHash, draft),
   setAnnotationNote: (id, note) => ipcRenderer.invoke('annotations:note:set', id, note),
   deleteAnnotation: (id) => ipcRenderer.invoke('annotations:delete', id),
   getTheme: () => ipcRenderer.invoke('settings:theme:get'),

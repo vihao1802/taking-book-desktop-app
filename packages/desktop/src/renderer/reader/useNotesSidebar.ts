@@ -8,6 +8,8 @@ import { getNotesPageInset } from './sidebar-width';
 export interface NotesSidebarState {
   open: boolean;
   toggle: () => void;
+  /** Opens the sidebar if it is closed; does nothing when it is already open. */
+  show: () => void;
   close: () => void;
   width: number;
   onWidthChange: (width: number) => void;
@@ -36,6 +38,11 @@ export function useNotesSidebar(annotations: Annotation[]): NotesSidebarState {
     setOpen((wasOpen) => !wasOpen);
     setShowHighlights(false);
   }, []);
+  const show = useCallback(() => {
+    // Opening resets the filter, exactly like the toggle; an already-open sidebar keeps the one the reader chose.
+    if (!open) setShowHighlights(false);
+    setOpen(true);
+  }, [open]);
   const close = useCallback(() => setOpen(false), []);
 
   const notes = useMemo(() => listNotes(annotations, { includeHighlights: showHighlights }), [annotations, showHighlights]);
@@ -43,5 +50,5 @@ export function useNotesSidebar(annotations: Annotation[]): NotesSidebarState {
   // the panel itself following the pointer while the pages catch up.
   const pageInset = useDeferredValue(getNotesPageInset(open, width));
 
-  return { open, toggle, close, width, onWidthChange, showHighlights, onShowHighlightsChange: setShowHighlights, notes, pageInset };
+  return { open, toggle, show, close, width, onWidthChange, showHighlights, onShowHighlightsChange: setShowHighlights, notes, pageInset };
 }

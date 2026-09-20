@@ -15,6 +15,7 @@ export {
   type CreateAnnotationOptions,
 } from './annotationsRepository';
 export { deriveAnnotationUid, resolveAnnotationUid, type AnnotationUidGenerator } from './annotationUid';
+export { saveNoteDraft, type NoteAnchor, type NoteDraft } from './notesRepository';
 export {
   computeCurrentStreak,
   computeLongestStreak,

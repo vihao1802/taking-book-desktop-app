@@ -19,6 +19,7 @@ import {
   parseReflowCache,
   recordReadingSession,
   saveLastPosition,
+  saveNoteDraft,
   serializeReflowCache,
   setAnnotationNote,
   setFileFavorite,
@@ -32,7 +33,7 @@ import {
   setTheme,
   upsertFile,
 } from '@taking-book/core';
-import type { BookFile, BookStatus, CloudAccount, CreateAnnotationInput, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
+import type { BookFile, BookStatus, CloudAccount, CreateAnnotationInput, NoteDraft, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { sha256File } from './hash';
@@ -224,6 +225,10 @@ export function registerIpc(db: SqlDriver): void {
 
   ipcMain.handle('annotations:create', async (_event, fileHash: string, input: CreateAnnotationInput) =>
     createAnnotation(db, fileHash, input, { stamp: await stamp(), generateUid: randomUUID }),
+  );
+
+  ipcMain.handle('annotations:draft:save', async (_event, fileHash: string, draft: NoteDraft) =>
+    saveNoteDraft(db, fileHash, draft, { stamp: await stamp(), generateUid: randomUUID }),
   );
 
   ipcMain.handle('annotations:note:set', async (_event, id: number, note: string | null) =>

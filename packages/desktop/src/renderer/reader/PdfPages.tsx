@@ -32,13 +32,8 @@ interface PdfPagesProps {
   searchMatches: IndexedTextMatch[];
   searchActiveIndex: number;
   searchScrollRequest: number;
-  onCreate: (
-    selection: PageTextSelection,
-    color: AnnotationColor,
-    note: string | null,
-  ) => Promise<Annotation | null>;
-  onSetNote: (id: number, note: string | null) => Promise<void>;
-  onDelete: (id: number) => Promise<void>;
+  onCreate: (selection: PageTextSelection, color: AnnotationColor) => Promise<Annotation | null>;
+  onAddNote: (selection: PageTextSelection) => void;
   /** A jump to a Note that this view still has to carry out; null when there is none. */
   noteJump: NoteJump | null;
   onNoteJumpDone: FinishNoteJump;
@@ -64,8 +59,7 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
     searchActiveIndex,
     searchScrollRequest,
     onCreate,
-    onSetNote,
-    onDelete,
+    onAddNote,
     noteJump,
     onNoteJumpDone,
   },
@@ -220,8 +214,7 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
           pendingReveal={pendingReveal}
           onRevealed={handleRevealed}
           onCreate={onCreate}
-          onSetNote={onSetNote}
-          onDelete={onDelete}
+          onAddNote={onAddNote}
           noteJump={noteJump?.location === 'passage' && noteJump.annotation.page === i + 1 ? noteJump : null}
           onNoteJumpDone={onNoteJumpDone}
         />

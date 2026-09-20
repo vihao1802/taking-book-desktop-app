@@ -12,7 +12,7 @@ import {
   type ReflowParagraph,
   type ReflowRun,
 } from '@taking-book/core';
-import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
+import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput, NoteAnchor } from '../../shared/types';
 import type { ReflowProgress } from './useReflowDocument';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -21,9 +21,9 @@ import { SidebarPanel, type SidebarTab } from './SidebarPanel';
 import { OutlineView } from './OutlineView';
 import { NotesSidebar } from './NotesSidebar';
 import type { NotesSidebarState } from './useNotesSidebar';
+import type { NoteDraftState } from './useNoteDraft';
 import { usePdfOutline } from './usePdfOutline';
 import { usePersistedSidebarWidth } from './usePersistedSidebarWidth';
-import { AnnotationPopup } from './AnnotationPopup';
 import { SelectionToolbar } from './SelectionToolbar';
 import { ReflowFigure } from './ReflowFigure';
 import {
@@ -97,11 +97,14 @@ interface ReflowReaderProps {
   onOpenGoTo: () => void;
   onCloseGoTo: () => void;
   annotations: Annotation[];
+  /** Stores the selection as a plain Highlight. */
   onCreate: (input: CreateAnnotationInput) => Promise<Annotation | null>;
-  onSetNote: (id: number, note: string | null) => Promise<void>;
-  onDelete: (id: number) => Promise<void>;
+  /** Starts a Note draft on the selection; nothing is stored until the reader saves it. */
+  onAddNote: (anchor: NoteAnchor) => void;
   /** The Notes sidebar, whose state lives in the reader so it survives a mode toggle. */
   notesSidebar: NotesSidebarState;
+  /** The Note draft, whose state lives in the reader so it survives a mode toggle. */
+  noteDraft: NoteDraftState;
   /** Asks the reader to jump to a Note the reader clicked in the Notes sidebar. */
   onJumpToNote: (annotation: Annotation) => void;
   /** A jump to a Note that this view still has to carry out; null when there is none. */
@@ -131,9 +134,9 @@ export function ReflowReader({
   onCloseGoTo,
   annotations,
   onCreate,
-  onSetNote,
-  onDelete,
+  onAddNote,
   notesSidebar,
+  noteDraft,
   onJumpToNote,
   noteJump,
   onNoteJumpDone,
@@ -145,7 +148,6 @@ export function ReflowReader({
   const { fullScreen, toggleFullScreen } = useFullScreen();
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; x: number; y: number } | null>(null);
-  const [activePopup, setActivePopup] = useState<{ annotation: Annotation; x: number; y: number } | null>(null);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
   const [sidebarWidth, setSidebarWidth] = usePersistedSidebarWidth();
   const { nodes: outlineNodes, loading: outlineLoading } = usePdfOutline(pdf);
@@ -297,10 +299,7 @@ export function ReflowReader({
       !selection.isCollapsed &&
       selection.rangeCount > 0 &&
       articleRef.current?.contains(selection.getRangeAt(0).commonAncestorContainer);
-    if (!hasSelection) {
-      setSelectionToolbar(null);
-      setActivePopup(null);
-    }
+    if (!hasSelection) setSelectionToolbar(null);
     setOverlayVisible((visible) => {
       if (visible) {
         window.clearTimeout(hideTimerRef.current);
@@ -399,15 +398,10 @@ export function ReflowReader({
     onNoteJumpDone(request, location === 'page');
   }, [noteJump, progress, pageSections, measureEdges, onNoteJumpDone]);
 
-  const clearSelectionUi = () => {
-    setSelectionToolbar(null);
-    setActivePopup(null);
-  };
-
-  // Escape peels off one layer at a time: selection toolbar / note popup, find
-  // bar, go-to bar, Notes sidebar, Reader sidebar, then the reader itself.
+  // Escape peels off one layer at a time: selection toolbar, find bar, go-to
+  // bar, Notes sidebar, Reader sidebar, then the reader itself.
   const dismiss = () => {
-    if (selectionToolbar || activePopup) clearSelectionUi();
+    if (selectionToolbar) setSelectionToolbar(null);
     else if (search.open) search.close();
     else if (goToRequest !== 0) onCloseGoTo();
     else if (notesSidebar.open) notesSidebar.close();
@@ -499,12 +493,11 @@ export function ReflowReader({
       setSelectionToolbar(null);
       return;
     }
-    setActivePopup(null);
     setSelectionToolbar({ items, x: rect.left, y: rect.bottom + 8 });
   }, []);
 
   const anchorFor = useCallback(
-    (item: ReflowSelection, color: AnnotationColor, note: string | null): CreateAnnotationInput => {
+    (item: ReflowSelection): NoteAnchor => {
       const para = paragraphs[item.index];
       const page = para.pageIndex + 1;
       const quote = item.quote;
@@ -514,8 +507,6 @@ export function ReflowReader({
         pageStart: pageRange?.[0] ?? null,
         pageEnd: pageRange?.[1] ?? null,
         quote,
-        color,
-        note,
         paraIndex: item.index,
         paraStart: item.start,
         paraEnd: item.end,
@@ -528,7 +519,7 @@ export function ReflowReader({
     async (color: AnnotationColor) => {
       if (!selectionToolbar) return;
       for (const item of selectionToolbar.items) {
-        await onCreate(anchorFor(item, color, null));
+        await onCreate({ ...anchorFor(item), color, note: null });
       }
       window.getSelection()?.removeAllRanges();
       setSelectionToolbar(null);
@@ -536,28 +527,14 @@ export function ReflowReader({
     [selectionToolbar, anchorFor, onCreate],
   );
 
-  const addNote = useCallback(async () => {
+  // The draft's temporary highlight replaces the browser selection, so the
+  // selection is cleared to keep it from painting over the highlight.
+  const addNote = useCallback(() => {
     if (!selectionToolbar) return;
-    const item = selectionToolbar.items[0];
-    const created = await onCreate(anchorFor(item, 'yellow', null));
+    onAddNote(anchorFor(selectionToolbar.items[0]));
     window.getSelection()?.removeAllRanges();
     setSelectionToolbar(null);
-    if (!created) return;
-    const article = articleRef.current;
-    const marks = article?.querySelectorAll('mark');
-    let rect: DOMRect | null = null;
-    for (const mark of marks ?? []) {
-      if (mark.textContent === item.quote) {
-        rect = mark.getBoundingClientRect();
-        break;
-      }
-    }
-    setActivePopup({
-      annotation: created,
-      x: rect ? rect.left : window.innerWidth / 2 - 140,
-      y: rect ? rect.bottom + 8 : window.innerHeight / 2,
-    });
-  }, [selectionToolbar, anchorFor, onCreate]);
+  }, [selectionToolbar, anchorFor, onAddNote]);
 
   return (
     // While the Notes sidebar narrows the page, the strip beside it must match the paper.
@@ -588,7 +565,6 @@ export function ReflowReader({
             fileHash={file.hash}
             annotationsByPara={annotationsByPara}
             getImageData={getImageData}
-            onOpenAnnotation={setActivePopup}
             onMouseUp={handleMouseUp}
           />
         </div>
@@ -604,19 +580,6 @@ export function ReflowReader({
           y={selectionToolbar.y}
           onHighlight={highlight}
           onAddNote={addNote}
-        />
-      )}
-      {activePopup && (
-        <AnnotationPopup
-          annotation={activePopup.annotation}
-          x={activePopup.x}
-          y={activePopup.y}
-          onSaveNote={(note) => void onSetNote(activePopup.annotation.id, note)}
-          onDelete={() => {
-            void onDelete(activePopup.annotation.id);
-            setActivePopup(null);
-          }}
-          onClose={() => setActivePopup(null)}
         />
       )}
       {!error && (
@@ -672,14 +635,14 @@ export function ReflowReader({
           />
         </SidebarPanel>
       )}
-      {notesSidebar.open && <NotesSidebar state={notesSidebar} readingPage={currentPage} onJump={onJumpToNote} />}
+      {notesSidebar.open && <NotesSidebar state={notesSidebar} noteDraft={noteDraft} readingPage={currentPage} onJump={onJumpToNote} />}
     </div>
   );
 }
 
 /**
  * The whole document as page sections. Memoized so that state that changes
- * while reading (scroll position, overlay, selection toolbar, note popup) does
+ * while reading (scroll position, overlay, selection toolbar) does
  * not re-reconcile every paragraph: only zoom, new text or highlight changes do.
  */
 const ReflowArticle = memo(function ReflowArticle({
@@ -690,7 +653,6 @@ const ReflowArticle = memo(function ReflowArticle({
   fileHash,
   annotationsByPara,
   getImageData,
-  onOpenAnnotation,
   onMouseUp,
 }: {
   articleRef: RefObject<HTMLElement | null>;
@@ -700,7 +662,6 @@ const ReflowArticle = memo(function ReflowArticle({
   fileHash: string;
   annotationsByPara: Map<number, Annotation[]>;
   getImageData: (pageIndex: number, ref: string) => Promise<unknown>;
-  onOpenAnnotation: (entry: { annotation: Annotation; x: number; y: number }) => void;
   onMouseUp: () => void;
 }) {
   return (
@@ -723,7 +684,6 @@ const ReflowArticle = memo(function ReflowArticle({
                   paragraph={item.para}
                   zoom={zoom}
                   marks={annotationsByPara.get(item.index) ?? EMPTY_MARKS}
-                  onOpen={onOpenAnnotation}
                 />
               )}
             </Fragment>
@@ -746,12 +706,10 @@ const Paragraph = memo(function Paragraph({
   paragraph,
   zoom,
   marks,
-  onOpen,
 }: {
   paragraph: ReflowParagraph;
   zoom: number;
   marks: Annotation[];
-  onOpen: (entry: { annotation: Annotation; x: number; y: number }) => void;
 }) {
   const offsets = useMemo(() => runOffsets(paragraph), [paragraph]);
 
@@ -770,13 +728,8 @@ const Paragraph = memo(function Paragraph({
         <mark
           key={mark.id}
           data-annotation-id={mark.id}
-          className="cursor-pointer rounded-[2px]"
+          className="rounded-[2px]"
           style={{ backgroundColor: HIGHLIGHT_FILL[mark.color], padding: '0 1px' }}
-          onClick={(e) => {
-            e.stopPropagation();
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            onOpen({ annotation: mark, x: rect.left, y: rect.bottom + 8 });
-          }}
           title={mark.note ?? undefined}
         >
           {renderStyled(paragraph, offsets, start, end)}

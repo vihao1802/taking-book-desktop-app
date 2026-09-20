@@ -3,7 +3,6 @@ import { TextLayer } from 'pdfjs-dist';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import type { TextMatch } from '@taking-book/core';
 import type { Annotation, AnnotationColor } from '../../shared/types';
-import { AnnotationPopup } from './AnnotationPopup';
 import { SelectionToolbar } from './SelectionToolbar';
 import {
   computeHighlightRects,
@@ -40,13 +39,10 @@ interface PdfPageViewProps {
   /** Non-zero while the current match still needs to be scrolled into view. */
   pendingReveal: number;
   onRevealed: (request: number) => void;
-  onCreate: (
-    selection: PageTextSelection,
-    color: AnnotationColor,
-    note: string | null,
-  ) => Promise<Annotation | null>;
-  onSetNote: (id: number, note: string | null) => Promise<void>;
-  onDelete: (id: number) => Promise<void>;
+  /** Stores the selection as a plain Highlight. */
+  onCreate: (selection: PageTextSelection, color: AnnotationColor) => Promise<Annotation | null>;
+  /** Starts a Note draft on the selection; nothing is stored until the reader saves it. */
+  onAddNote: (selection: PageTextSelection) => void;
   /** A jump to a passage on this page still to be carried out; null when there is none. */
   noteJump: NoteJump | null;
   onNoteJumpDone: FinishNoteJump;
@@ -70,8 +66,7 @@ export function PdfPageView({
   pendingReveal,
   onRevealed,
   onCreate,
-  onSetNote,
-  onDelete,
+  onAddNote,
   noteJump,
   onNoteJumpDone,
 }: PdfPageViewProps) {
@@ -81,7 +76,6 @@ export function PdfPageView({
   const [textLayerReady, setTextLayerReady] = useState(false);
   const [highlightRects, setHighlightRects] = useState<Map<number, HighlightRect[]>>(new Map());
   const [toolbar, setToolbar] = useState<{ selection: PageTextSelection; x: number; y: number } | null>(null);
-  const [popup, setPopup] = useState<{ annotation: Annotation; x: number; y: number } | null>(null);
 
   // Render the canvas for this page.
   useEffect(() => {
@@ -203,20 +197,19 @@ export function PdfPageView({
     onRevealed(pendingReveal);
   }, [textLayerReady, searchMatches, activeSearchMatch, pendingReveal, onRevealed]);
 
-  // Escape closes the selection toolbar / note popup first. Capture phase plus
+  // Escape closes the selection toolbar first. Capture phase plus
   // preventDefault lets the reader-wide handler see it was consumed and keep
   // the reader open.
   useEffect(() => {
-    if (!toolbar && !popup) return;
+    if (!toolbar) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       event.preventDefault();
       setToolbar(null);
-      setPopup(null);
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [toolbar, popup]);
+  }, [toolbar]);
 
   const handleMouseUp = () => {
     const container = pageRef.current;
@@ -240,7 +233,6 @@ export function PdfPageView({
     // extracted in reflow mode now, and the selection text is exact whereas
     // slicing joined page text with DOM offsets is approximate.
     const quote = selection.toString() || pageText.slice(start, end);
-    setPopup(null);
     setToolbar({
       selection: { page: pageNumber, start, end, quote },
       x: rect.left,
@@ -257,27 +249,23 @@ export function PdfPageView({
       !selection.isCollapsed &&
       selection.rangeCount > 0 &&
       pageRef.current?.contains(selection.getRangeAt(0).commonAncestorContainer);
-    if (!hasSelection) {
-      setToolbar(null);
-      setPopup(null);
-    }
+    if (!hasSelection) setToolbar(null);
   };
 
   const highlight = async (color: AnnotationColor) => {
     if (!toolbar) return;
-    await onCreate(toolbar.selection, color, null);
+    await onCreate(toolbar.selection, color);
     window.getSelection()?.removeAllRanges();
     setToolbar(null);
   };
 
-  const addNote = async () => {
+  // The draft's temporary highlight replaces the browser selection, so the
+  // selection is cleared to keep it from painting over the highlight.
+  const addNote = () => {
     if (!toolbar) return;
-    const created = await onCreate(toolbar.selection, 'yellow', null);
+    onAddNote(toolbar.selection);
     window.getSelection()?.removeAllRanges();
     setToolbar(null);
-    if (created) {
-      setPopup({ annotation: created, x: toolbar.x, y: toolbar.y });
-    }
   };
 
   return (
@@ -298,7 +286,7 @@ export function PdfPageView({
           <div
             key={`${id}-${i}`}
             data-annotation-id={id}
-            className="absolute z-20 cursor-pointer"
+            className="absolute z-20"
             style={{
               left: rect.x,
               top: rect.y,
@@ -307,31 +295,12 @@ export function PdfPageView({
               backgroundColor: HIGHLIGHT_FILL[annotations.find((a) => a.id === id)!.color],
               borderRadius: 2,
             }}
-            onClick={(e) => {
-              e.stopPropagation();
-              const annotation = annotations.find((a) => a.id === id);
-              if (!annotation) return;
-              setPopup({ annotation, x: e.clientX, y: e.clientY });
-            }}
             title={annotations.find((a) => a.id === id)?.note ?? undefined}
           />
         )),
       )}
       {toolbar && (
         <SelectionToolbar x={toolbar.x} y={toolbar.y} onHighlight={highlight} onAddNote={addNote} />
-      )}
-      {popup && (
-        <AnnotationPopup
-          annotation={popup.annotation}
-          x={popup.x}
-          y={popup.y}
-          onSaveNote={(note) => void onSetNote(popup.annotation.id, note)}
-          onDelete={() => {
-            void onDelete(popup.annotation.id);
-            setPopup(null);
-          }}
-          onClose={() => setPopup(null)}
-        />
       )}
     </div>
   );

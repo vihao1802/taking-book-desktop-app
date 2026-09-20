@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, OpenFileResult, ReadMode, ReadingStats, ReflowCacheEntry, Result, SyncSummary, Theme } from '@taking-book/core';
+import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, ReadMode, ReadingStats, ReflowCacheEntry, Result, SyncSummary, Theme } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -24,6 +24,7 @@ export interface ReaderApi {
   /** Live annotations of every book in the library, for the Notes view. */
   listLibraryAnnotations(): Promise<Result<Annotation[]>>;
   createAnnotation(fileHash: string, input: CreateAnnotationInput): Promise<Result<Annotation>>;
+  saveNoteDraft(fileHash: string, draft: NoteDraft): Promise<Result<Annotation>>;
   setAnnotationNote(id: number, note: string | null): Promise<Result<Annotation>>;
   deleteAnnotation(id: number): Promise<Result<void>>;
   getTheme(): Promise<Result<Theme>>;
@@ -42,4 +43,4 @@ export interface ReaderApi {
   onFullScreenChange(listener: (fullScreen: boolean) => void): () => void;
 }
 
-export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, OpenFileResult, ReadMode, ReadingStats, Result, SyncSummary, Theme };
+export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, ReadMode, ReadingStats, Result, SyncSummary, Theme };

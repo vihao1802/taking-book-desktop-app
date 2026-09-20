@@ -4,12 +4,16 @@ import { findNearestNote } from '@taking-book/core';
 import { Button } from '@/components/ui/button';
 import type { Annotation } from '../../shared/types';
 import { NoteCard } from './NoteCard';
+import { NoteDraftCard } from './NoteDraftCard';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import type { NotesSidebarState } from './useNotesSidebar';
+import type { NoteDraftState } from './useNoteDraft';
 
 interface NotesSidebarProps {
   /** The sidebar's state from `useNotesSidebar`; the owner clamps widths requested through it. */
   state: NotesSidebarState;
+  /** The Note being written, if any; its card is listed first. */
+  noteDraft: NoteDraftState;
   /** The PDF page the reader is on; only its value when the sidebar opens matters (see below). */
   readingPage: number;
   /** Called when the reader clicks a Note, to jump to where it was written. */
@@ -24,14 +28,17 @@ interface NotesSidebarProps {
  * once to the Note nearest the reading page and then stays put: a list that
  * followed every page turn would move under the pointer while a Note is clicked.
  */
-export function NotesSidebar({ state, readingPage, onJump }: NotesSidebarProps) {
+export function NotesSidebar({ state, noteDraft, readingPage, onJump }: NotesSidebarProps) {
   const { notes, showHighlights, onShowHighlightsChange, close, width, onWidthChange } = state;
   const asideRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [pageWhenOpened] = useState(readingPage);
   const notesWhenOpenedRef = useRef(notes);
+  const hadDraftWhenOpenedRef = useRef(noteDraft.draft !== null);
 
   useEffect(() => {
+    // A draft waiting at the top of the list is what the reader came back to write; keep it in view.
+    if (hadDraftWhenOpenedRef.current) return;
     const list = listRef.current;
     const nearest = findNearestNote(notesWhenOpenedRef.current, pageWhenOpened);
     const card = nearest ? list?.querySelector(`[data-note-id="${nearest.id}"]`) : null;
@@ -67,12 +74,13 @@ export function NotesSidebar({ state, readingPage, onJump }: NotesSidebarProps) 
       </label>
       {/* The margins keep the list's scrollbar clear of the resize handle on the left edge. */}
       <div ref={listRef} className="ml-1.5 min-h-0 flex-1 overflow-y-auto">
-        {notes.length === 0 ? (
+        {notes.length === 0 && noteDraft.draft === null ? (
           <p className="text-muted-foreground px-3.5 py-6 text-center text-sm">
             {showHighlights ? 'No highlights or notes in this book yet.' : 'No notes in this book yet.'}
           </p>
         ) : (
           <ul className="flex flex-col gap-2 p-2">
+            <NoteDraftCard key={noteDraft.draftKey} state={noteDraft} />
             {notes.map((note) => (
               <NoteCard key={note.id} annotation={note} onJump={onJump} />
             ))}

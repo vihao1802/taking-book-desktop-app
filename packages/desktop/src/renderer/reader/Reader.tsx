@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isOk, stepZoomMultiplier, type LastPosition, type PageLocation, type ReadMode } from '@taking-book/core';
-import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
+import type { Annotation, AnnotationColor, BookFile, NoteAnchor } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Overlay, clampZoom } from './Overlay';
 import { SidebarPanel, type SidebarTab } from './SidebarPanel';
@@ -16,6 +16,7 @@ import { useReflowDocument } from './useReflowDocument';
 import { useReadingSession } from './useReadingSession';
 import { useAnnotations } from './useAnnotations';
 import { useNotesSidebar } from './useNotesSidebar';
+import { useNoteDraft } from './useNoteDraft';
 import { useNoteJump } from './useNoteJump';
 import { findRangeIgnoringWhitespace } from './highlights';
 import type { PageTextSelection } from './PdfPageView';
@@ -48,8 +49,16 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     images,
     getImageData,
   } = useReflowDocument(pdf, mode === 'reflow', { fileHash: file.hash });
-  const { annotations, create, setNote, remove } = useAnnotations(file.hash);
+  const { annotations, create, saveNoteDraft } = useAnnotations(file.hash);
   const notesSidebar = useNotesSidebar(annotations);
+  const noteDraft = useNoteDraft({ fileHash: file.hash, saveNote: saveNoteDraft });
+  // The draft's passage is painted as a temporary highlight next to the saved
+  // ones, but stays out of the Notes list, which only shows what is stored.
+  const { highlight: draftHighlight } = noteDraft;
+  const paintedAnnotations = useMemo(
+    () => (draftHighlight ? [...annotations, draftHighlight] : annotations),
+    [annotations, draftHighlight],
+  );
   const { noteJump, jumpToNote, finishNoteJump } = useNoteJump(mode, setNotice);
   useReadingSession(file.id);
 
@@ -251,8 +260,9 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const toggleSidebarTab = (tab: SidebarTab) => setSidebarTab((current) => (current === tab ? null : tab));
 
   // Escape peels off one layer at a time: find bar, go-to bar, Notes sidebar,
-  // Reader sidebar, then the reader itself. Selection toolbars and note popups close themselves
-  // first (they consume Escape before it gets here).
+  // Reader sidebar, then the reader itself. Selection toolbars close themselves
+  // first (they consume Escape before it gets here), and so does a Note draft's
+  // text box, which discards the draft.
   const dismiss = () => {
     if (search.open) search.close();
     else if (goToRequest !== 0) closeGoToPage();
@@ -286,11 +296,11 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     mode === 'page' && !pdfError,
   );
 
-  // A highlight made in page view also gets a best-effort reflow anchor so it
-  // appears in reflow mode too (whitespace-insensitive search, since the two
-  // views join fragments differently).
-  const createFromPage = useCallback(
-    async (selection: PageTextSelection, color: AnnotationColor, note: string | null): Promise<Annotation | null> => {
+  // A selection made in page view also gets a best-effort reflow anchor so its
+  // highlight appears in reflow mode too (whitespace-insensitive search, since
+  // the two views join fragments differently).
+  const anchorFromPage = useCallback(
+    (selection: PageTextSelection): NoteAnchor => {
       let paraIndex: number | null = null;
       let paraStart: number | null = null;
       let paraEnd: number | null = null;
@@ -304,20 +314,38 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           break;
         }
       }
-      const input: CreateAnnotationInput = {
+      return {
         page: selection.page,
         pageStart: selection.start,
         pageEnd: selection.end,
         quote: selection.quote,
-        color,
-        note,
         paraIndex,
         paraStart,
         paraEnd,
       };
-      return create(input);
     },
-    [paragraphs, create],
+    [paragraphs],
+  );
+
+  const createFromPage = useCallback(
+    (selection: PageTextSelection, color: AnnotationColor): Promise<Annotation | null> =>
+      create({ ...anchorFromPage(selection), color, note: null }),
+    [anchorFromPage, create],
+  );
+
+  // Choosing "Add note" opens the Notes sidebar on a fresh draft card.
+  const { start: startDraft } = noteDraft;
+  const { show: showNotesSidebar } = notesSidebar;
+  const startNote = useCallback(
+    (anchor: NoteAnchor) => {
+      startDraft(anchor);
+      showNotesSidebar();
+    },
+    [startDraft, showNotesSidebar],
+  );
+  const startNoteFromPage = useCallback(
+    (selection: PageTextSelection) => startNote(anchorFromPage(selection)),
+    [startNote, anchorFromPage],
   );
 
   // A document with no extractable text (e.g. scanned pages) can only be read
@@ -361,11 +389,11 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           goToRequest={goToRequest}
           onOpenGoTo={openGoToPage}
           onCloseGoTo={closeGoToPage}
-          annotations={annotations}
+          annotations={paintedAnnotations}
           onCreate={create}
-          onSetNote={setNote}
-          onDelete={remove}
+          onAddNote={startNote}
           notesSidebar={notesSidebar}
+          noteDraft={noteDraft}
           onJumpToNote={jumpToNote}
           noteJump={noteJump}
           onNoteJumpDone={finishNoteJump}
@@ -409,13 +437,12 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
               onScrollPosition={savePosition}
               onCurrentPage={setCurrentPage}
               pageTexts={pageTexts}
-              annotations={annotations}
+              annotations={paintedAnnotations}
               searchMatches={search.matches}
               searchActiveIndex={search.activeIndex}
               searchScrollRequest={search.scrollRequest}
               onCreate={createFromPage}
-              onSetNote={setNote}
-              onDelete={remove}
+              onAddNote={startNoteFromPage}
               noteJump={noteJump}
               onNoteJumpDone={finishNoteJump}
             />
@@ -489,7 +516,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           )}
         </SidebarPanel>
       )}
-      {notesSidebar.open && <NotesSidebar state={notesSidebar} readingPage={currentPage} onJump={jumpToNote} />}
+      {notesSidebar.open && <NotesSidebar state={notesSidebar} noteDraft={noteDraft} readingPage={currentPage} onJump={jumpToNote} />}
       <ReaderToast notice={notice} onDone={clearNotice} />
     </div>
   );
