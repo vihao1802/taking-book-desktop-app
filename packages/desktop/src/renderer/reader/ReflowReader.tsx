@@ -1,5 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { Loader2 } from 'lucide-react';
 import {
   pageIndexAtOffset,
   pageLocationAtOffset,
@@ -529,11 +530,7 @@ export function ReflowReader({
         </div>
       ) : paragraphs.length === 0 ? (
         <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
-          <p>
-            {progress
-              ? `Extracting page ${progress.done} of ${progress.total}…`
-              : 'Reflowing…'}
-          </p>
+          <Loader2 className="size-8 animate-spin" aria-label="Loading" />
         </div>
       ) : (
         <div
@@ -579,7 +576,7 @@ export function ReflowReader({
       )}
       {paragraphs.length > 0 && !positioned && (
         <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p>{progress ? `Extracting page ${progress.done} of ${progress.total}…` : 'Reflowing…'}</p>
+          <Loader2 className="size-8 animate-spin" aria-label="Loading" />
         </div>
       )}
       {selectionToolbar && (
