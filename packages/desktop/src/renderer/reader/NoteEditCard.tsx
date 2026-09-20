@@ -15,20 +15,22 @@ interface NoteEditCardProps {
   onDone: () => void;
 }
 
-const DELETE_QUESTIONS = { note: 'Delete this note?', highlight: 'Delete this highlight and its note?' } as const;
+function getDeleteLabel(annotation: Annotation): string {
+  if (!hasNoteText(annotation)) return 'Delete highlight';
+  return isPageNote(annotation) ? 'Delete note' : 'Delete note or highlight';
+}
 
 /**
  * A Note card in edit mode, in the Notes sidebar or the Notes view. The text and highlight color of the Note
  * change in place; Cmd/Ctrl+Enter or Save stores the text and Escape or Cancel
- * closes the card. The one trash-can icon deletes the Note while there is text
- * (keeping its Highlight, or removing a Page note entirely) and, once a Highlight
- * has none, the Highlight itself. Deleting written text asks first, inline.
+ * closes the card. The one trash-can icon deletes the Note or the whole
+ * Highlight: a Highlight with written text asks which of the two, a Page note
+ * asks to confirm, and a plain Highlight goes at once.
  */
 export function NoteEditCard({ annotation, actions, onDone }: NoteEditCardProps) {
   const editor = useNoteEditor({ annotation, actions, onDone });
   const { pendingDelete, busy, error } = editor;
   const hasQuote = !isPageNote(annotation);
-  const holdsNote = hasNoteText(annotation);
 
   return (
     <NoteCardShell
@@ -47,12 +49,17 @@ export function NoteEditCard({ annotation, actions, onDone }: NoteEditCardProps)
         </p>
       )}
       {pendingDelete ? (
-        <NoteDeleteConfirm question={DELETE_QUESTIONS[pendingDelete]} onCancel={editor.cancelDelete} onConfirm={editor.confirmDelete} />
+        <NoteDeleteConfirm
+          kind={pendingDelete}
+          onCancel={editor.cancelDelete}
+          onDeleteNote={editor.confirmDeleteNote}
+          onDeleteHighlight={editor.confirmDeleteHighlight}
+        />
       ) : (
         <NoteEditFooter
-          deleteTarget={holdsNote ? 'note' : 'highlight'}
+          deleteLabel={getDeleteLabel(annotation)}
           busy={busy}
-          onDelete={holdsNote ? editor.requestDeleteNote : editor.requestDeleteHighlight}
+          onDelete={editor.requestDelete}
           onCancel={onDone}
           onSave={editor.save}
         />

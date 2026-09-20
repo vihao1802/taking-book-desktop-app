@@ -1,10 +1,14 @@
 import { useCallback, useState } from 'react';
-import { hasNoteText, isOk, type Result } from '@taking-book/core';
+import { hasNoteText, isOk, isPageNote, type Result } from '@taking-book/core';
 import type { Annotation, AnnotationColor } from '../../shared/types';
 import type { NoteEditActions } from './useAnnotations';
 
-/** Which delete the reader asked for and still has to confirm; null when none is pending. */
-export type PendingDelete = 'note' | 'highlight' | null;
+/**
+ * The delete the reader asked for and still has to confirm; null when none is pending.
+ * `note` has one outcome (a Page note, which has no Highlight to keep). `either`
+ * lets the reader choose between removing just the Note text and the whole Highlight.
+ */
+export type PendingDelete = 'note' | 'either' | null;
 
 /** Everything an edit card needs to change one stored annotation in place. */
 export interface NoteEditorState {
@@ -16,11 +20,16 @@ export interface NoteEditorState {
   error: string | null;
   changeColor: (color: AnnotationColor) => void;
   save: () => void;
-  /** Deletes the Note, first asking for confirmation because it holds the reader's writing. */
-  requestDeleteNote: () => void;
-  /** Deletes the Highlight; immediate for a plain Highlight, confirmed when it carries a Note. */
-  requestDeleteHighlight: () => void;
-  confirmDelete: () => void;
+  /**
+   * The card's one delete control. A plain Highlight costs nothing to remake, so
+   * it goes at once; anything holding the reader's writing asks first, offering
+   * the choice between the Note only and the whole Highlight where both exist.
+   */
+  requestDelete: () => void;
+  /** Deletes the Note text, keeping its Highlight (a Page note goes entirely). */
+  confirmDeleteNote: () => void;
+  /** Deletes the Highlight together with its Note. */
+  confirmDeleteHighlight: () => void;
   cancelDelete: () => void;
 }
 
@@ -64,21 +73,22 @@ export function useNoteEditor({ annotation, actions, onDone }: UseNoteEditorOpti
     if (text.trim() === (annotation.note ?? '').trim()) onDone();
     else void run(() => actions.saveText(id, text), true);
   }, [run, actions, id, text, annotation.note, onDone]);
-  const requestDeleteNote = useCallback(() => setPendingDelete('note'), []);
   const cancelDelete = useCallback(() => setPendingDelete(null), []);
 
   const deleteHighlight = useCallback(() => run(() => actions.deleteAnnotation(id), true), [run, actions, id]);
-  const requestDeleteHighlight = useCallback(() => {
-    if (holdsNote) setPendingDelete('highlight');
-    else void deleteHighlight();
-  }, [holdsNote, deleteHighlight]);
+  const requestDelete = useCallback(() => {
+    if (!holdsNote) void deleteHighlight();
+    else setPendingDelete(isPageNote(annotation) ? 'note' : 'either');
+  }, [holdsNote, annotation, deleteHighlight]);
 
-  const confirmDelete = useCallback(() => {
-    const confirmed = pendingDelete;
+  const confirmDeleteNote = useCallback(() => {
     setPendingDelete(null);
-    if (confirmed === 'note') void run(() => actions.deleteNote(id), true);
-    else if (confirmed === 'highlight') void deleteHighlight();
-  }, [pendingDelete, run, actions, id, deleteHighlight]);
+    void run(() => actions.deleteNote(id), true);
+  }, [run, actions, id]);
+  const confirmDeleteHighlight = useCallback(() => {
+    setPendingDelete(null);
+    void deleteHighlight();
+  }, [deleteHighlight]);
 
-  return { text, changeText: setText, pendingDelete, busy, error, changeColor, save, requestDeleteNote, requestDeleteHighlight, confirmDelete, cancelDelete };
+  return { text, changeText: setText, pendingDelete, busy, error, changeColor, save, requestDelete, confirmDeleteNote, confirmDeleteHighlight, cancelDelete };
 }
