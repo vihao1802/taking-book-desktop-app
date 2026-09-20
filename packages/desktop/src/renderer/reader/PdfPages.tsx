@@ -7,7 +7,8 @@ import { PdfPageView, type PageTextSelection } from './PdfPageView';
 import { groupMatchesByText } from './useDocumentSearch';
 
 export interface PdfPagesHandle {
-  scrollToPage: (page: number) => void;
+  /** Jumps to a page instantly; pass `smooth` for short hops like next/previous page. */
+  scrollToPage: (page: number, options?: { smooth: boolean }) => void;
 }
 
 interface PdfPagesProps {
@@ -114,10 +115,10 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
   useImperativeHandle(
     ref,
     () => ({
-      scrollToPage: (page) => {
+      scrollToPage: (page, options) => {
         const el = scrollRef.current;
         if (!el || page < 1 || page > layout.heights.length) return;
-        el.scrollTo({ top: layout.offsets[page - 1], behavior: 'smooth' });
+        el.scrollTo({ top: layout.offsets[page - 1], behavior: options?.smooth ? 'smooth' : 'instant' });
       },
     }),
     [layout],

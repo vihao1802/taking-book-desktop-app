@@ -311,7 +311,8 @@ export function ReflowReader({
     const el = scrollRef.current;
     const { offsets } = pageEdgesRef.current;
     if (!el || page < 1 || page > offsets.length) return;
-    el.scrollTo({ top: offsets[page - 1], behavior: 'smooth' });
+    // Sidebar, slider and go-to-page are jumps; animating across many pages felt slow.
+    el.scrollTo({ top: offsets[page - 1], behavior: 'instant' });
   }, []);
 
   // Scroll updates are coalesced to one state write per frame; a raw setState
