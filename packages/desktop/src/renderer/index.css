@@ -7,6 +7,7 @@
 
 :root {
   --radius: 0.75rem;
+  --scrollbar-width: 10px;
 
   --bg: #faf9f7;
   --fg: #1a1a1a;
@@ -177,7 +178,7 @@
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
+    width: var(--scrollbar-width);
   }
 
   ::-webkit-scrollbar-thumb {
@@ -193,10 +194,13 @@
 
 /* ---------- Reader overlay transitions ---------- */
 
+/* The reading views scroll full-screen, so their scrollbar runs under the top
+   and bottom bars. Stopping the bars short of the scrollbar column keeps its
+   ends visible and reachable while the bars are showing. */
 .overlay {
   position: absolute;
   left: 0;
-  right: 0;
+  right: var(--scrollbar-width);
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
