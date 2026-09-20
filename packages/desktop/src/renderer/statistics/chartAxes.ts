@@ -69,6 +69,17 @@ export function formatMinutes(minutes: number): string {
 }
 
 /**
+ * Formats a minute count for summary cards: whole minutes below an hour
+ * ("45 min"), otherwise hours with at most one decimal ("1.5 h", "2 h").
+ */
+export function formatDuration(minutes: number): string {
+  const total = Math.max(0, Math.round(minutes));
+  if (total < 60) return `${total} min`;
+  const hours = Math.round((total / 60) * 10) / 10;
+  return `${hours} h`;
+}
+
+/**
  * Clamps a tooltip's left edge so a box of `width` centered on `centerX`
  * stays fully within `[min, max]`.
  */

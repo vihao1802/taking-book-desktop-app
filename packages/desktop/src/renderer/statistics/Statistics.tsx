@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Flame } from 'lucide-react';
+import { CalendarDays, Clock, Flame, Trophy } from 'lucide-react';
 import { isOk } from '@taking-book/core';
 import type { BookFile, ReadingStats } from '../../shared/types';
 import { BookCover } from '@/components/BookCover';
@@ -8,9 +8,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { initials } from '@/lib/initials';
 import { useLibrary } from '../library/useLibrary';
 import { AreaChart } from './AreaChart';
-import { formatDay } from './chartAxes';
+import { formatDay, formatDuration } from './chartAxes';
+import { StatCard } from './StatCard';
 
 const CHART_DAYS = 30;
+
+function formatDays(count: number): string {
+  return `${count} day${count === 1 ? '' : 's'}`;
+}
 
 export function Statistics({
   onOpen,
@@ -48,39 +53,20 @@ export function Statistics({
       {error && <p className="text-destructive text-sm">{error}</p>}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Card>
-          <CardContent className="flex flex-col gap-1 p-5">
-            <span className="text-muted-foreground text-xs uppercase tracking-wide">Today</span>
-            <span className="text-2xl font-semibold tabular-nums">
-              {Math.round(stats?.minutesToday ?? 0)} min
-            </span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex flex-col gap-1 p-5">
-            <span className="text-muted-foreground text-xs uppercase tracking-wide">This month</span>
-            <span className="text-2xl font-semibold tabular-nums">
-              {Math.round(stats?.totalMinutes ?? 0)} min
-            </span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex flex-col gap-1 p-5">
-            <span className="text-muted-foreground text-xs uppercase tracking-wide">Current streak</span>
-            <span className="flex items-center gap-1.5 text-2xl font-semibold tabular-nums">
-              <Flame className="text-amber-500 size-6" />
-              {stats?.currentStreak ?? 0} day{stats && stats.currentStreak === 1 ? '' : 's'}
-            </span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex flex-col gap-1 p-5">
-            <span className="text-muted-foreground text-xs uppercase tracking-wide">Best streak</span>
-            <span className="text-2xl font-semibold tabular-nums">
-              {stats?.longestStreak ?? 0} day{stats && stats.longestStreak === 1 ? '' : 's'}
-            </span>
-          </CardContent>
-        </Card>
+        <StatCard label="Today" icon={Clock} value={formatDuration(stats?.minutesToday ?? 0)} />
+        <StatCard label="This month" icon={CalendarDays} value={formatDuration(stats?.totalMinutes ?? 0)} />
+        <StatCard
+          label="Current streak"
+          icon={Flame}
+          iconClassName="text-amber-500 size-6"
+          value={formatDays(stats?.currentStreak ?? 0)}
+        />
+        <StatCard
+          label="Best streak"
+          icon={Trophy}
+          iconClassName="text-amber-500 size-6"
+          value={formatDays(stats?.longestStreak ?? 0)}
+        />
       </div>
 
       <Card>

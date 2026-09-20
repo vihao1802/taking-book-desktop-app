@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampTooltipX, computeXAxisTicks, computeYAxisTicks, formatDay, formatMinutes } from './chartAxes';
+import { clampTooltipX, computeXAxisTicks, computeYAxisTicks, formatDay, formatDuration, formatMinutes } from './chartAxes';
 
 describe('formatMinutes', () => {
   it('formats sub-hour values in minutes', () => {
@@ -20,6 +20,24 @@ describe('formatMinutes', () => {
   it('formats hours with a minutes remainder', () => {
     expect(formatMinutes(90)).toBe('1h 30m');
     expect(formatMinutes(125)).toBe('2h 5m');
+  });
+});
+
+describe('formatDuration', () => {
+  it('shows whole minutes below an hour', () => {
+    expect(formatDuration(0)).toBe('0 min');
+    expect(formatDuration(45.4)).toBe('45 min');
+  });
+
+  it('switches to hours with one decimal from an hour up', () => {
+    expect(formatDuration(60)).toBe('1 h');
+    expect(formatDuration(90)).toBe('1.5 h');
+    expect(formatDuration(100)).toBe('1.7 h');
+  });
+
+  it('drops a trailing .0 and rounds minutes before choosing the unit', () => {
+    expect(formatDuration(120)).toBe('2 h');
+    expect(formatDuration(59.6)).toBe('1 h');
   });
 });
 
