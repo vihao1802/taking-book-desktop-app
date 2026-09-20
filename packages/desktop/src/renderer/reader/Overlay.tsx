@@ -167,16 +167,13 @@ export function Overlay({
           {mode === 'page' && (
             <Button
               variant="ghost"
-              className={cn(
-                'px-2.5',
-                fitWidth && 'bg-accent text-accent-foreground',
-              )}
+              size="icon"
+              className={cn(fitWidth && 'bg-accent text-accent-foreground')}
               onClick={onFitWidth}
               aria-label="Fit to width"
               title={withShortcutHint('Fit to width', 'zoomFit')}
             >
               <Frame className="size-4" />
-              <span>Fit</span>
             </Button>
           )}
           <ZoomControl zoom={zoom} onZoomChange={onZoomChange} onInteract={onInteract} />
