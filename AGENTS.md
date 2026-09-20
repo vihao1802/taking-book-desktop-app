@@ -100,3 +100,12 @@ Default vocabulary: the five canonical role names used as-is (`needs-triage`, `n
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Interview questions
+
+When a skill interviews the user (`/grill-with-docs`, `/grill-me`, `/grilling`, `/triage`, or any round of design questions), ask through the agent's built-in structured question tool (Claude Code: `AskUserQuestion`) instead of printing a numbered list the user has to answer by typing question numbers. The user should be able to pick an option with the arrow keys, or choose the tool's free-text "Other" entry to type their own answer.
+
+- Keep the skill's method: work in rounds, ask the whole current frontier, and give a recommended answer for every question. The recommended answer is the first option, labelled "(Recommended)".
+- Put longer context (facts found in the code, findings the user must see first) in a normal message before the question, so the question text stays short.
+- If the tool limits how many questions fit in one call (Claude Code: 4 questions, 2 to 4 options each), send a round as consecutive calls.
+- Fall back to a numbered text list only when the agent has no such tool.
