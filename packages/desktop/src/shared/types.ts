@@ -28,6 +28,8 @@ export interface ReaderApi {
   setTheme(theme: Theme): Promise<Result<void>>;
   getSidebarWidth(): Promise<Result<number | null>>;
   setSidebarWidth(width: number): Promise<Result<void>>;
+  getNotesSidebarWidth(): Promise<Result<number | null>>;
+  setNotesSidebarWidth(width: number): Promise<Result<void>>;
   getCloudAccount(): Promise<Result<CloudAccount | null>>;
   connectCloud(): Promise<Result<CloudAccount>>;
   disconnectCloud(): Promise<Result<void>>;

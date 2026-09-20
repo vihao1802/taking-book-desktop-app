@@ -49,7 +49,7 @@ interface PdfPageViewProps {
 
 /**
  * One rendered page: pdf.js canvas, an overlaid selection text layer, and the
- * highlight/comment overlays anchored to the page's text offsets. The text
+ * highlight/note overlays anchored to the page's text offsets. The text
  * layer is transparent (pdf.js text is selectable, not visible) so selection
  * works exactly as it does in reflow mode.
  */
@@ -243,7 +243,7 @@ export function PdfPageView({
     setToolbar(null);
   };
 
-  const comment = async () => {
+  const addNote = async () => {
     if (!toolbar) return;
     const created = await onCreate(toolbar.selection, 'yellow', null);
     window.getSelection()?.removeAllRanges();
@@ -290,7 +290,7 @@ export function PdfPageView({
         )),
       )}
       {toolbar && (
-        <SelectionToolbar x={toolbar.x} y={toolbar.y} onHighlight={highlight} onComment={comment} />
+        <SelectionToolbar x={toolbar.x} y={toolbar.y} onHighlight={highlight} onAddNote={addNote} />
       )}
       {popup && (
         <AnnotationPopup

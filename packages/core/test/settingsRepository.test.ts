@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { getSidebarWidth, getTheme, setSidebarWidth, setTheme, settingsSchema } from '../src';
+import {
+  getNotesSidebarWidth,
+  getSidebarWidth,
+  getTheme,
+  setNotesSidebarWidth,
+  setSidebarWidth,
+  setTheme,
+  settingsSchema,
+} from '../src';
 import { isOk } from '../src';
 import { createMemoryDriver } from './helpers';
 
@@ -46,6 +54,22 @@ describe('settingsRepository', () => {
     await setSidebarWidth(db, 412);
     const width = await getSidebarWidth(db);
     expect(isOk(width) && width.data === 412).toBe(true);
+  });
+
+  it('remembers the Notes sidebar width separately from the reader sidebar width', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+
+    const before = await getNotesSidebarWidth(db);
+    expect(isOk(before) && before.data === null).toBe(true);
+
+    await setSidebarWidth(db, 300);
+    await setNotesSidebarWidth(db, 420);
+
+    const reader = await getSidebarWidth(db);
+    const notes = await getNotesSidebarWidth(db);
+    expect(isOk(reader) && reader.data === 300).toBe(true);
+    expect(isOk(notes) && notes.data === 420).toBe(true);
   });
 
   it('treats a non-numeric stored sidebar width as unset', async () => {

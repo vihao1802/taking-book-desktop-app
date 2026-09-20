@@ -13,7 +13,7 @@ interface AnnotationPopupProps {
   onClose: () => void;
 }
 
-/** Popover over a highlight to read, edit, or delete its comment. */
+/** Popover over a highlight to read, edit, or delete its note. */
 export function AnnotationPopup({
   annotation,
   x,
@@ -39,9 +39,9 @@ export function AnnotationPopup({
       <Input
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="Add a comment…"
+        placeholder="Add a note…"
         autoFocus
-        aria-label="Comment"
+        aria-label="Note"
       />
       <div className="flex items-center justify-between gap-2">
         <Button

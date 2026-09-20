@@ -3,6 +3,7 @@ import {
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
   clampSidebarWidth,
+  getNotesPageInset,
   getThumbnailWidth,
 } from './sidebar-width';
 
@@ -32,5 +33,19 @@ describe('getThumbnailWidth', () => {
 
   it('grows one-to-one with the sidebar', () => {
     expect(getThumbnailWidth(SIDEBAR_MIN_WIDTH + 100)).toBe(248);
+  });
+});
+
+describe('getNotesPageInset', () => {
+  it('reserves nothing while the Notes sidebar is closed', () => {
+    expect(getNotesPageInset(false, 320)).toBe(0);
+  });
+
+  it('reserves the sidebar width plus its margin and gap while open', () => {
+    expect(getNotesPageInset(true, 320)).toBe(336);
+  });
+
+  it('follows the sidebar as it is resized', () => {
+    expect(getNotesPageInset(true, 400) - getNotesPageInset(true, 300)).toBe(100);
   });
 });

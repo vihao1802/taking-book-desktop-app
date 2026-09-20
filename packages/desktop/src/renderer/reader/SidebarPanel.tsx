@@ -1,12 +1,8 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { LayoutGrid, ListTree, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import {
-  SIDEBAR_KEYBOARD_STEP,
-  SIDEBAR_MAX_WIDTH,
-  SIDEBAR_MIN_WIDTH,
-} from './sidebar-width';
+import { SidebarResizeHandle } from './SidebarResizeHandle';
 
 /** Which sidebar tab is visible; null means the sidebar is closed. */
 export type SidebarTab = 'thumbnails' | 'outlines';
@@ -45,7 +41,6 @@ export function SidebarPanel({
   children,
 }: SidebarPanelProps) {
   const asideRef = useRef<HTMLElement>(null);
-  const [dragging, setDragging] = useState(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -69,33 +64,6 @@ export function SidebarPanel({
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, []);
-
-  // The panel's left edge is fixed, so the pointer's distance from it is the
-  // width the user is asking for.
-  const resizeToPointer = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    const aside = asideRef.current;
-    if (aside) onWidthChange(event.clientX - aside.getBoundingClientRect().left);
-  };
-
-  const startResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDragging(true);
-  };
-
-  const finishResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    setDragging(false);
-  };
-
-  const resizeWithKeyboard = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key === 'ArrowLeft') onWidthChange(width - SIDEBAR_KEYBOARD_STEP);
-    else if (event.key === 'ArrowRight') onWidthChange(width + SIDEBAR_KEYBOARD_STEP);
-    else return;
-    event.preventDefault();
-  };
 
   return (
     <aside
@@ -136,28 +104,7 @@ export function SidebarPanel({
       </div>
       {/* The right margin keeps the list's scrollbar clear of the resize handle. */}
       <div className="mr-1.5 flex min-h-0 flex-1 flex-col">{children}</div>
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize sidebar"
-        aria-valuenow={width}
-        aria-valuemin={SIDEBAR_MIN_WIDTH}
-        aria-valuemax={SIDEBAR_MAX_WIDTH}
-        tabIndex={0}
-        onPointerDown={startResize}
-        onPointerMove={(e) => {
-          if (dragging) resizeToPointer(e);
-        }}
-        onPointerUp={finishResize}
-        onPointerCancel={finishResize}
-        onDoubleClick={() => onWidthChange(SIDEBAR_MIN_WIDTH)}
-        onKeyDown={resizeWithKeyboard}
-        className={cn(
-          'absolute inset-y-0 right-0 w-1.5 cursor-col-resize outline-none transition-colors',
-          'hover:bg-primary/30 focus-visible:bg-primary/30',
-          dragging && 'bg-primary/40',
-        )}
-      />
+      <SidebarResizeHandle panelRef={asideRef} edge="right" width={width} onWidthChange={onWidthChange} />
     </aside>
   );
 }

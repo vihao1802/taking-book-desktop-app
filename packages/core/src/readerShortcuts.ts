@@ -35,6 +35,7 @@ export type ReaderShortcutAction =
   | 'lineUp'
   | 'toggleThumbnails'
   | 'toggleOutline'
+  | 'toggleNotes'
   | 'toggleReflow'
   | 'dismiss';
 
@@ -85,6 +86,7 @@ const PLAIN_KEY_ACTIONS: ReadonlyMap<string, ReaderShortcutAction> = new Map([
   ['ArrowUp', 'lineUp'],
   ['t', 'toggleThumbnails'],
   ['o', 'toggleOutline'],
+  ['n', 'toggleNotes'],
   ['r', 'toggleReflow'],
 ]);
 
@@ -127,6 +129,7 @@ const SHORTCUT_LABELS: Partial<Record<ReaderShortcutAction, { mac: string; other
   lastPage: { mac: 'End', other: 'End' },
   toggleThumbnails: { mac: 'T', other: 'T' },
   toggleOutline: { mac: 'O', other: 'O' },
+  toggleNotes: { mac: 'N', other: 'N' },
   toggleReflow: { mac: 'R', other: 'R' },
   dismiss: { mac: 'Esc', other: 'Esc' },
 };

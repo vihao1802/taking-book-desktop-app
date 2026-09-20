@@ -21,8 +21,9 @@ tested for both platforms. Add new shortcuts there, not in a component's
 | Arrow Down / Up | Scroll a line | Reflow mode only |
 | T | Toggle thumbnails sidebar | Page mode only |
 | O | Toggle outline sidebar | |
+| N | Toggle Notes sidebar | Works in both page and reflow mode |
 | R | Toggle reflow mode | Disabled for image-only documents |
-| Esc | Close the top layer | Order: selection toolbar or note popup, find bar, go-to bar, sidebar, then leave the reader |
+| Esc | Close the top layer | Order: selection toolbar or note popup, find bar, go-to bar, Notes sidebar, Reader sidebar, then leave the reader |
 | F11 (Ctrl+Cmd+F on macOS) | Fullscreen | From the application menu |
 
 Single-letter keys, arrows, Home/End and Space are ignored while focus is in a

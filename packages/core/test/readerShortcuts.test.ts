@@ -119,9 +119,11 @@ describe('single keys', () => {
     expect(resolve(key(' ', { shiftKey: true }))).toBe('previousScreen');
   });
 
-  it('maps t, o and r, including with Caps Lock on', () => {
+  it('maps t, o, n and r, including with Caps Lock on', () => {
     expect(resolve(key('t'))).toBe('toggleThumbnails');
     expect(resolve(key('O'))).toBe('toggleOutline');
+    expect(resolve(key('n'))).toBe('toggleNotes');
+    expect(resolve(key('N'))).toBe('toggleNotes');
     expect(resolve(key('r'))).toBe('toggleReflow');
   });
 
@@ -132,6 +134,10 @@ describe('single keys', () => {
     expect(resolve(key('r', { ctrlKey: true }))).toBeNull();
     expect(resolve(key('r', { metaKey: true }), 'mac')).toBeNull();
     expect(resolve(key('t', { shiftKey: true }))).toBeNull();
+    expect(resolve(key('n', { ctrlKey: true }))).toBeNull();
+    expect(resolve(key('n', { metaKey: true }), 'mac')).toBeNull();
+    expect(resolve(key('n', { altKey: true }))).toBeNull();
+    expect(resolve(key('n', { shiftKey: true }))).toBeNull();
   });
 
   it('does not treat Ctrl+Space or Alt+Space as paging', () => {
@@ -142,7 +148,7 @@ describe('single keys', () => {
 
 describe('typing guard', () => {
   it('lets plain keys through to text fields', () => {
-    for (const name of ['r', 't', 'o', ' ', 'Home', 'ArrowLeft', 'PageDown']) {
+    for (const name of ['r', 't', 'o', 'n', ' ', 'Home', 'ArrowLeft', 'PageDown']) {
       expect(resolve(key(name), 'other', true)).toBeNull();
     }
   });
@@ -167,6 +173,11 @@ describe('formatShortcutLabel', () => {
     expect(formatShortcutLabel('find', 'other')).toBe('Ctrl+F');
     expect(formatShortcutLabel('zoomFit', 'mac')).toBe('⌘0');
     expect(formatShortcutLabel('goToPage', 'other')).toBe('Ctrl+Alt+G');
+  });
+
+  it('advertises the Notes sidebar toggle', () => {
+    expect(formatShortcutLabel('toggleNotes', 'mac')).toBe('N');
+    expect(formatShortcutLabel('toggleNotes', 'other')).toBe('N');
   });
 
   it('returns null for actions that are not advertised', () => {

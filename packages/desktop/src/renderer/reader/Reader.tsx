@@ -6,6 +6,7 @@ import { Overlay, clampZoom } from './Overlay';
 import { SidebarPanel, type SidebarTab } from './SidebarPanel';
 import { ThumbnailsView } from './ThumbnailsView';
 import { OutlineView } from './OutlineView';
+import { NotesSidebar } from './NotesSidebar';
 import { usePdfOutline } from './usePdfOutline';
 import { fileUrl, getScrollbarWidth, useElementSize, usePageLayout, usePdfDocument } from './pdf';
 import { PdfPages, type PdfPagesHandle } from './PdfPages';
@@ -14,6 +15,7 @@ import { ReflowReader } from './ReflowReader';
 import { useReflowDocument } from './useReflowDocument';
 import { useReadingSession } from './useReadingSession';
 import { useAnnotations } from './useAnnotations';
+import { useNotesSidebar } from './useNotesSidebar';
 import { findRangeIgnoringWhitespace } from './highlights';
 import type { PageTextSelection } from './PdfPageView';
 import { ReaderBars } from './ReaderBars';
@@ -41,6 +43,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     getImageData,
   } = useReflowDocument(pdf, mode === 'reflow', { fileHash: file.hash });
   const { annotations, create, setNote, remove } = useAnnotations(file.hash);
+  const notesSidebar = useNotesSidebar(annotations);
   useReadingSession(file.id);
 
   // Find-in-document searches page text in page mode and paragraph text in
@@ -240,12 +243,13 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
 
   const toggleSidebarTab = (tab: SidebarTab) => setSidebarTab((current) => (current === tab ? null : tab));
 
-  // Escape peels off one layer at a time: find bar, go-to bar, sidebar, then
-  // the reader itself. Selection toolbars and note popups close themselves
+  // Escape peels off one layer at a time: find bar, go-to bar, Notes sidebar,
+  // Reader sidebar, then the reader itself. Selection toolbars and note popups close themselves
   // first (they consume Escape before it gets here).
   const dismiss = () => {
     if (search.open) search.close();
     else if (goToRequest !== 0) closeGoToPage();
+    else if (notesSidebar.open) notesSidebar.close();
     else if (sidebarTab !== null) setSidebarTab(null);
     else onClose();
   };
@@ -268,6 +272,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
       previousPage: () => pagesRef.current?.scrollToPage(currentPage - 1, { smooth: true }),
       toggleThumbnails: () => toggleSidebarTab('thumbnails'),
       toggleOutline: () => toggleSidebarTab('outlines'),
+      toggleNotes: notesSidebar.toggle,
       ...(hasText ? { toggleReflow: toggleMode } : {}),
       dismiss,
     },
@@ -353,6 +358,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           onCreate={create}
           onSetNote={setNote}
           onDelete={remove}
+          notesSidebar={notesSidebar}
           getImageData={getImageData}
         />
         <ModeToast modeSwitch={modeSwitch} onDone={clearModeSwitch} />
@@ -371,8 +377,14 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
       ) : (
         // `isolate` traps the pdf.js text layer (z-10) and highlight rects
         // (z-20) in their own stacking context; otherwise they paint above
-        // the sidebar (z-5) and swallow every click meant for it.
-        <div className="absolute inset-0 isolate" ref={scrollRef} onClick={handleClick}>
+        // the sidebar (z-5) and swallow every click meant for it. The right
+        // inset is how the Notes sidebar pushes the page instead of covering it.
+        <div
+          className="absolute inset-y-0 left-0 isolate"
+          style={{ right: notesSidebar.pageInset }}
+          ref={scrollRef}
+          onClick={handleClick}
+        >
           {ready ? (
             <PdfPages
               ref={pagesRef}
@@ -423,6 +435,8 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           onInteract={reveal}
           sidebarTab={sidebarTab}
           onSelectSidebarTab={setSidebarTab}
+          notesOpen={notesSidebar.open}
+          onToggleNotes={notesSidebar.toggle}
         />
       )}
       {!error && (
@@ -462,6 +476,16 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
             />
           )}
         </SidebarPanel>
+      )}
+      {notesSidebar.open && (
+        <NotesSidebar
+          notes={notesSidebar.notes}
+          showHighlights={notesSidebar.showHighlights}
+          onShowHighlightsChange={notesSidebar.onShowHighlightsChange}
+          onClose={notesSidebar.close}
+          width={notesSidebar.width}
+          onWidthChange={notesSidebar.onWidthChange}
+        />
       )}
       <ModeToast modeSwitch={modeSwitch} onDone={clearModeSwitch} />
     </div>

@@ -3,6 +3,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Loader2 } from 'lucide-react';
 import {
   getParagraphTextAlign,
+  offsetForPageLocation,
   pageIndexAtOffset,
   pageLocationAtOffset,
   stepZoomMultiplier,
@@ -17,6 +18,8 @@ import { Button } from '@/components/ui/button';
 import { Overlay } from './Overlay';
 import { SidebarPanel, type SidebarTab } from './SidebarPanel';
 import { OutlineView } from './OutlineView';
+import { NotesSidebar } from './NotesSidebar';
+import type { NotesSidebarState } from './useNotesSidebar';
 import { usePdfOutline } from './usePdfOutline';
 import { usePersistedSidebarWidth } from './usePersistedSidebarWidth';
 import { AnnotationPopup } from './AnnotationPopup';
@@ -94,6 +97,8 @@ interface ReflowReaderProps {
   onCreate: (input: CreateAnnotationInput) => Promise<Annotation | null>;
   onSetNote: (id: number, note: string | null) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  /** The Notes sidebar, whose state lives in the reader so it survives a mode toggle. */
+  notesSidebar: NotesSidebarState;
   getImageData: (pageIndex: number, ref: string) => Promise<unknown>;
 }
 
@@ -120,6 +125,7 @@ export function ReflowReader({
   onCreate,
   onSetNote,
   onDelete,
+  notesSidebar,
   getImageData,
 }: ReflowReaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -237,11 +243,15 @@ export function ReflowReader({
   // wrong (usually page 1) and would overwrite the position being restored.
   const positionedRef = useRef(false);
 
+  const lastLocationRef = useRef<PageLocation | null>(null);
+
   const reportLocation = useCallback(() => {
     const el = scrollRef.current;
     if (!el || !positionedRef.current) return;
     const { offsets, end } = pageEdgesRef.current;
-    onLocationChangeRef.current?.(pageLocationAtOffset(offsets, end, el.scrollTop + PAGE_PROBE_PX));
+    const location = pageLocationAtOffset(offsets, end, el.scrollTop + PAGE_PROBE_PX);
+    lastLocationRef.current = location;
+    onLocationChangeRef.current?.(location);
   }, []);
 
   // The overlay must not disappear while the user is typing (e.g. the custom
@@ -336,6 +346,18 @@ export function ReflowReader({
   });
   positionedRef.current = positioned;
 
+  // The Notes sidebar changes the width the text wraps to, which moves every
+  // page boundary under an unchanged scroll offset. Hold the reading spot across
+  // that re-wrap: the last reported location is still the pre-wrap one here.
+  const notesInset = notesSidebar.pageInset;
+  useLayoutEffect(() => {
+    const location = lastLocationRef.current ?? initialLocation;
+    const el = scrollRef.current;
+    const edges = measureEdges();
+    if (!location || !el || !edges || edges.offsets.length === 0 || !positionedRef.current) return;
+    el.scrollTop = offsetForPageLocation(edges.offsets, edges.end, location) - PAGE_PROBE_PX;
+  }, [notesInset, measureEdges, initialLocation]);
+
   const scrollReflow = useCallback((targetFor: (el: HTMLDivElement) => number) => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: targetFor(el), behavior: 'smooth' });
@@ -347,11 +369,12 @@ export function ReflowReader({
   };
 
   // Escape peels off one layer at a time: selection toolbar / note popup, find
-  // bar, go-to bar, sidebar, then the reader itself.
+  // bar, go-to bar, Notes sidebar, Reader sidebar, then the reader itself.
   const dismiss = () => {
     if (selectionToolbar || activePopup) clearSelectionUi();
     else if (search.open) search.close();
     else if (goToRequest !== 0) onCloseGoTo();
+    else if (notesSidebar.open) notesSidebar.close();
     else if (sidebarTab !== null) setSidebarTab(null);
     else onClose();
   };
@@ -379,6 +402,7 @@ export function ReflowReader({
     lineDown: () => scrollReflow((el) => el.scrollTop + LINE_STEP_PX),
     lineUp: () => scrollReflow((el) => el.scrollTop - LINE_STEP_PX),
     toggleOutline: () => setSidebarTab((current) => (current === 'outlines' ? null : 'outlines')),
+    toggleNotes: notesSidebar.toggle,
     toggleReflow: onToggleMode,
     dismiss,
   });
@@ -476,7 +500,7 @@ export function ReflowReader({
     [selectionToolbar, anchorFor, onCreate],
   );
 
-  const comment = useCallback(async () => {
+  const addNote = useCallback(async () => {
     if (!selectionToolbar) return;
     const item = selectionToolbar.items[0];
     const created = await onCreate(anchorFor(item, 'yellow', null));
@@ -513,7 +537,8 @@ export function ReflowReader({
         </div>
       ) : (
         <div
-          className={`bg-reflow absolute inset-0 flex justify-center overflow-y-auto overflow-x-hidden px-4 py-10${positioned ? '' : ' invisible'}`}
+          className={`bg-reflow absolute inset-y-0 left-0 flex justify-center overflow-y-auto overflow-x-hidden px-4 py-10${positioned ? '' : ' invisible'}`}
+          style={{ right: notesSidebar.pageInset }}
           ref={scrollRef}
           onScroll={handleScroll}
           onClick={handleClick}
@@ -541,7 +566,7 @@ export function ReflowReader({
           x={selectionToolbar.x}
           y={selectionToolbar.y}
           onHighlight={highlight}
-          onComment={comment}
+          onAddNote={addNote}
         />
       )}
       {activePopup && (
@@ -589,6 +614,8 @@ export function ReflowReader({
           sidebarTab={sidebarTab}
           onSelectSidebarTab={setSidebarTab}
           sidebarThumbnailsEnabled={false}
+          notesOpen={notesSidebar.open}
+          onToggleNotes={notesSidebar.toggle}
         />
       )}
       {sidebarTab !== null && (
@@ -607,6 +634,16 @@ export function ReflowReader({
             onSelect={scrollToPage}
           />
         </SidebarPanel>
+      )}
+      {notesSidebar.open && (
+        <NotesSidebar
+          notes={notesSidebar.notes}
+          showHighlights={notesSidebar.showHighlights}
+          onShowHighlightsChange={notesSidebar.onShowHighlightsChange}
+          onClose={notesSidebar.close}
+          width={notesSidebar.width}
+          onWidthChange={notesSidebar.onWidthChange}
+        />
       )}
     </div>
   );

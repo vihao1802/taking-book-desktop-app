@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { offsetForPageLocation, pageLocationAtOffset, type IndexedTextMatch, type PageLocation } from '@taking-book/core';
 import type { Annotation, AnnotationColor } from '../../shared/types';
@@ -79,7 +79,14 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
 
   const currentPage = pageFromOffset(layout, scrollTop) + 1;
 
+  // Raw scroll offset and the layout it was measured in. A width change shrinks
+  // or grows the content, and the browser clamps the offset before any effect
+  // can read it, so the location to hold has to be captured beforehand.
+  const scrollTopRef = useRef(0);
+  const anchoredLayoutRef = useRef({ layout, containerWidth });
+
   const handleScroll = useCallback(() => {
+    if (scrollRef.current) scrollTopRef.current = scrollRef.current.scrollTop;
     cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
       const el = scrollRef.current;
@@ -104,8 +111,24 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
       ? offsetForPageLocation(layout.offsets, layout.totalHeight, initialLocation)
       : Math.min(initialPosition, 1) * scrollable;
     el.scrollTop = target;
+    scrollTopRef.current = target;
     setScrollTop(target);
   }, [layout, initialPosition, initialLocation]);
+
+  // When the page width changes (the Notes sidebar opening or closing, a zoom),
+  // every page changes height, so an unchanged scroll offset would land on a
+  // different page. Keep the same page and offset within it in view instead.
+  useLayoutEffect(() => {
+    const previous = anchoredLayoutRef.current;
+    anchoredLayoutRef.current = { layout, containerWidth };
+    const el = scrollRef.current;
+    if (!el || !restoredRef.current || previous.containerWidth === containerWidth) return;
+    const location = pageLocationAtOffset(previous.layout.offsets, previous.layout.totalHeight, scrollTopRef.current);
+    const target = offsetForPageLocation(layout.offsets, layout.totalHeight, location);
+    el.scrollTop = target;
+    scrollTopRef.current = target;
+    setScrollTop(target);
+  }, [layout, containerWidth]);
 
   useEffect(() => {
     cancelAnimationFrame(rafRef.current);

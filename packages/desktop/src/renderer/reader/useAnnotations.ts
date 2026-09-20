@@ -3,7 +3,7 @@ import { isOk } from '@taking-book/core';
 import type { Annotation, CreateAnnotationInput } from '../../shared/types';
 
 /**
- * Loads and mutates the highlights/comments for one book. Mutations optimistically
+ * Loads and mutates the highlights/notes for one book. Mutations optimistically
  * update local state and reload on error, keeping the reader responsive while a
  * slow sync backend is none of the UI's business.
  */

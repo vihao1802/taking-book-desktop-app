@@ -3,7 +3,7 @@ import type { AnnotationColor } from '../../shared/types';
 /**
  * Shared helpers for reader annotations. These are pure DOM/string utilities
  * used by both the page (canvas + text layer) and reflow views so the two
- * modes can highlight and comment on the same underlying text.
+ * modes can highlight and take notes on the same underlying text.
  */
 
 /** Highlight colors offered in the selection toolbar, in display order. */

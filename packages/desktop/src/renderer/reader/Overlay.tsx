@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, FileText, Frame, LayoutGrid, ListTree, Maximize, Minimize, PanelLeft, TextWrap } from 'lucide-react';
+import { ArrowLeft, FileText, Frame, LayoutGrid, ListTree, Maximize, Minimize, NotebookText, PanelLeft, TextWrap } from 'lucide-react';
 import { clampZoomPercent } from '@taking-book/core';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -44,6 +44,10 @@ interface OverlayProps {
   onSelectSidebarTab?: (tab: SidebarTab | null) => void;
   /** When false the thumbnails entry is disabled (e.g. reflow has no page images). */
   sidebarThumbnailsEnabled?: boolean;
+  /** Whether the Notes sidebar is open; drives the icon's pressed styling. */
+  notesOpen?: boolean;
+  /** Toggles the Notes sidebar; the icon is left out when this is not given. */
+  onToggleNotes?: () => void;
 }
 
 export function Overlay({
@@ -69,6 +73,8 @@ export function Overlay({
   sidebarTab = null,
   onSelectSidebarTab,
   sidebarThumbnailsEnabled = true,
+  notesOpen = false,
+  onToggleNotes,
 }: OverlayProps) {
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
 
@@ -199,6 +205,19 @@ export function Overlay({
           >
             {mode === 'reflow' ? <FileText className="size-4" /> : <TextWrap className="size-4" />}
           </Button>
+          {onToggleNotes && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(notesOpen && 'bg-accent text-accent-foreground')}
+              onClick={onToggleNotes}
+              aria-label="Notes"
+              aria-pressed={notesOpen}
+              title={withShortcutHint('Notes', 'toggleNotes')}
+            >
+              <NotebookText className="size-4" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"

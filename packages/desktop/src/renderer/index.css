@@ -234,6 +234,27 @@
   transform: translateY(12px);
 }
 
+/* The Notes sidebar slides in from the right; the page is narrowed at once
+   rather than animated, since re-laying-out every page per frame would stutter. */
+@keyframes notes-sidebar-in {
+  from {
+    transform: translateX(calc(100% + 0.5rem));
+  }
+  to {
+    transform: none;
+  }
+}
+
+.notes-sidebar {
+  animation: notes-sidebar-in 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notes-sidebar {
+    animation: none;
+  }
+}
+
 /* ---------- Find-bar matches (CSS Custom Highlight API, see searchHighlights.ts) ---------- */
 
 ::highlight(tb-search) {

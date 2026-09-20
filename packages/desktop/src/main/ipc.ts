@@ -8,6 +8,7 @@ import {
   getFileZoom,
   getLastPosition,
   getReadingMinutesByBook,
+  getNotesSidebarWidth,
   getSidebarWidth,
   getTheme,
   isOk,
@@ -24,6 +25,7 @@ import {
   setFileZoom,
   setFileTags,
   setFileTitle,
+  setNotesSidebarWidth,
   setSidebarWidth,
   setTheme,
   upsertFile,
@@ -252,6 +254,12 @@ export function registerIpc(db: SqlDriver): void {
 
   ipcMain.handle('settings:sidebarWidth:set', (_event, width: number) =>
     setSidebarWidth(db, width),
+  );
+
+  ipcMain.handle('settings:notesSidebarWidth:get', () => getNotesSidebarWidth(db));
+
+  ipcMain.handle('settings:notesSidebarWidth:set', (_event, width: number) =>
+    setNotesSidebarWidth(db, width),
   );
 
   ipcMain.handle('window:fullscreen:get', (event): Result<boolean> => {

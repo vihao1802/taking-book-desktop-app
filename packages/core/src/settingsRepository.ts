@@ -88,6 +88,27 @@ export function setSidebarWidth(db: SqlDriver, width: number): Promise<Result<vo
   return setSetting(db, SIDEBAR_WIDTH_KEY, String(width));
 }
 
+const NOTES_SIDEBAR_WIDTH_KEY = 'reader.notesSidebarWidth';
+
+/**
+ * Reads the Notes sidebar's saved width in pixels. It is stored apart from the
+ * reader sidebar's width so each panel keeps the size the reader gave it.
+ *
+ * @returns The width, or null when it was never saved or the stored value is not a finite number.
+ */
+export async function getNotesSidebarWidth(db: SqlDriver): Promise<Result<number | null>> {
+  const stored = await getSetting(db, NOTES_SIDEBAR_WIDTH_KEY);
+  if (!stored.ok) return stored;
+  if (stored.data === null) return ok(null);
+  const width = Number(stored.data);
+  return ok(Number.isFinite(width) ? width : null);
+}
+
+/** Persists the Notes sidebar's width in pixels. */
+export function setNotesSidebarWidth(db: SqlDriver, width: number): Promise<Result<void>> {
+  return setSetting(db, NOTES_SIDEBAR_WIDTH_KEY, String(width));
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

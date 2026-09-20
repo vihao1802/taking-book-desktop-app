@@ -8,11 +8,11 @@ interface SelectionToolbarProps {
   x: number;
   y: number;
   onHighlight: (color: AnnotationColor) => void;
-  onComment: () => void;
+  onAddNote: () => void;
 }
 
-/** Floating toolbar shown over selected text: pick a highlight color or comment. */
-export function SelectionToolbar({ x, y, onHighlight, onComment }: SelectionToolbarProps) {
+/** Floating toolbar shown over selected text: pick a highlight color or add a note. */
+export function SelectionToolbar({ x, y, onHighlight, onAddNote }: SelectionToolbarProps) {
   return (
     <div
       className="bg-overlay text-foreground fixed z-50 flex items-center gap-1 rounded-lg px-2 py-1.5 shadow-lg backdrop-blur-md"
@@ -35,9 +35,9 @@ export function SelectionToolbar({ x, y, onHighlight, onComment }: SelectionTool
         variant="ghost"
         size="icon"
         className={cn('size-7 cursor-pointer rounded-md')}
-        onClick={onComment}
-        aria-label="Add comment"
-        title="Add comment"
+        onClick={onAddNote}
+        aria-label="Add note"
+        title="Add note"
       >
         <MessageSquarePlus className="size-4" />
       </Button>

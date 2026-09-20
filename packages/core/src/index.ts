@@ -21,10 +21,13 @@ export {
   readingSessionsSchema,
   recordReadingSession,
 } from './readingSessionsRepository';
+export { listNotes, type ListNotesOptions } from './notes';
 export {
+  getNotesSidebarWidth,
   getSetting,
   getSidebarWidth,
   getTheme,
+  setNotesSidebarWidth,
   setSetting,
   setSidebarWidth,
   setTheme,
