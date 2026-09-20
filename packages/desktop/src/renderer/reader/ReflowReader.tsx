@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from 'react';
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Loader2 } from 'lucide-react';
 import {
@@ -861,7 +861,7 @@ function runOffsets(paragraph: ReflowParagraph): Array<{ run: ReflowRun; start: 
 /**
  * Renders the `[from, to)` char range of a paragraph as its styled runs.
  * Unstyled runs render as raw text so selection stays contiguous; bold/italic
- * runs are wrapped in spans with the matching weight and slant. Offsets come
+ * and syntax-colored runs are wrapped in spans with the matching weight, slant and color. Offsets come
  * from the same `paragraph.text` space the highlight anchors use, so runs and
  * marks slice cleanly against each other.
  */
@@ -877,13 +877,15 @@ function renderStyled(
     const e = Math.min(to, end);
     if (e <= s) continue;
     const chunk = run.text.slice(s - start, e - start);
-    if (run.bold || run.italic) {
+    if (run.bold || run.italic || run.color) {
       nodes.push(
         <span
           key={`${from}-${start}`}
+          className={run.color ? 'code-ink' : undefined}
           style={{
             fontWeight: run.bold ? 'bold' : undefined,
             fontStyle: run.italic ? 'italic' : undefined,
+            ...(run.color ? ({ '--code-ink': run.color } as CSSProperties) : {}),
           }}
         >
           {chunk}

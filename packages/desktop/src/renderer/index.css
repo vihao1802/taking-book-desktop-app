@@ -14,6 +14,10 @@
   --muted-text: #8a8680;
   --brand: #0a6cff;
   --btn-bg: rgba(0, 0, 0, 0.06);
+  /* Lightness band (OKLCH) syntax colors from a PDF are held to, so they stay
+     readable on this theme's code background whatever page they were made for. */
+  --code-ink-min: 0.25;
+  --code-ink-max: 0.5;
   --btn-hover: rgba(0, 0, 0, 0.1);
   --overlay-bg: rgba(250, 249, 247, 0.92);
   --overlay-fg: #1a1a1a;
@@ -78,6 +82,8 @@
   --overlay-bg: rgba(19, 19, 19, 0.92);
   --overlay-fg: #e8e6e3;
   --reflow-bg: #1b1a18;
+  --code-ink-min: 0.72;
+  --code-ink-max: 0.92;
 
   --dash-bg: #171512;
   --dash-rail: #1c1a16;
@@ -104,6 +110,8 @@
   --overlay-bg: rgba(244, 236, 216, 0.94);
   --overlay-fg: #5b4636;
   --reflow-bg: #ede2c6;
+  --code-ink-min: 0.25;
+  --code-ink-max: 0.48;
 
   --dash-bg: #f0e7d1;
   --dash-rail: #f5eede;
@@ -118,6 +126,12 @@
   --dash-alert: #c0392b;
   --dash-success: #7d9c45;
   --dash-success-fg: #f4ecd8;
+}
+
+/* A syntax-highlighted code span: keeps the PDF's hue and saturation but takes
+   its lightness from the theme, since the PDF chose it for its own background. */
+.code-ink {
+  color: oklch(from var(--code-ink) clamp(var(--code-ink-min), l, var(--code-ink-max)) c h);
 }
 
 @theme inline {

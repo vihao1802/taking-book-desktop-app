@@ -86,8 +86,10 @@ export {
   type ReflowOptions,
   type ReflowParagraph,
   type ReflowRun,
+  type ReflowRunStyle,
   type ReflowTextItem,
 } from './reflow';
+export { assignCodeColors, isPlainInk, type ColoredText } from './reflowColors';
 export {
   offsetForPageLocation,
   pageIndexAtOffset,

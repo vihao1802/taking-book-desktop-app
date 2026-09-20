@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   assignImagePositions,
   filterBoilerplateParagraphs,
+  assignCodeColors,
   fontStyleFromName,
   isMonospaceFont,
   isOk,
@@ -26,6 +27,7 @@ import {
   renderVectorFigure,
 } from './vectorFigures';
 import { getPageCached } from './pdf';
+import { extractTextColors } from './textColors';
 
 /** Text fragment shape from pdf.js getTextContent(), narrowed to what reflow needs. */
 interface TextFragment {
@@ -250,7 +252,10 @@ export function useReflowDocument(
           texts.push(pageText);
           // A drawing's labels would read as body text and table rows; the
           // drawing itself is shown as a figure instead.
-          all.push(...reflowPage(dropTextInsideFigures(items, figures), i - 1));
+          // Colors live only in the operator list; attach them to code before
+          // fragments are regrouped into lines, while content order still holds.
+          const coloredItems = assignCodeColors(items, extractTextColors(opList));
+          all.push(...reflowPage(dropTextInsideFigures(coloredItems, figures), i - 1));
           // Intermediate flushes show raw text as soon as possible; the final
           // pass applies the boilerplate filter with the complete document so
           // repeated headers/watermarks are judged against every page. Both

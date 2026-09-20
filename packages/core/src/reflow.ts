@@ -23,6 +23,8 @@ export interface ReflowTextItem {
   italic?: boolean;
   /** Set in a fixed-pitch font; lines made only of such fragments are treated as code. */
   monospace?: boolean;
+  /** Ink color as `#rrggbb`, set only on code fragments whose color differs from plain text. */
+  color?: string;
 }
 
 /**
@@ -34,7 +36,18 @@ export interface ReflowRun {
   text: string;
   bold: boolean;
   italic: boolean;
+  /**
+   * Ink color as `#rrggbb`, kept for syntax-highlighted code. Absent means the
+   * theme's normal text color, so a color designed for the book's own page
+   * background never has to be trusted on the reader's.
+   */
+  color?: string;
 }
+
+/** The visual style a run carries, everything but its text. */
+export type ReflowRunStyle = Omit<ReflowRun, 'text'>;
+
+const PLAIN_STYLE: ReflowRunStyle = { bold: false, italic: false };
 
 /**
  * Detects bold/italic from a PDF font's PostScript name (e.g.
@@ -321,11 +334,24 @@ function detectTableRows(
  * starts a new run. Keeps runs as maximal contiguous same-style stretches, the
  * shape `ReflowRun` promises.
  */
-function appendRun(runs: ReflowRun[], text: string, bold: boolean, italic: boolean): void {
+function appendRun(runs: ReflowRun[], text: string, style: ReflowRunStyle): void {
   if (text === '') return;
   const last = runs[runs.length - 1];
-  if (last && last.bold === bold && last.italic === italic) last.text += text;
-  else runs.push({ text, bold, italic });
+  if (last && last.bold === style.bold && last.italic === style.italic && last.color === style.color) {
+    last.text += text;
+  } else {
+    runs.push({ text, bold: style.bold, italic: style.italic, ...(style.color ? { color: style.color } : {}) });
+  }
+}
+
+/** The style of the last run, so filler whitespace joins it instead of splitting it. */
+function trailingStyle(runs: ReflowRun[]): ReflowRunStyle {
+  return runs[runs.length - 1] ?? PLAIN_STYLE;
+}
+
+/** The style of a text fragment, as its run would carry it. */
+function itemStyle(item: ReflowTextItem): ReflowRunStyle {
+  return { bold: item.bold ?? false, italic: item.italic ?? false, ...(item.color ? { color: item.color } : {}) };
 }
 
 function joinLineRuns(items: ReflowTextItem[], wordGapRatio: number): { text: string; runs: ReflowRun[] } {
@@ -339,8 +365,8 @@ function joinLineRuns(items: ReflowTextItem[], wordGapRatio: number): { text: st
       !runs[runs.length - 1].text.endsWith(' ') &&
       !item.str.startsWith(' ') &&
       gap > wordGapRatio * Math.max(prevFont, item.fontSize);
-    if (needSpace) appendRun(runs, ' ', false, false);
-    appendRun(runs, item.str, item.bold ?? false, item.italic ?? false);
+    if (needSpace) appendRun(runs, ' ', PLAIN_STYLE);
+    appendRun(runs, item.str, itemStyle(item));
     prevRight = item.x + item.width;
     prevFont = item.fontSize;
   }
@@ -395,10 +421,11 @@ function buildCodeLine(items: ReflowTextItem[], y: number, fontSize: number): Re
   for (const item of items) {
     const column = Math.round((item.x - originX) / charWidth);
     if (column > length) {
-      appendRun(padded, ' '.repeat(column - length), false, false);
+      // Spaces take the style of what precedes them so they never split a run.
+      appendRun(padded, ' '.repeat(column - length), trailingStyle(padded));
       length = column;
     }
-    appendRun(padded, item.str, item.bold ?? false, item.italic ?? false);
+    appendRun(padded, item.str, itemStyle(item));
     length += item.str.length;
   }
   const { runs, leading } = trimRuns(padded);
@@ -434,7 +461,7 @@ function collapseRuns(runs: ReflowRun[]): { text: string; runs: ReflowRun[] } {
       }
       if (pendingSpace) {
         if (text.length > 0) {
-          appendRun(out, ' ', false, false);
+          appendRun(out, ' ', PLAIN_STYLE);
           text += ' ';
         }
         pendingSpace = false;
@@ -442,7 +469,7 @@ function collapseRuns(runs: ReflowRun[]): { text: string; runs: ReflowRun[] } {
       let end = i;
       while (end < run.text.length && !/\s/.test(run.text[end])) end++;
       const chunk = run.text.slice(i, end);
-      appendRun(out, chunk, run.bold, run.italic);
+      appendRun(out, chunk, run);
       text += chunk;
       i = end;
     }
@@ -564,8 +591,8 @@ export function paragraphsFromLines(
     } else {
       paragraphLines[paragraphLines.length - 1].push(line);
       prev.text += ' ' + line.text;
-      appendRun(prev.runs, ' ', false, false);
-      for (const run of line.runs) appendRun(prev.runs, run.text, run.bold, run.italic);
+      appendRun(prev.runs, ' ', PLAIN_STYLE);
+      for (const run of line.runs) appendRun(prev.runs, run.text, run);
     }
   });
 
@@ -605,10 +632,10 @@ function buildCodeText(lines: ReflowLine[]): { text: string; runs: ReflowRun[] }
   lines.forEach((line, index) => {
     if (index > 0) {
       const blanks = Math.min(CODE_MAX_BLANK_LINES, Math.max(0, Math.round(gaps[index - 1] / lineHeight) - 1));
-      appendRun(runs, '\n'.repeat(1 + blanks), false, false);
+      appendRun(runs, '\n'.repeat(1 + blanks), trailingStyle(runs));
     }
-    appendRun(runs, ' '.repeat(Math.max(0, Math.round((line.x - blockLeft) / charWidth))), false, false);
-    for (const run of line.runs) appendRun(runs, run.text, run.bold, run.italic);
+    appendRun(runs, ' '.repeat(Math.max(0, Math.round((line.x - blockLeft) / charWidth))), trailingStyle(runs));
+    for (const run of line.runs) appendRun(runs, run.text, run);
   });
   return { text: runs.map((run) => run.text).join(''), runs };
 }
