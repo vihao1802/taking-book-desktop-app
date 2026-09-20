@@ -20,6 +20,7 @@ import { ReaderBars } from './ReaderBars';
 import { useDocumentSearch } from './useDocumentSearch';
 import { usePageTexts } from './usePageTexts';
 import { useReaderShortcuts } from './useReaderShortcuts';
+import { usePersistedZoom } from './usePersistedZoom';
 
 const HIDE_DELAY_MS = 2500;
 
@@ -51,10 +52,16 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const { openBar: openSearchBar } = search;
   const [goToRequest, setGoToRequest] = useState(0);
 
-  const [zoom, setZoom] = useState(1);
+  // Page and reflow keep separate zoom levels: reflow scales font size while
+  // page mode scales the page width, so one shared number would make a switch
+  // between the views jump to a size chosen for the other.
   const [fitWidth, setFitWidth] = useState(true);
-  const zoomLoadedRef = useRef(false);
-  const zoomSaveTimerRef = useRef<number>(0);
+  // A saved page zoom of exactly 100% means the book was left in fit-to-width;
+  // anything else means it was zoomed, so fit-to-width must be off or the
+  // toolbar would show a zoom the layout isn't applying.
+  const restorePageZoom = useCallback((restored: number) => setFitWidth(restored === 1), []);
+  const [zoom, setZoom] = usePersistedZoom(file.id, 'page', restorePageZoom);
+  const [reflowZoom, setReflowZoom] = usePersistedZoom(file.id, 'reflow');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pagesRef = useRef<PdfPagesHandle>(null);
@@ -115,36 +122,6 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
       window.api.setFilePageCount(file.id, pdf.numPages);
     }
   }, [pdf, file.id]);
-
-  // Restore the zoom level this book was last read at, so reopening doesn't
-  // reset to 100% and force the reader to re-zoom. A saved zoom of exactly 100%
-  // means the book was left in fit-to-width; anything else means it was zoomed,
-  // so fit-to-width must be off or the toolbar would show a zoom the layout
-  // isn't applying.
-  useEffect(() => {
-    let cancelled = false;
-    window.api.getFileZoom(file.id).then((res) => {
-      if (cancelled || !isOk(res) || res.data == null) return;
-      zoomLoadedRef.current = true;
-      const restored = clampZoom(res.data);
-      setZoom(restored);
-      setFitWidth(restored === 1);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [file.id]);
-
-  // Persist zoom changes (debounced) once the saved value has been restored;
-  // the initial load must not immediately overwrite what was just read.
-  useEffect(() => {
-    if (!zoomLoadedRef.current) return;
-    window.clearTimeout(zoomSaveTimerRef.current);
-    zoomSaveTimerRef.current = window.setTimeout(() => {
-      window.api.setFileZoom(file.id, zoom);
-    }, 400);
-    return () => window.clearTimeout(zoomSaveTimerRef.current);
-  }, [zoom, file.id]);
 
   const persistPosition = useCallback(() => {
     const current = positionRef.current;
@@ -229,14 +206,18 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const openGoToPage = useCallback(() => setGoToRequest((request) => request + 1), []);
   const closeGoToPage = useCallback(() => setGoToRequest(0), []);
 
-  const changeZoom = useCallback((value: number) => {
-    setFitWidth(false);
-    setZoom(clampZoom(value));
-  }, []);
+  const changeZoom = useCallback(
+    (value: number) => {
+      setFitWidth(false);
+      setZoom(clampZoom(value));
+    },
+    [setZoom],
+  );
+  const changeReflowZoom = useCallback((value: number) => setReflowZoom(clampZoom(value)), [setReflowZoom]);
   const fitToWidth = useCallback(() => {
     setFitWidth(true);
     setZoom(1);
-  }, []);
+  }, [setZoom]);
   const stepZoom = (direction: 'in' | 'out') => {
     const stepped = stepZoomMultiplier(zoom, direction);
     if (stepped !== null) changeZoom(stepped);
@@ -356,8 +337,8 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           initialLocation={handoffLocation}
           onLocationChange={recordLocation}
           onToggleMode={toggleMode}
-          zoom={zoom}
-          onZoomChange={setZoom}
+          zoom={reflowZoom}
+          onZoomChange={changeReflowZoom}
           search={search}
           onOpenFind={openFind}
           goToRequest={goToRequest}

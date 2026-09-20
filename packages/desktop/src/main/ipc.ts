@@ -124,10 +124,10 @@ export function registerIpc(db: SqlDriver): void {
     setFilePageCount(db, id, pageCount, await stamp()),
   );
 
-  ipcMain.handle('files:zoom:get', (_event, id: number) => getFileZoom(db, id));
+  ipcMain.handle('files:zoom:get', (_event, id: number, mode: ReadMode) => getFileZoom(db, id, mode));
 
-  ipcMain.handle('files:zoom:set', async (_event, id: number, zoom: number) =>
-    setFileZoom(db, id, zoom, await stamp()),
+  ipcMain.handle('files:zoom:set', async (_event, id: number, zoom: number, mode: ReadMode) =>
+    setFileZoom(db, id, zoom, { mode, stamp: await stamp() }),
   );
 
   // Cover thumbnails are cached as JPEG files keyed by content hash so the

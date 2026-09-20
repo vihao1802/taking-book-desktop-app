@@ -42,6 +42,11 @@ Rework the reader overlay zoom controls:
 These apply to both page and reflow modes, which share the same overlay zoom
 control.
 
+> **Amended later:** the two modes no longer share one zoom value. Each keeps
+> its own zoom per book (`zoom` for page, `reflow_zoom` for reflow), saved and
+> restored separately. The `Fit` text label from point 4 was also dropped; the
+> fit-to-width button is icon-only.
+
 ## Consequences
 
 - Users can reach any round zoom level in one click and a custom one via the

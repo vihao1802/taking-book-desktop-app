@@ -19,6 +19,7 @@ interface FileRow {
   last_mode: string | null;
   page_count: number | null;
   zoom: number | null;
+  reflow_zoom: number | null;
   last_read_at: number | null;
   created_at: string;
 }
@@ -37,6 +38,7 @@ function toBookFile(row: FileRow): BookFile {
     lastMode: parseMode(row.last_mode),
     pageCount: row.page_count,
     zoom: row.zoom,
+    reflowZoom: row.reflow_zoom,
     lastReadAt: row.last_read_at,
     createdAt: row.created_at,
   };
@@ -67,6 +69,7 @@ function rowToRow(row: Record<string, SqlValue>): FileRow {
     last_mode: row.last_mode == null ? null : String(row.last_mode),
     page_count: row.page_count == null ? null : Number(row.page_count),
     zoom: row.zoom == null ? null : Number(row.zoom),
+    reflow_zoom: row.reflow_zoom == null ? null : Number(row.reflow_zoom),
     last_read_at: row.last_read_at == null ? null : Number(row.last_read_at),
     created_at: String(row.created_at),
   };
@@ -232,35 +235,56 @@ export async function setFileFavorite(
   }
 }
 
-/** Returns the saved zoom multiplier for a file, or null if the user never zoomed. */
-export async function getFileZoom(db: SqlDriver, id: number): Promise<Result<number | null>> {
-  try {
-    const row = await db.get('SELECT zoom FROM files WHERE id = ?', [id]);
-    return ok(row && row.zoom != null ? Number(row.zoom) : null);
-  } catch (error) {
-    return err(`Failed to read zoom for file ${id}: ${errorMessage(error)}`);
-  }
+/** Column holding each reader view's zoom; the two views are zoomed independently. */
+function zoomColumn(mode: ReadMode): 'zoom' | 'reflow_zoom' {
+  return mode === 'reflow' ? 'reflow_zoom' : 'zoom';
 }
 
 /**
- * Persists the zoom multiplier a book was last read at so reopening restores
- * the same text/page size instead of resetting to 1.
+ * Returns the saved zoom multiplier for a file in the given reader view, or
+ * null if the user never zoomed that view.
+ */
+export async function getFileZoom(
+  db: SqlDriver,
+  id: number,
+  mode: ReadMode = 'page',
+): Promise<Result<number | null>> {
+  try {
+    const column = zoomColumn(mode);
+    const row = await db.get(`SELECT ${column} FROM files WHERE id = ?`, [id]);
+    return ok(row && row[column] != null ? Number(row[column]) : null);
+  } catch (error) {
+    return err(`Failed to read ${mode} zoom for file ${id}: ${errorMessage(error)}`);
+  }
+}
+
+export interface SetFileZoomOptions {
+  /** Reader view the zoom applies to; defaults to page mode. */
+  mode?: ReadMode;
+  stamp?: SyncStamp;
+}
+
+/**
+ * Persists the zoom multiplier a book was last read at in one reader view so
+ * reopening restores the same text/page size instead of resetting to 1. Page
+ * and reflow zoom are stored separately so changing one never moves the other.
  */
 export async function setFileZoom(
   db: SqlDriver,
   id: number,
   zoom: number,
-  stamp?: SyncStamp,
+  options: SetFileZoomOptions = {},
 ): Promise<Result<void>> {
-  const clock = stamp ?? defaultStamp();
+  const mode = options.mode ?? 'page';
+  const clock = options.stamp ?? defaultStamp();
   try {
     await db.run(
-      'UPDATE files SET zoom = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      `UPDATE files SET ${zoomColumn(mode)} = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
       [zoom, clock.updatedAt, clock.updatedBy, id],
     );
     return ok(undefined);
   } catch (error) {
-    return err(`Failed to save zoom for file ${id}: ${errorMessage(error)}`);
+    return err(`Failed to save ${mode} zoom for file ${id}: ${errorMessage(error)}`);
   }
 }
 

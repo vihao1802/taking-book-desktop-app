@@ -28,6 +28,8 @@ export interface BookFile {
   pageCount: number | null;
   /** The zoom multiplier the book was last read at; null until the user zooms. */
   zoom: number | null;
+  /** The zoom multiplier reflow mode was last read at, independent of page mode's; null until the user zooms it. */
+  reflowZoom: number | null;
   /** Epoch ms of the last time the reader saved a position; null until first opened. */
   lastReadAt: number | null;
   createdAt: string;

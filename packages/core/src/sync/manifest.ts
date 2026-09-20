@@ -48,13 +48,14 @@ function isValidRecord(value: unknown): value is SyncRecord {
     (record.lastPosition == null || typeof record.lastPosition === 'number') &&
     (record.lastMode == null || record.lastMode === 'page' || record.lastMode === 'reflow') &&
     (record.pageCount == null || typeof record.pageCount === 'number') &&
+    (record.reflowZoom == null || typeof record.reflowZoom === 'number') &&
     (record.annotations == null || (Array.isArray(record.annotations) && record.annotations.every(isValidAnnotation)))
   );
 }
 
 /**
  * Normalizes a parsed record so newer clients tolerate manifests written by
- * older ones: missing fields (favorite, pageCount, annotations) fall back to
+ * older ones: missing fields (favorite, pageCount, reflowZoom, annotations) fall back to
  * defaults.
  */
 function normalizeRecord(value: SyncRecord): SyncRecord {
@@ -63,6 +64,7 @@ function normalizeRecord(value: SyncRecord): SyncRecord {
     favorite: value.favorite ?? false,
     pageCount: value.pageCount ?? null,
     lastMode: value.lastMode ?? null,
+    reflowZoom: value.reflowZoom ?? null,
     annotations: value.annotations ?? [],
   };
 }

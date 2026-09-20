@@ -158,6 +158,34 @@ describe('filesRepository', () => {
     if (isOk(list)) expect(list.data[0].zoom).toBe(1.5);
   });
 
+  it('keeps page zoom and reflow zoom independent', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/i.pdf', hash: 'h-i', title: 'I' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+    const { id } = created.data;
+
+    const reflowBefore = await getFileZoom(db, id, 'reflow');
+    expect(isOk(reflowBefore) && reflowBefore.data === null).toBe(true);
+
+    await setFileZoom(db, id, 1.5);
+    const reflowAfterPage = await getFileZoom(db, id, 'reflow');
+    expect(isOk(reflowAfterPage) && reflowAfterPage.data === null).toBe(true);
+
+    await setFileZoom(db, id, 0.75, { mode: 'reflow' });
+    const page = await getFileZoom(db, id, 'page');
+    const reflow = await getFileZoom(db, id, 'reflow');
+    expect(isOk(page) && page.data).toBe(1.5);
+    expect(isOk(reflow) && reflow.data).toBe(0.75);
+
+    const list = await listFiles(db);
+    if (isOk(list)) {
+      expect(list.data[0].zoom).toBe(1.5);
+      expect(list.data[0].reflowZoom).toBe(0.75);
+    }
+  });
+
   it('returns null zoom for an unknown file id', async () => {
     const db = createMemoryDriver();
     await db.exec(filesSchema());

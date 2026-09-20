@@ -16,6 +16,7 @@ function book(id: number, lastReadAt: number | null): BookFile {
     lastMode: 'page',
     pageCount: null,
     zoom: null,
+    reflowZoom: null,
     lastReadAt,
     createdAt: '2026-01-01 00:00:00',
   };

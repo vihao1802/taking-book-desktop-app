@@ -13,6 +13,7 @@ function record(hash: string): SyncRecord {
     lastPosition: 0.5,
     lastMode: 'page',
     pageCount: 100,
+    reflowZoom: 0.75,
     annotations: [],
     updatedAt: 123,
     updatedBy: 'dev-a',

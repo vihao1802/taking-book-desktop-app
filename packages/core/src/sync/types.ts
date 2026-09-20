@@ -47,6 +47,8 @@ export interface SyncRecord extends SyncStamp {
   pageCount: number | null;
   /** The zoom multiplier the book was last read at; null until the user zooms. */
   zoom: number | null;
+  /** The zoom multiplier reflow mode was last read at, independent of `zoom`; null until the user zooms it. */
+  reflowZoom: number | null;
   /** Epoch ms of the last read; null until first opened or on older manifests. */
   lastReadAt: number | null;
   /** Highlights/comments attached to this book; empty when there are none. */
