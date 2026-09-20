@@ -120,7 +120,7 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
     viewReady: initialPosition !== undefined && (mode === 'page' || reflowTextReady),
     annotations,
     jumpToNote,
-    editAnnotation: notesSidebar.editAnnotation,
+    selectAnnotation: notesSidebar.selectAnnotation,
   });
   // Where the reader is right now, as a page plus how far down it. Both views
   // report it, and it is handed to the other view on a mode toggle: a scroll

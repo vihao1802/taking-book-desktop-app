@@ -1,4 +1,4 @@
-import { hasNoteText } from '@taking-book/core';
+import { hasNoteText, isPageNote } from '@taking-book/core';
 import { Pencil } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,8 @@ import { HIGHLIGHT_FILL } from './highlights';
 
 interface NoteCardProps {
   annotation: Annotation;
+  /** True for the card the reader arrived at (from the Notes view); it gets the same accent border as a card in edit mode. */
+  selected?: boolean;
   /** Called when the reader clicks the card, to jump to where the Note was written; without it the card is not clickable. */
   onJump?: (annotation: Annotation) => void;
   /**
@@ -17,7 +19,9 @@ interface NoteCardProps {
   onEdit?: (annotation: Annotation) => void;
 }
 
-const CARD_CLASS = 'border-border/60 bg-background/40 flex h-full w-full flex-col gap-1.5 rounded-md border p-2.5 text-left';
+const CARD_CLASS = 'bg-background/40 flex h-full w-full flex-col gap-1.5 rounded-md border p-2.5 text-left';
+const CARD_BORDER_CLASS = 'border-border/60';
+const SELECTED_CARD_BORDER_CLASS = 'border-primary/60';
 
 /**
  * One entry of the Notes sidebar: the page it was written on, the passage it
@@ -27,8 +31,9 @@ const CARD_CLASS = 'border-border/60 bg-background/40 flex h-full w-full flex-co
  * spans because a button may only hold phrasing content, which is also why the
  * edit pencil is a sibling of that button rather than inside it.
  */
-export function NoteCard({ annotation, onJump, onEdit }: NoteCardProps) {
-  const hasQuote = annotation.quote.trim().length > 0;
+export function NoteCard({ annotation, selected = false, onJump, onEdit }: NoteCardProps) {
+  const hasQuote = !isPageNote(annotation);
+  const cardClass = `${CARD_CLASS} ${selected ? SELECTED_CARD_BORDER_CLASS : CARD_BORDER_CLASS}`;
 
   const content = (
     <>
@@ -57,17 +62,17 @@ export function NoteCard({ annotation, onJump, onEdit }: NoteCardProps) {
   );
 
   return (
-    <li data-note-id={annotation.id} className="relative">
+    <li data-note-id={annotation.id} aria-current={selected || undefined} className="relative">
       {onJump ? (
         <button
           type="button"
           onClick={() => onJump(annotation)}
-          className={`${CARD_CLASS} hover:bg-accent focus-visible:ring-ring cursor-pointer outline-none focus-visible:ring-2`}
+          className={`${cardClass} hover:bg-accent focus-visible:ring-ring cursor-pointer outline-none focus-visible:ring-2`}
         >
           {content}
         </button>
       ) : (
-        <div className={CARD_CLASS}>{content}</div>
+        <div className={cardClass}>{content}</div>
       )}
       {onEdit && (
         <Button

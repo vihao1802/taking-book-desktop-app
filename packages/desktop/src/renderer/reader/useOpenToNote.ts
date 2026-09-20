@@ -15,17 +15,17 @@ interface OpenToNoteOptions {
   /** The open book's live annotations, as loaded by the reader. */
   annotations: Annotation[];
   jumpToNote: (annotation: Annotation) => void;
-  editAnnotation: NotesSidebarState['editAnnotation'];
+  selectAnnotation: NotesSidebarState['selectAnnotation'];
 }
 
 /**
  * Carries out an arrival from the Notes view: once the book is showing in its
  * saved mode and the Note's Annotation has loaded (the highlight to flash is drawn
- * from that list), it opens the Notes sidebar on the Note's card and jumps to
+ * from that list), it opens the Notes sidebar with the Note's card selected (not in edit mode, so a stray key press cannot change the text) and jumps to
  * where the Note was written. It happens once per opened book; a Note that was
  * deleted in the meantime never appears in the list, so the book just opens.
  */
-export function useOpenToNote({ note, viewReady, annotations, jumpToNote, editAnnotation }: OpenToNoteOptions): void {
+export function useOpenToNote({ note, viewReady, annotations, jumpToNote, selectAnnotation }: OpenToNoteOptions): void {
   const doneRef = useRef(false);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function useOpenToNote({ note, viewReady, annotations, jumpToNote, editAn
     const stored = annotations.find((candidate) => candidate.id === note.id);
     if (!stored) return;
     doneRef.current = true;
-    editAnnotation(stored);
+    selectAnnotation(stored);
     jumpToNote(stored);
-  }, [note, viewReady, annotations, jumpToNote, editAnnotation]);
+  }, [note, viewReady, annotations, jumpToNote, selectAnnotation]);
 }

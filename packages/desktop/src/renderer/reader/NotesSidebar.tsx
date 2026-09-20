@@ -33,7 +33,8 @@ interface NotesSidebarProps {
  * followed every page turn would move under the pointer while a Note is clicked.
  */
 export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJump }: NotesSidebarProps) {
-  const { notes, showHighlights, onShowHighlightsChange, close, width, onWidthChange, editingId, focusRequest, stopEditing } = state;
+  const { notes, showHighlights, onShowHighlightsChange, close, width, onWidthChange, editingId, selectedId, focusRequest, stopEditing } = state;
+  const focusedId = editingId ?? selectedId;
   const asideRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [pageWhenOpened] = useState(readingPage);
@@ -41,17 +42,17 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
   const hadDraftWhenOpenedRef = useRef(noteDraft.draft !== null);
   // Clicking a highlight on the page opens the sidebar on that card; the
   // "nearest note" scroll below must not fight the scroll to it.
-  const hadEditingWhenOpenedRef = useRef(editingId !== null);
+  const hadFocusedCardWhenOpenedRef = useRef(focusedId !== null);
 
-  // Bring the card being edited into view, including when its highlight is clicked again.
+  // Bring the card being edited or selected into view, including when its highlight is clicked again.
   useEffect(() => {
-    if (editingId === null) return;
-    listRef.current?.querySelector(`[data-note-id="${editingId}"]`)?.scrollIntoView({ block: 'nearest' });
-  }, [editingId, focusRequest]);
+    if (focusedId === null) return;
+    listRef.current?.querySelector(`[data-note-id="${focusedId}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [focusedId, focusRequest]);
 
   useEffect(() => {
     // A draft waiting at the top of the list is what the reader came back to write; keep it in view.
-    if (hadDraftWhenOpenedRef.current || hadEditingWhenOpenedRef.current) return;
+    if (hadDraftWhenOpenedRef.current || hadFocusedCardWhenOpenedRef.current) return;
     const list = listRef.current;
     const nearest = findNearestNote(notesWhenOpenedRef.current, pageWhenOpened);
     const card = nearest ? list?.querySelector(`[data-note-id="${nearest.id}"]`) : null;
@@ -113,6 +114,7 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
                 <NoteCard
                   key={note.id}
                   annotation={note}
+                  selected={note.id === selectedId}
                   onJump={onJump}
                   onEdit={isPageNote(note) ? state.editAnnotation : undefined}
                 />

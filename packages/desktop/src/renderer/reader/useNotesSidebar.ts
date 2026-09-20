@@ -19,13 +19,21 @@ export interface NotesSidebarState {
   notes: Annotation[];
   /** Local id of the annotation whose card is in edit mode; null when none is. */
   editingId: number | null;
-  /** Changes on every `editAnnotation`, so the list scrolls to the card again even when it is already the one being edited. */
+  /** Local id of the annotation whose card is marked as selected (not editable); null when none is. */
+  selectedId: number | null;
+  /** Changes on every `editAnnotation`/`selectAnnotation`, so the list scrolls to the card again even when it is already the one in focus. */
   focusRequest: number;
   /**
    * Opens the sidebar and switches the annotation's card to edit mode. A plain
    * Highlight is not in the default list, so the filter is turned on for it.
    */
   editAnnotation: (annotation: Annotation) => void;
+  /**
+   * Opens the sidebar and marks the annotation's card as selected without
+   * making it editable, so the reader can read the Note in context. The filter
+   * rule is the same as for `editAnnotation`.
+   */
+  selectAnnotation: (annotation: Annotation) => void;
   stopEditing: () => void;
   /** Pixels the page area must stay clear of on its right edge while the sidebar is open. */
   pageInset: number;
@@ -45,6 +53,7 @@ export function useNotesSidebar(annotations: Annotation[]): NotesSidebarState {
   const [open, setOpen] = useState(false);
   const [showHighlights, setShowHighlights] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [focusRequest, setFocusRequest] = useState(0);
   const [width, onWidthChange] = usePersistedSidebarWidth('notes');
 
@@ -52,6 +61,7 @@ export function useNotesSidebar(annotations: Annotation[]): NotesSidebarState {
     setOpen((wasOpen) => !wasOpen);
     setShowHighlights(false);
     setEditingId(null);
+    setSelectedId(null);
   }, []);
   const show = useCallback(() => {
     // Opening resets the filter, exactly like the toggle; an already-open sidebar keeps the one the reader chose.
@@ -59,27 +69,32 @@ export function useNotesSidebar(annotations: Annotation[]): NotesSidebarState {
     setOpen(true);
     // The draft card that opens with it is the one card being worked on.
     setEditingId(null);
+    setSelectedId(null);
   }, [open]);
   const close = useCallback(() => {
     setOpen(false);
     setEditingId(null);
+    setSelectedId(null);
   }, []);
   const stopEditing = useCallback(() => setEditingId(null), []);
-  const editAnnotation = useCallback(
-    (annotation: Annotation) => {
+  const focusCard = useCallback(
+    (annotation: Annotation, focus: { editing: boolean }) => {
       // Same filter rule as opening: a closed sidebar starts from just the Notes, an open one keeps the reader's choice.
       setShowHighlights((current) => (hasNoteText(annotation) ? open && current : true));
       setOpen(true);
-      setEditingId(annotation.id);
+      setEditingId(focus.editing ? annotation.id : null);
+      setSelectedId(focus.editing ? null : annotation.id);
       setFocusRequest((request) => request + 1);
     },
     [open],
   );
+  const editAnnotation = useCallback((annotation: Annotation) => focusCard(annotation, { editing: true }), [focusCard]);
+  const selectAnnotation = useCallback((annotation: Annotation) => focusCard(annotation, { editing: false }), [focusCard]);
 
   const notes = useMemo(() => listNotes(annotations, { includeHighlights: showHighlights }), [annotations, showHighlights]);
   // Dragging the sidebar wider re-lays-out every page; deferring the inset keeps
   // the panel itself following the pointer while the pages catch up.
   const pageInset = useDeferredValue(getNotesPageInset(open, width));
 
-  return { open, toggle, show, close, width, onWidthChange, showHighlights, onShowHighlightsChange: setShowHighlights, notes, editingId, focusRequest, editAnnotation, stopEditing, pageInset };
+  return { open, toggle, show, close, width, onWidthChange, showHighlights, onShowHighlightsChange: setShowHighlights, notes, editingId, selectedId, focusRequest, editAnnotation, selectAnnotation, stopEditing, pageInset };
 }
