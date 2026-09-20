@@ -9,7 +9,7 @@ import { defaultStamp } from './sync/syncRepository';
 import type { SyncAnnotation, SyncStamp } from './sync/types';
 
 /**
- * Data access for reader annotations (highlights + comments). Each row carries
+ * Data access for reader annotations (Highlights and Notes). Each row carries
  * its own LWW clock and an optional tombstone so edits and deletes propagate
  * through the sync manifest like library records do.
  */
@@ -235,7 +235,7 @@ export interface CreateAnnotationOptions {
 }
 
 /**
- * Records a new highlight/comment. The two anchors (page text and reflow
+ * Records a new annotation (a Highlight, a Note or both). The two anchors (page text and reflow
  * paragraph) are both optional so either reader mode can create one; the
  * anchor for the other mode is filled in best-effort by the caller. The
  * annotation gets its uid from `options.generateUid`, once, and keeps it for
@@ -279,7 +279,24 @@ export async function createAnnotation(
   }
 }
 
-/** Updates the comment attached to a highlight. */
+/**
+ * Reads one live (not deleted) annotation by its local id.
+ *
+ * @param db - The data-access driver.
+ * @param id - Local id of the annotation.
+ * @returns The annotation, or an error message when it is missing or deleted.
+ */
+export async function getAnnotation(db: SqlDriver, id: number): Promise<Result<Annotation>> {
+  try {
+    const row = await db.get('SELECT * FROM annotations WHERE id = ? AND deleted_at IS NULL', [id]);
+    if (!row) return err(`No live annotation with id ${id}`);
+    return ok(toAnnotation(rowToRow(row)));
+  } catch (error) {
+    return err(`Failed to read annotation ${id}: ${errorMessage(error)}`);
+  }
+}
+
+/** Sets the raw text of the Note on an annotation; `saveNoteText` in `notesRepository` applies the saving rules on top. */
 export async function setAnnotationNote(
   db: SqlDriver,
   id: number,
@@ -301,7 +318,36 @@ export async function setAnnotationNote(
   }
 }
 
-/** Tombstones a highlight so the delete propagates through sync. */
+/**
+ * Changes the highlight color of an annotation, stamping the edit so it syncs.
+ *
+ * @param db - The data-access driver.
+ * @param id - Local id of the annotation to recolor.
+ * @param color - One of the four highlight colors; anything else is rejected.
+ * @param stamp - Optional sync clock for the edit.
+ * @returns The updated annotation, or an error message when nothing changed.
+ */
+export async function setAnnotationColor(
+  db: SqlDriver,
+  id: number,
+  color: AnnotationColor,
+  stamp?: SyncStamp,
+): Promise<Result<Annotation>> {
+  if (!isColor(color)) return err(`Unknown highlight color: ${color}`);
+  const clock = stamp ?? defaultStamp();
+  try {
+    const result = await db.run(
+      'UPDATE annotations SET color = ?, updated_at = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
+      [color, clock.updatedAt, clock.updatedBy, id],
+    );
+    if (result.changes === 0) return err(`No live annotation with id ${id}`);
+    return getAnnotation(db, id);
+  } catch (error) {
+    return err(`Failed to set annotation color for ${id}: ${errorMessage(error)}`);
+  }
+}
+
+/** Tombstones an annotation (a Highlight, a Note or both) so the delete propagates through sync. */
 export async function deleteAnnotation(
   db: SqlDriver,
   id: number,

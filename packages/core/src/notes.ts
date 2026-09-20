@@ -14,6 +14,14 @@ export function hasNoteText(annotation: Annotation): boolean {
   return annotation.note !== null && annotation.note.trim().length > 0;
 }
 
+/**
+ * True for a Page note: an annotation with no quoted passage. It has no
+ * Highlight, so unlike a Note on a Highlight it is nothing without its text.
+ */
+export function isPageNote(annotation: Annotation): boolean {
+  return annotation.quote.trim().length === 0;
+}
+
 // An annotation with no page-text anchor (a Page note, or a highlight made in
 // reflow whose text could not be matched on the page) has no offset to compare,
 // so it sorts ahead of anchored ones: it speaks about the page as a whole.

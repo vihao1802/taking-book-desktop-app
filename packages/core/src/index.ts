@@ -7,15 +7,17 @@ export {
   applyRecordAnnotations,
   createAnnotation,
   deleteAnnotation,
+  getAnnotation,
   listAnnotations,
   listAnnotationsForSync,
   listLibraryAnnotations,
   migrateAnnotationsSchema,
+  setAnnotationColor,
   setAnnotationNote,
   type CreateAnnotationOptions,
 } from './annotationsRepository';
 export { deriveAnnotationUid, resolveAnnotationUid, type AnnotationUidGenerator } from './annotationUid';
-export { saveNoteDraft, type NoteAnchor, type NoteDraft } from './notesRepository';
+export { deleteNote, saveNoteDraft, saveNoteText, type NoteAnchor, type NoteDraft } from './notesRepository';
 export {
   computeCurrentStreak,
   computeLongestStreak,
@@ -27,7 +29,7 @@ export {
   recordReadingSession,
 } from './readingSessionsRepository';
 export { findNearestNote, locateNote, type NoteLocation } from './noteJump';
-export { hasNoteText, listLibraryNotes, listNotes, type BookNotes, type ListLibraryNotesOptions, type ListNotesOptions } from './notes';
+export { hasNoteText, isPageNote, listLibraryNotes, listNotes, type BookNotes, type ListLibraryNotesOptions, type ListNotesOptions } from './notes';
 export {
   getNotesSidebarWidth,
   getSetting,

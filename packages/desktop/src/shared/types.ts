@@ -25,7 +25,11 @@ export interface ReaderApi {
   listLibraryAnnotations(): Promise<Result<Annotation[]>>;
   createAnnotation(fileHash: string, input: CreateAnnotationInput): Promise<Result<Annotation>>;
   saveNoteDraft(fileHash: string, draft: NoteDraft): Promise<Result<Annotation>>;
-  setAnnotationNote(id: number, note: string | null): Promise<Result<Annotation>>;
+  /** Saves the text of a Note; empty text on a Highlight removes only the text (see core `saveNoteText`). */
+  saveNoteText(id: number, text: string): Promise<Result<Annotation>>;
+  /** Deletes a Note: the Highlight stays with its text removed, or null when a Page note was deleted entirely. */
+  deleteNote(id: number): Promise<Result<Annotation | null>>;
+  setAnnotationColor(id: number, color: AnnotationColor): Promise<Result<Annotation>>;
   deleteAnnotation(id: number): Promise<Result<void>>;
   getTheme(): Promise<Result<Theme>>;
   setTheme(theme: Theme): Promise<Result<void>>;

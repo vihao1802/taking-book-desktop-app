@@ -34,6 +34,8 @@ interface PdfPagesProps {
   searchScrollRequest: number;
   onCreate: (selection: PageTextSelection, color: AnnotationColor) => Promise<Annotation | null>;
   onAddNote: (selection: PageTextSelection) => void;
+  /** Called when the reader clicks a highlight, to edit its card in the Notes sidebar. */
+  onOpenAnnotation: (annotation: Annotation) => void;
   /** A jump to a Note that this view still has to carry out; null when there is none. */
   noteJump: NoteJump | null;
   onNoteJumpDone: FinishNoteJump;
@@ -60,6 +62,7 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
     searchScrollRequest,
     onCreate,
     onAddNote,
+    onOpenAnnotation,
     noteJump,
     onNoteJumpDone,
   },
@@ -215,6 +218,7 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
           onRevealed={handleRevealed}
           onCreate={onCreate}
           onAddNote={onAddNote}
+          onOpenAnnotation={onOpenAnnotation}
           noteJump={noteJump?.location === 'passage' && noteJump.annotation.page === i + 1 ? noteJump : null}
           onNoteJumpDone={onNoteJumpDone}
         />

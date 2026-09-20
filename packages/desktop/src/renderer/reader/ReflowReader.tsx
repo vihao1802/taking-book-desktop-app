@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Loader2 } from 'lucide-react';
 import {
@@ -20,6 +20,7 @@ import { Overlay } from './Overlay';
 import { SidebarPanel, type SidebarTab } from './SidebarPanel';
 import { OutlineView } from './OutlineView';
 import { NotesSidebar } from './NotesSidebar';
+import type { NoteEditActions } from './useAnnotations';
 import type { NotesSidebarState } from './useNotesSidebar';
 import type { NoteDraftState } from './useNoteDraft';
 import { usePdfOutline } from './usePdfOutline';
@@ -101,6 +102,10 @@ interface ReflowReaderProps {
   onCreate: (input: CreateAnnotationInput) => Promise<Annotation | null>;
   /** Starts a Note draft on the selection; nothing is stored until the reader saves it. */
   onAddNote: (anchor: NoteAnchor) => void;
+  /** Called when the reader clicks a highlight, to edit its card in the Notes sidebar. */
+  onOpenAnnotation: (annotation: Annotation) => void;
+  /** Stores edits to and deletions of annotations from their Notes sidebar cards. */
+  editActions: NoteEditActions;
   /** The Notes sidebar, whose state lives in the reader so it survives a mode toggle. */
   notesSidebar: NotesSidebarState;
   /** The Note draft, whose state lives in the reader so it survives a mode toggle. */
@@ -135,6 +140,8 @@ export function ReflowReader({
   annotations,
   onCreate,
   onAddNote,
+  onOpenAnnotation,
+  editActions,
   notesSidebar,
   noteDraft,
   onJumpToNote,
@@ -565,6 +572,7 @@ export function ReflowReader({
             fileHash={file.hash}
             annotationsByPara={annotationsByPara}
             getImageData={getImageData}
+            onOpenAnnotation={onOpenAnnotation}
             onMouseUp={handleMouseUp}
           />
         </div>
@@ -635,7 +643,7 @@ export function ReflowReader({
           />
         </SidebarPanel>
       )}
-      {notesSidebar.open && <NotesSidebar state={notesSidebar} noteDraft={noteDraft} readingPage={currentPage} onJump={onJumpToNote} />}
+      {notesSidebar.open && <NotesSidebar state={notesSidebar} noteDraft={noteDraft} readingPage={currentPage} editActions={editActions} onJump={onJumpToNote} />}
     </div>
   );
 }
@@ -653,6 +661,7 @@ const ReflowArticle = memo(function ReflowArticle({
   fileHash,
   annotationsByPara,
   getImageData,
+  onOpenAnnotation,
   onMouseUp,
 }: {
   articleRef: RefObject<HTMLElement | null>;
@@ -662,6 +671,7 @@ const ReflowArticle = memo(function ReflowArticle({
   fileHash: string;
   annotationsByPara: Map<number, Annotation[]>;
   getImageData: (pageIndex: number, ref: string) => Promise<unknown>;
+  onOpenAnnotation: (annotation: Annotation) => void;
   onMouseUp: () => void;
 }) {
   return (
@@ -684,6 +694,7 @@ const ReflowArticle = memo(function ReflowArticle({
                   paragraph={item.para}
                   zoom={zoom}
                   marks={annotationsByPara.get(item.index) ?? EMPTY_MARKS}
+                  onOpenAnnotation={onOpenAnnotation}
                 />
               )}
             </Fragment>
@@ -706,12 +717,22 @@ const Paragraph = memo(function Paragraph({
   paragraph,
   zoom,
   marks,
+  onOpenAnnotation,
 }: {
   paragraph: ReflowParagraph;
   zoom: number;
   marks: Annotation[];
+  onOpenAnnotation: (annotation: Annotation) => void;
 }) {
   const offsets = useMemo(() => runOffsets(paragraph), [paragraph]);
+
+  const openAnnotation = (event: MouseEvent, mark: Annotation) => {
+    // Selecting text inside a highlight also ends in a click on it; that is a selection, not a request to edit.
+    if (!window.getSelection()?.isCollapsed) return;
+    // A click on a highlight is not a click on the page: it must not toggle the reader's overlay.
+    event.stopPropagation();
+    onOpenAnnotation(mark);
+  };
 
   // Renders the `[from, to)` slice of the paragraph, wrapping the highlights
   // that intersect it. A highlight crossing `to` is clipped there and resumes
@@ -728,9 +749,10 @@ const Paragraph = memo(function Paragraph({
         <mark
           key={mark.id}
           data-annotation-id={mark.id}
-          className="rounded-[2px]"
+          className="cursor-pointer rounded-[2px]"
           style={{ backgroundColor: HIGHLIGHT_FILL[mark.color], padding: '0 1px' }}
           title={mark.note ?? undefined}
+          onClick={(event) => openAnnotation(event, mark)}
         >
           {renderStyled(paragraph, offsets, start, end)}
         </mark>,

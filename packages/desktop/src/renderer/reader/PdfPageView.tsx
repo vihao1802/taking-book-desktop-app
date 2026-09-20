@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { TextLayer } from 'pdfjs-dist';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import type { TextMatch } from '@taking-book/core';
@@ -43,6 +43,8 @@ interface PdfPageViewProps {
   onCreate: (selection: PageTextSelection, color: AnnotationColor) => Promise<Annotation | null>;
   /** Starts a Note draft on the selection; nothing is stored until the reader saves it. */
   onAddNote: (selection: PageTextSelection) => void;
+  /** Called when the reader clicks a highlight on this page, to edit its card in the Notes sidebar. */
+  onOpenAnnotation: (annotation: Annotation) => void;
   /** A jump to a passage on this page still to be carried out; null when there is none. */
   noteJump: NoteJump | null;
   onNoteJumpDone: FinishNoteJump;
@@ -67,6 +69,7 @@ export function PdfPageView({
   onRevealed,
   onCreate,
   onAddNote,
+  onOpenAnnotation,
   noteJump,
   onNoteJumpDone,
 }: PdfPageViewProps) {
@@ -252,6 +255,12 @@ export function PdfPageView({
     if (!hasSelection) setToolbar(null);
   };
 
+  const openAnnotation = (event: MouseEvent, annotation: Annotation) => {
+    // A click on a highlight is not a click on the page: it must not toggle the reader's overlay.
+    event.stopPropagation();
+    onOpenAnnotation(annotation);
+  };
+
   const highlight = async (color: AnnotationColor) => {
     if (!toolbar) return;
     await onCreate(toolbar.selection, color);
@@ -281,24 +290,27 @@ export function PdfPageView({
         className="tb-text-layer"
         style={{ '--total-scale-factor': cssScale } as CSSProperties}
       />
-      {Array.from(highlightRects.entries()).flatMap(([id, rects]) =>
-        (annotations.find((a) => a.id === id) ? rects : []).map((rect, i) => (
+      {Array.from(highlightRects.entries()).flatMap(([id, rects]) => {
+        const annotation = annotations.find((a) => a.id === id);
+        if (!annotation) return [];
+        return rects.map((rect, i) => (
           <div
             key={`${id}-${i}`}
             data-annotation-id={id}
-            className="absolute z-20"
+            className="absolute z-20 cursor-pointer"
             style={{
               left: rect.x,
               top: rect.y,
               width: rect.width,
               height: rect.height,
-              backgroundColor: HIGHLIGHT_FILL[annotations.find((a) => a.id === id)!.color],
+              backgroundColor: HIGHLIGHT_FILL[annotation.color],
               borderRadius: 2,
             }}
-            title={annotations.find((a) => a.id === id)?.note ?? undefined}
+            title={annotation.note ?? undefined}
+            onClick={(event) => openAnnotation(event, annotation)}
           />
-        )),
-      )}
+        ));
+      })}
       {toolbar && (
         <SelectionToolbar x={toolbar.x} y={toolbar.y} onHighlight={highlight} onAddNote={addNote} />
       )}

@@ -1,6 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isOk, type Result } from '@taking-book/core';
-import type { Annotation, CreateAnnotationInput, NoteDraft } from '../../shared/types';
+import type { Annotation, AnnotationColor, CreateAnnotationInput, NoteDraft } from '../../shared/types';
+
+/**
+ * What the reader can do to a stored annotation from its card. Each action
+ * returns the outcome so the card can show a failure next to the control that
+ * caused it; on success the annotation list is already up to date.
+ */
+export interface NoteEditActions {
+  /** Saves the Note text; empty text on a Highlight removes only the text. */
+  saveText: (id: number, text: string) => Promise<Result<Annotation>>;
+  changeColor: (id: number, color: AnnotationColor) => Promise<Result<Annotation>>;
+  /** Deletes the Note: the Highlight stays, unless it was a Page note, which goes entirely. */
+  deleteNote: (id: number) => Promise<Result<Annotation | null>>;
+  /** Deletes the whole annotation, Highlight and Note together. */
+  deleteAnnotation: (id: number) => Promise<Result<void>>;
+}
 
 /**
  * Loads and mutates the highlights/notes for one book. Mutations optimistically
@@ -12,8 +27,7 @@ export function useAnnotations(fileHash: string): {
   error: string | null;
   create: (input: CreateAnnotationInput) => Promise<Annotation | null>;
   saveNoteDraft: (draft: NoteDraft) => Promise<Result<Annotation>>;
-  setNote: (id: number, note: string | null) => Promise<void>;
-  remove: (id: number) => Promise<void>;
+  editActions: NoteEditActions;
 } {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -52,23 +66,49 @@ export function useAnnotations(fileHash: string): {
     [fileHash],
   );
 
-  const setNote = useCallback(async (id: number, note: string | null) => {
-    const result = await window.api.setAnnotationNote(id, note);
-    if (!isOk(result)) {
-      setError(result.error);
-      return;
-    }
-    setAnnotations((prev) => prev.map((a) => (a.id === id ? result.data : a)));
+  const replaceAnnotation = useCallback((updated: Annotation) => {
+    setAnnotations((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
   }, []);
 
-  const remove = useCallback(async (id: number) => {
+  const saveText = useCallback(
+    async (id: number, text: string): Promise<Result<Annotation>> => {
+      const result = await window.api.saveNoteText(id, text);
+      if (isOk(result)) replaceAnnotation(result.data);
+      return result;
+    },
+    [replaceAnnotation],
+  );
+
+  const changeColor = useCallback(
+    async (id: number, color: AnnotationColor): Promise<Result<Annotation>> => {
+      const result = await window.api.setAnnotationColor(id, color);
+      if (isOk(result)) replaceAnnotation(result.data);
+      return result;
+    },
+    [replaceAnnotation],
+  );
+
+  const deleteNote = useCallback(
+    async (id: number): Promise<Result<Annotation | null>> => {
+      const result = await window.api.deleteNote(id);
+      if (!isOk(result)) return result;
+      if (result.data) replaceAnnotation(result.data);
+      else setAnnotations((prev) => prev.filter((a) => a.id !== id));
+      return result;
+    },
+    [replaceAnnotation],
+  );
+
+  const deleteAnnotation = useCallback(async (id: number): Promise<Result<void>> => {
     const result = await window.api.deleteAnnotation(id);
-    if (!isOk(result)) {
-      setError(result.error);
-      return;
-    }
-    setAnnotations((prev) => prev.filter((a) => a.id !== id));
+    if (isOk(result)) setAnnotations((prev) => prev.filter((a) => a.id !== id));
+    return result;
   }, []);
 
-  return { annotations, error, create, saveNoteDraft, setNote, remove };
+  const editActions = useMemo(
+    () => ({ saveText, changeColor, deleteNote, deleteAnnotation }),
+    [saveText, changeColor, deleteNote, deleteAnnotation],
+  );
+
+  return { annotations, error, create, saveNoteDraft, editActions };
 }

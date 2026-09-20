@@ -49,7 +49,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     images,
     getImageData,
   } = useReflowDocument(pdf, mode === 'reflow', { fileHash: file.hash });
-  const { annotations, create, saveNoteDraft } = useAnnotations(file.hash);
+  const { annotations, create, saveNoteDraft, editActions } = useAnnotations(file.hash);
   const notesSidebar = useNotesSidebar(annotations);
   const noteDraft = useNoteDraft({ fileHash: file.hash, saveNote: saveNoteDraft });
   // The draft's passage is painted as a temporary highlight next to the saved
@@ -343,6 +343,16 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     },
     [startDraft, showNotesSidebar],
   );
+  // Clicking a highlight edits its card. The draft's temporary highlight is
+  // painted like a stored one but has no card to edit, so it is skipped.
+  const { editAnnotation } = notesSidebar;
+  const openAnnotation = useCallback(
+    (annotation: Annotation) => {
+      const stored = annotations.find((candidate) => candidate.id === annotation.id);
+      if (stored) editAnnotation(stored);
+    },
+    [annotations, editAnnotation],
+  );
   const startNoteFromPage = useCallback(
     (selection: PageTextSelection) => startNote(anchorFromPage(selection)),
     [startNote, anchorFromPage],
@@ -392,6 +402,8 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           annotations={paintedAnnotations}
           onCreate={create}
           onAddNote={startNote}
+          onOpenAnnotation={openAnnotation}
+          editActions={editActions}
           notesSidebar={notesSidebar}
           noteDraft={noteDraft}
           onJumpToNote={jumpToNote}
@@ -443,6 +455,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
               searchScrollRequest={search.scrollRequest}
               onCreate={createFromPage}
               onAddNote={startNoteFromPage}
+              onOpenAnnotation={openAnnotation}
               noteJump={noteJump}
               onNoteJumpDone={finishNoteJump}
             />
@@ -516,7 +529,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           )}
         </SidebarPanel>
       )}
-      {notesSidebar.open && <NotesSidebar state={notesSidebar} noteDraft={noteDraft} readingPage={currentPage} onJump={jumpToNote} />}
+      {notesSidebar.open && <NotesSidebar state={notesSidebar} noteDraft={noteDraft} readingPage={currentPage} editActions={editActions} onJump={jumpToNote} />}
       <ReaderToast notice={notice} onDone={clearNotice} />
     </div>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { HIGHLIGHT_COLORS, HIGHLIGHT_FILL } from './highlights';
+import { HighlightColorPicker } from './HighlightColorPicker';
+import { HIGHLIGHT_FILL } from './highlights';
 import { resolveNoteDraftKey } from './note-draft-keys';
 import type { NoteDraftState } from './useNoteDraft';
 
@@ -60,24 +60,7 @@ export function NoteDraftCard({ state }: NoteDraftCardProps) {
         aria-label="Note text"
         className="border-input bg-secondary/50 placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-2.5 py-1.5 text-sm outline-none focus-visible:ring-[3px]"
       />
-      <div role="radiogroup" aria-label="Highlight color" className="flex items-center gap-1.5">
-        {HIGHLIGHT_COLORS.map((color) => (
-          <button
-            key={color}
-            type="button"
-            role="radio"
-            aria-checked={draft.color === color}
-            aria-label={color}
-            title={color}
-            onClick={() => changeColor(color)}
-            className={cn(
-              'size-5 cursor-pointer rounded-full border border-black/20 transition-transform hover:scale-110',
-              draft.color === color && 'ring-foreground ring-2 ring-offset-1',
-            )}
-            style={{ backgroundColor: HIGHLIGHT_FILL[color] }}
-          />
-        ))}
-      </div>
+      <HighlightColorPicker value={draft.color} onChange={changeColor} />
       {error && (
         <p role="alert" className="text-destructive text-xs">
           Couldn&apos;t save this note: {error}

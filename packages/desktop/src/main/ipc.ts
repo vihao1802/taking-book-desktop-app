@@ -5,6 +5,7 @@ import {
   createAnnotation,
   deleteAnnotation,
   deleteFile,
+  deleteNote,
   getDailyReadingMinutes,
   getFileZoom,
   getLastPosition,
@@ -20,8 +21,9 @@ import {
   recordReadingSession,
   saveLastPosition,
   saveNoteDraft,
+  saveNoteText,
   serializeReflowCache,
-  setAnnotationNote,
+  setAnnotationColor,
   setFileFavorite,
   setFilePageCount,
   setFileStatus,
@@ -33,7 +35,7 @@ import {
   setTheme,
   upsertFile,
 } from '@taking-book/core';
-import type { BookFile, BookStatus, CloudAccount, CreateAnnotationInput, NoteDraft, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
+import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, NoteDraft, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { sha256File } from './hash';
@@ -231,8 +233,16 @@ export function registerIpc(db: SqlDriver): void {
     saveNoteDraft(db, fileHash, draft, { stamp: await stamp(), generateUid: randomUUID }),
   );
 
-  ipcMain.handle('annotations:note:set', async (_event, id: number, note: string | null) =>
-    setAnnotationNote(db, id, note, await stamp()),
+  ipcMain.handle('annotations:note:save', async (_event, id: number, text: string) =>
+    saveNoteText(db, id, text, await stamp()),
+  );
+
+  ipcMain.handle('annotations:note:delete', async (_event, id: number) =>
+    deleteNote(db, id, await stamp()),
+  );
+
+  ipcMain.handle('annotations:color:set', async (_event, id: number, color: AnnotationColor) =>
+    setAnnotationColor(db, id, color, await stamp()),
   );
 
   ipcMain.handle('annotations:delete', async (_event, id: number) =>

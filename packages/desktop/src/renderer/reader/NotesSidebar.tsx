@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button';
 import type { Annotation } from '../../shared/types';
 import { NoteCard } from './NoteCard';
 import { NoteDraftCard } from './NoteDraftCard';
+import { NoteEditCard } from './NoteEditCard';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
+import type { NoteEditActions } from './useAnnotations';
 import type { NotesSidebarState } from './useNotesSidebar';
 import type { NoteDraftState } from './useNoteDraft';
 
@@ -16,6 +18,8 @@ interface NotesSidebarProps {
   noteDraft: NoteDraftState;
   /** The PDF page the reader is on; only its value when the sidebar opens matters (see below). */
   readingPage: number;
+  /** Stores edits to and deletions of the annotation whose card is in edit mode. */
+  editActions: NoteEditActions;
   /** Called when the reader clicks a Note, to jump to where it was written. */
   onJump: (annotation: Annotation) => void;
 }
@@ -28,17 +32,26 @@ interface NotesSidebarProps {
  * once to the Note nearest the reading page and then stays put: a list that
  * followed every page turn would move under the pointer while a Note is clicked.
  */
-export function NotesSidebar({ state, noteDraft, readingPage, onJump }: NotesSidebarProps) {
-  const { notes, showHighlights, onShowHighlightsChange, close, width, onWidthChange } = state;
+export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJump }: NotesSidebarProps) {
+  const { notes, showHighlights, onShowHighlightsChange, close, width, onWidthChange, editingId, focusRequest, stopEditing } = state;
   const asideRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [pageWhenOpened] = useState(readingPage);
   const notesWhenOpenedRef = useRef(notes);
   const hadDraftWhenOpenedRef = useRef(noteDraft.draft !== null);
+  // Clicking a highlight on the page opens the sidebar on that card; the
+  // "nearest note" scroll below must not fight the scroll to it.
+  const hadEditingWhenOpenedRef = useRef(editingId !== null);
+
+  // Bring the card being edited into view, including when its highlight is clicked again.
+  useEffect(() => {
+    if (editingId === null) return;
+    listRef.current?.querySelector(`[data-note-id="${editingId}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [editingId, focusRequest]);
 
   useEffect(() => {
     // A draft waiting at the top of the list is what the reader came back to write; keep it in view.
-    if (hadDraftWhenOpenedRef.current) return;
+    if (hadDraftWhenOpenedRef.current || hadEditingWhenOpenedRef.current) return;
     const list = listRef.current;
     const nearest = findNearestNote(notesWhenOpenedRef.current, pageWhenOpened);
     const card = nearest ? list?.querySelector(`[data-note-id="${nearest.id}"]`) : null;
@@ -81,9 +94,13 @@ export function NotesSidebar({ state, noteDraft, readingPage, onJump }: NotesSid
         ) : (
           <ul className="flex flex-col gap-2 p-2">
             <NoteDraftCard key={noteDraft.draftKey} state={noteDraft} />
-            {notes.map((note) => (
-              <NoteCard key={note.id} annotation={note} onJump={onJump} />
-            ))}
+            {notes.map((note) =>
+              note.id === editingId ? (
+                <NoteEditCard key={note.id} annotation={note} actions={editActions} onDone={stopEditing} />
+              ) : (
+                <NoteCard key={note.id} annotation={note} onJump={onJump} />
+              ),
+            )}
           </ul>
         )}
       </div>
