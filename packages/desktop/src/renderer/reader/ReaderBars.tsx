@@ -16,7 +16,7 @@ interface ReaderBarsProps {
 
 /**
  * The reader's on-demand bars. Find sits top right below the overlay; go to
- * page is centered over the reading view like a dialog. Neither is visible
+ * page floats horizontally centered just above the bottom bar. Neither is visible
  * until its shortcut or the page indicator is used, so the reading view stays
  * free of permanent controls.
  */
@@ -48,7 +48,8 @@ export function ReaderBars({
         </div>
       )}
       {goToRequest !== 0 && (
-        <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center">
+        // bottom-15 = the bottom bar's ~40px height + a 20px gap above it.
+        <div className="pointer-events-none fixed inset-x-0 bottom-15 z-30 flex justify-center">
           <GoToPageBar
             key={goToRequest}
             total={totalPages}
