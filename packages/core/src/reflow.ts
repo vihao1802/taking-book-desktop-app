@@ -8,6 +8,8 @@
  * the fixed pagination so a narrow screen can re-wrap the text.
  */
 
+import { detectContentsEntries, type ContentsEntry } from './reflowContents';
+
 /** A single extracted text fragment, positioned top-down (y grows downward). */
 export interface ReflowTextItem {
   str: string;
@@ -78,6 +80,12 @@ export interface ReflowParagraph {
    * re-wrapping, so upscaling body text never breaks the table layout.
    */
   isTable?: boolean;
+  /**
+   * Set when the paragraph is one table-of-contents entry ("title … page").
+   * Entries stand alone instead of merging into body text, and `level` is the
+   * nesting depth the renderer indents by.
+   */
+  contents?: { level: number };
 }
 
 /**
@@ -339,6 +347,24 @@ function startsWithListMarker(text: string): boolean {
   return LIST_MARKER.test(text);
 }
 
+/** Starts a paragraph from a single line, carrying over its table or contents-entry flag. */
+function standaloneParagraph(
+  line: ReflowLine,
+  pageIndex: number,
+  entry: ContentsEntry | null,
+): ReflowParagraph {
+  return {
+    text: entry ? entry.text : line.text,
+    fontSize: line.fontSize,
+    indent: false,
+    pageIndex,
+    y: line.y,
+    runs: entry ? entry.runs : [...line.runs],
+    ...(line.isTable ? { isTable: true as const } : {}),
+    ...(entry ? { contents: { level: entry.level } } : {}),
+  };
+}
+
 /**
  * Groups top-to-bottom lines into paragraphs. A new paragraph starts on:
  * a vertical gap larger than `paragraphGapRatio`× font size, a relative font
@@ -346,7 +372,8 @@ function startsWithListMarker(text: string): boolean {
  * than `indentRatio`× font size (except the hanging indent under a list marker).
  * Table rows always start their own paragraph
  * (one row per paragraph, flagged `isTable`) so rows never merge into flowing
- * body text and the renderer can keep them unwrapped.
+ * body text and the renderer can keep them unwrapped. Table-of-contents entries
+ * likewise get one paragraph each, flagged `contents`.
  */
 export function paragraphsFromLines(
   lines: ReflowLine[],
@@ -359,36 +386,17 @@ export function paragraphsFromLines(
   // alignment can be judged from line geometry once grouping is done.
   const paragraphLines: ReflowLine[][] = [];
 
+  const contentsEntries = detectContentsEntries(lines);
+
   lines.forEach((line, index) => {
     const lastLine = lines[index - 1];
     const prev = paragraphs[paragraphs.length - 1];
+    const entry = contentsEntries[index];
 
-    if (!prev || !lastLine) {
-      paragraphs.push({
-        text: line.text,
-        fontSize: line.fontSize,
-        indent: false,
-        pageIndex,
-        y: line.y,
-        runs: [...line.runs],
-        ...(line.isTable ? { isTable: true as const } : {}),
-      });
-      paragraphLines.push([line]);
-      return;
-    }
-
-    // Table rows stand alone: never merge a table row into body text, body
-    // text into a table, or two rows into one paragraph.
-    if (line.isTable || prev.isTable) {
-      paragraphs.push({
-        text: line.text,
-        fontSize: line.fontSize,
-        indent: false,
-        pageIndex,
-        y: line.y,
-        runs: [...line.runs],
-        ...(line.isTable ? { isTable: true as const } : {}),
-      });
+    // Table rows and contents entries stand alone: never merge one into body
+    // text, body text into one, or two of them into one paragraph.
+    if (!prev || !lastLine || line.isTable || prev.isTable || entry || prev.contents) {
+      paragraphs.push(standaloneParagraph(line, pageIndex, entry));
       paragraphLines.push([line]);
       return;
     }
@@ -463,7 +471,7 @@ function markCenteredParagraphs(
   };
 
   paragraphs.forEach((paragraph, index) => {
-    if (paragraph.isTable) return;
+    if (paragraph.isTable || paragraph.contents) return;
     if (paragraphLines[index].every(isCentered)) paragraph.align = 'center';
   });
 }

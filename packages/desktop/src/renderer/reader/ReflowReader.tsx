@@ -34,6 +34,9 @@ import { useLocationAnchor } from './useLocationAnchor';
 import { useReaderShortcuts } from './useReaderShortcuts';
 
 const HIDE_DELAY_MS = 2500;
+/** Table-of-contents entries: indent per nesting level, and the hanging indent for wrapped lines (em). */
+const CONTENTS_INDENT_EM = 1.25;
+const CONTENTS_HANGING_EM = 1.5;
 /** Keyboard paging: fraction of the viewport a screen step scrolls, and a line step in px. */
 const SCREEN_STEP_RATIO = 0.9;
 const LINE_STEP_PX = 48;
@@ -698,14 +701,23 @@ const Paragraph = memo(function Paragraph({
 
   return (
     <p
-      className="mb-[1em]"
+      className={paragraph.contents ? 'mb-[0.4em]' : 'mb-[1em]'}
       style={{
         fontSize: paragraph.fontSize * zoom,
+        // Contents entries indent by nesting depth and hang their wrapped
+        // lines under the title, so a long entry stays readable when narrow.
+        paddingLeft: paragraph.contents ? `${paragraph.contents.level * CONTENTS_INDENT_EM + CONTENTS_HANGING_EM}em` : undefined,
         // Table rows keep their original small size and never wrap: each row
         // scrolls horizontally instead of reflowing, so columns stay on one
         // line and body-text upscaling can't break the table layout.
-        textAlign: paragraph.isTable ? 'left' : (paragraph.align ?? 'justify'),
-        textIndent: paragraph.isTable ? undefined : paragraph.indent ? '1.6em' : undefined,
+        textAlign: paragraph.isTable || paragraph.contents ? 'left' : (paragraph.align ?? 'justify'),
+        textIndent: paragraph.contents
+          ? `-${CONTENTS_HANGING_EM}em`
+          : paragraph.isTable
+            ? undefined
+            : paragraph.indent
+              ? '1.6em'
+              : undefined,
         whiteSpace: paragraph.isTable ? 'nowrap' : undefined,
         overflowX: paragraph.isTable ? 'auto' : undefined,
         maxWidth: paragraph.isTable ? '100%' : undefined,
