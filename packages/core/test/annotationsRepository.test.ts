@@ -10,6 +10,7 @@ import {
   listAnnotationsForSync,
   listLibraryAnnotations,
   setAnnotationNote,
+  setAnnotationPageAnchor,
   setAnnotationReflowAnchor,
   upsertFile,
 } from '../src';
@@ -370,5 +371,40 @@ describe('setAnnotationReflowAnchor', () => {
 
     expect(isOk(await setAnnotationReflowAnchor(db, created.data.id, anchor))).toBe(false);
     expect(isOk(await setAnnotationReflowAnchor(db, 999, anchor))).toBe(false);
+  });
+});
+
+describe('setAnnotationPageAnchor', () => {
+  const reflowOnly = { page: 3, pageStart: null, pageEnd: null, quote: 'selected words', color: 'yellow' as const, note: 'kept', paraIndex: 4, paraStart: 0, paraEnd: 14 };
+  const anchor = { pageStart: 10, pageEnd: 24 };
+
+  it('fills in the page anchor without touching the sync clock or anything else', async () => {
+    const db = await dbWithBook();
+    const created = await createAnnotation(db, 'h1', reflowOnly, { updatedAt: 100, updatedBy: 'dev-a' });
+    if (!isOk(created)) throw new Error(created.error);
+
+    const result = await setAnnotationPageAnchor(db, created.data.id, anchor);
+
+    expect(result).toMatchObject({ ok: true, data: { ...anchor, note: 'kept', paraIndex: 4, updatedAt: 100, updatedBy: 'dev-a' } });
+  });
+
+  it('never replaces an anchor that is already set', async () => {
+    const db = await dbWithBook();
+    const created = await createAnnotation(db, 'h1', { ...reflowOnly, pageStart: 1, pageEnd: 5 });
+    if (!isOk(created)) throw new Error(created.error);
+
+    const result = await setAnnotationPageAnchor(db, created.data.id, anchor);
+
+    expect(result).toMatchObject({ ok: true, data: { pageStart: 1, pageEnd: 5 } });
+  });
+
+  it('reports a missing or deleted annotation', async () => {
+    const db = await dbWithBook();
+    const created = await createAnnotation(db, 'h1', reflowOnly);
+    if (!isOk(created)) throw new Error(created.error);
+    await deleteAnnotation(db, created.data.id);
+
+    expect(isOk(await setAnnotationPageAnchor(db, created.data.id, anchor))).toBe(false);
+    expect(isOk(await setAnnotationPageAnchor(db, 999, anchor))).toBe(false);
   });
 });

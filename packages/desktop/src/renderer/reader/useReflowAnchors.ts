@@ -12,21 +12,32 @@ interface UseReflowAnchorsOptions {
   reflowTextReady: boolean;
 }
 
+/** What `useReflowAnchors` hands back. */
+export interface ReflowAnchored {
+  annotations: Annotation[];
+  extraSegments: Annotation[];
+}
+
+const NONE: Annotation[] = [];
+
 /**
  * Gives annotations made in page view their reflow anchor. Page view does not
  * extract reflow text (it would slow paging down), so a highlight made there is
  * stored without a paragraph and would otherwise stay invisible in reflow and
  * fail to jump. Once the text is ready the anchors are worked out here, so the
  * very render that has the paragraphs already shows them, and each is saved
- * once so the next open does not have to redo it.
+ * once so the next open does not have to redo it. A quote that runs across
+ * paragraphs is not saved (its anchor covers only the first paragraph); it is
+ * worked out again each time instead.
  *
- * @returns The annotations with every anchor that could be found filled in.
+ * @returns The annotations with every anchor that could be found filled in, and
+ *   the pieces of multi-paragraph quotes after their first, to paint in reflow view.
  */
-export function useReflowAnchors({ annotations, paragraphs, reflowTextReady }: UseReflowAnchorsOptions): Annotation[] {
-  const { anchored, filled } = useMemo(() => {
-    if (!reflowTextReady) return { anchored: annotations, filled: [] };
+export function useReflowAnchors({ annotations, paragraphs, reflowTextReady }: UseReflowAnchorsOptions): ReflowAnchored {
+  const { anchored, filled, extraSegments } = useMemo(() => {
+    if (!reflowTextReady) return { anchored: annotations, filled: NONE, extraSegments: NONE };
     const result = fillReflowAnchors(annotations, paragraphs);
-    return { anchored: result.annotations, filled: result.filled };
+    return { anchored: result.annotations, filled: result.filled, extraSegments: result.extraSegments };
   }, [annotations, paragraphs, reflowTextReady]);
 
   // A failed save is not retried in a loop: the anchor is derived again the
@@ -47,5 +58,5 @@ export function useReflowAnchors({ annotations, paragraphs, reflowTextReady }: U
     }
   }, [filled]);
 
-  return anchored;
+  return { annotations: anchored, extraSegments };
 }

@@ -25,6 +25,7 @@ import {
   savePageNote,
   serializeReflowCache,
   setAnnotationColor,
+  setAnnotationPageAnchor,
   setAnnotationReflowAnchor,
   setFileFavorite,
   setFilePageCount,
@@ -37,7 +38,7 @@ import {
   setTheme,
   upsertFile,
 } from '@taking-book/core';
-import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, NoteDraft, PageNoteInput, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
+import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
 import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -267,6 +268,10 @@ export function registerIpc(db: SqlDriver): void {
 
   ipcMain.handle('annotations:color:set', async (_event, id: number, color: AnnotationColor) =>
     setAnnotationColor(db, id, color, await stamp()),
+  );
+
+  ipcMain.handle('annotations:pageAnchor:set', (_event, id: number, anchor: PageAnchor) =>
+    setAnnotationPageAnchor(db, id, anchor),
   );
 
   ipcMain.handle('annotations:reflowAnchor:set', (_event, id: number, anchor: ReflowAnchor) =>

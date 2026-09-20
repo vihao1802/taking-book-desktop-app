@@ -73,6 +73,7 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
     openAnnotation,
   } = useReaderNotes({
     fileHash: file.hash,
+    pdf,
     mode,
     paragraphs,
     reflowTextReady,

@@ -14,8 +14,10 @@ export {
   migrateAnnotationsSchema,
   setAnnotationColor,
   setAnnotationNote,
+  setAnnotationPageAnchor,
   setAnnotationReflowAnchor,
   type CreateAnnotationOptions,
+  type PageAnchor,
   type ReflowAnchor,
 } from './annotationsRepository';
 export { deriveAnnotationUid, resolveAnnotationUid, type AnnotationUidGenerator } from './annotationUid';

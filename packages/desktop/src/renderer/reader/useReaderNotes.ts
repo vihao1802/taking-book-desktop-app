@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { ReadMode, ReflowParagraph } from '@taking-book/core';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { Annotation, CreateAnnotationInput } from '../../shared/types';
 import type { ReaderNotice } from './ReaderToast';
 import { useAnnotations, type NoteEditActions } from './useAnnotations';
@@ -8,10 +9,12 @@ import { useNoteDraft, type NoteDraftState } from './useNoteDraft';
 import { useNoteJump, type FinishNoteJump, type NoteJump } from './useNoteJump';
 import { useNotesSidebar, type NotesSidebarState } from './useNotesSidebar';
 import { useOpenToNote } from './useOpenToNote';
+import { usePageAnchors } from './usePageAnchors';
 import { useReflowAnchors } from './useReflowAnchors';
 
 interface UseReaderNotesOptions {
   fileHash: string;
+  pdf: PDFDocumentProxy | null;
   mode: ReadMode;
   paragraphs: readonly ReflowParagraph[];
   /** True once reflow extraction has finished, so the paragraphs are final. */
@@ -42,22 +45,23 @@ export interface ReaderNotes extends NoteActions {
  * the book's annotations, the Notes sidebar, the draft card, jumping to a Note,
  * and the arrival from the Notes view.
  */
-export function useReaderNotes({ fileHash, mode, paragraphs, reflowTextReady, showNotice, noteToOpen, viewReady }: UseReaderNotesOptions): ReaderNotes {
+export function useReaderNotes({ fileHash, pdf, mode, paragraphs, reflowTextReady, showNotice, noteToOpen, viewReady }: UseReaderNotesOptions): ReaderNotes {
   const { annotations: storedAnnotations, create, saveNoteDraft, editActions } = useAnnotations(fileHash);
-  const annotations = useReflowAnchors({ annotations: storedAnnotations, paragraphs, reflowTextReady });
+  const { annotations: pageAnchored, ready: pageAnchorsReady } = usePageAnchors({ pdf, annotations: storedAnnotations });
+  const { annotations, extraSegments } = useReflowAnchors({ annotations: pageAnchored, paragraphs, reflowTextReady });
   const notesSidebar = useNotesSidebar(annotations);
   const noteDraft = useNoteDraft({ fileHash, saveNote: saveNoteDraft });
   const { noteJump, jumpToNote, finishNoteJump } = useNoteJump(mode, showNotice);
   const actions = useNoteActions({ paragraphs, annotations, create, noteDraft, notesSidebar });
-  useOpenToNote({ note: noteToOpen, viewReady, annotations, jumpToNote, selectAnnotation: notesSidebar.selectAnnotation });
+  useOpenToNote({ note: noteToOpen, viewReady: viewReady && (mode !== 'page' || pageAnchorsReady), annotations, jumpToNote, selectAnnotation: notesSidebar.selectAnnotation });
 
   // The draft's passage is painted as a temporary highlight next to the saved
   // ones, but stays out of the Notes list, which only shows what is stored.
   const { highlight: draftHighlight } = noteDraft;
-  const paintedAnnotations = useMemo(
-    () => (draftHighlight ? [...annotations, draftHighlight] : annotations),
-    [annotations, draftHighlight],
-  );
+  const paintedAnnotations = useMemo(() => {
+    const stored = mode === 'reflow' ? [...annotations, ...extraSegments] : annotations;
+    return draftHighlight ? [...stored, draftHighlight] : stored;
+  }, [mode, annotations, extraSegments, draftHighlight]);
 
   return { create, editActions, notesSidebar, noteDraft, noteJump, jumpToNote, finishNoteJump, paintedAnnotations, ...actions };
 }

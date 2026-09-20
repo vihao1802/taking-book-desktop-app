@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme } from '@taking-book/core';
+import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -33,6 +33,8 @@ export interface ReaderApi {
   /** Deletes a Note: the Highlight stays with its text removed, or null when a Page note was deleted entirely. */
   deleteNote(id: number): Promise<Result<Annotation | null>>;
   setAnnotationColor(id: number, color: AnnotationColor): Promise<Result<Annotation>>;
+  /** Fills in the page anchor of an annotation that was made in reflow view; an anchor already set is kept. */
+  setAnnotationPageAnchor(id: number, anchor: PageAnchor): Promise<Result<Annotation>>;
   /** Fills in the reflow anchor of an annotation that was made in page view; an anchor already set is kept. */
   setAnnotationReflowAnchor(id: number, anchor: ReflowAnchor): Promise<Result<Annotation>>;
   deleteAnnotation(id: number): Promise<Result<void>>;

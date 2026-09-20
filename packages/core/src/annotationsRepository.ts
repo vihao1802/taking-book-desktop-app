@@ -383,6 +383,40 @@ export async function setAnnotationReflowAnchor(
   }
 }
 
+/** Where a quote sits in the page view: a character range into the page's joined text. */
+export interface PageAnchor {
+  pageStart: number;
+  pageEnd: number;
+}
+
+/**
+ * Fills in the page anchor of an annotation made in reflow view whose quote
+ * could not be matched on the page then. Like `setAnnotationReflowAnchor` it is
+ * derived data, so the sync clock is left alone and an anchor already set is
+ * never replaced.
+ *
+ * @param db - The data-access driver.
+ * @param id - Local id of the annotation.
+ * @param anchor - The character range of the annotation's quote in the page text.
+ * @returns The annotation as stored, or an error message when it is missing or deleted.
+ */
+export async function setAnnotationPageAnchor(
+  db: SqlDriver,
+  id: number,
+  anchor: PageAnchor,
+): Promise<Result<Annotation>> {
+  try {
+    await db.run(
+      `UPDATE annotations SET page_start = ?, page_end = ?
+       WHERE id = ? AND page_start IS NULL AND deleted_at IS NULL`,
+      [anchor.pageStart, anchor.pageEnd, id],
+    );
+    return getAnnotation(db, id);
+  } catch (error) {
+    return err(`Failed to set page anchor for annotation ${id}: ${errorMessage(error)}`);
+  }
+}
+
 /** Tombstones an annotation (a Highlight, a Note or both) so the delete propagates through sync. */
 export async function deleteAnnotation(
   db: SqlDriver,
