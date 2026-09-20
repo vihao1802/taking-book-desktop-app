@@ -24,7 +24,7 @@ export {
   readingSessionsSchema,
   recordReadingSession,
 } from './readingSessionsRepository';
-export { listNotes, type ListNotesOptions } from './notes';
+export { hasNoteText, listNotes, type ListNotesOptions } from './notes';
 export {
   getNotesSidebarWidth,
   getSetting,

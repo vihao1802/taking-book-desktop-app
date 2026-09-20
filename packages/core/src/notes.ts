@@ -5,8 +5,11 @@ export interface ListNotesOptions {
   includeHighlights?: boolean;
 }
 
-/** True when the annotation carries note text a reader actually wrote. */
-function hasNoteText(annotation: Annotation): boolean {
+/**
+ * True when the annotation carries note text a reader actually wrote; blank or
+ * whitespace-only text does not count, so it is the one test for "is a Note".
+ */
+export function hasNoteText(annotation: Annotation): boolean {
   return annotation.note !== null && annotation.note.trim().length > 0;
 }
 

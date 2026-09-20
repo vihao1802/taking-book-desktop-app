@@ -15,6 +15,7 @@ import {
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import type { ReflowProgress } from './useReflowDocument';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Overlay } from './Overlay';
 import { SidebarPanel, type SidebarTab } from './SidebarPanel';
 import { OutlineView } from './OutlineView';
@@ -524,7 +525,8 @@ export function ReflowReader({
   }, [selectionToolbar, anchorFor, onCreate]);
 
   return (
-    <div className="bg-background fixed inset-0" onMouseMove={reveal}>
+    // While the Notes sidebar narrows the page, the strip beside it must match the paper.
+    <div className={cn('fixed inset-0', notesSidebar.open ? 'bg-reflow' : 'bg-background')} onMouseMove={reveal}>
       {error ? (
         <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
           <p>Could not extract text from this document.</p>
@@ -635,16 +637,7 @@ export function ReflowReader({
           />
         </SidebarPanel>
       )}
-      {notesSidebar.open && (
-        <NotesSidebar
-          notes={notesSidebar.notes}
-          showHighlights={notesSidebar.showHighlights}
-          onShowHighlightsChange={notesSidebar.onShowHighlightsChange}
-          onClose={notesSidebar.close}
-          width={notesSidebar.width}
-          onWidthChange={notesSidebar.onWidthChange}
-        />
-      )}
+      {notesSidebar.open && <NotesSidebar state={notesSidebar} />}
     </div>
   );
 }

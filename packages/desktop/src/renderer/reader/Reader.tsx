@@ -477,16 +477,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           )}
         </SidebarPanel>
       )}
-      {notesSidebar.open && (
-        <NotesSidebar
-          notes={notesSidebar.notes}
-          showHighlights={notesSidebar.showHighlights}
-          onShowHighlightsChange={notesSidebar.onShowHighlightsChange}
-          onClose={notesSidebar.close}
-          width={notesSidebar.width}
-          onWidthChange={notesSidebar.onWidthChange}
-        />
-      )}
+      {notesSidebar.open && <NotesSidebar state={notesSidebar} />}
       <ModeToast modeSwitch={modeSwitch} onDone={clearModeSwitch} />
     </div>
   );

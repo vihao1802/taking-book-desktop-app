@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   annotationsSchema,
   filesSchema,
+  hasNoteText,
   isOk,
   listAnnotations,
   listNotes,
@@ -38,6 +39,18 @@ async function storeAnnotations(inputs: CreateAnnotationInput[]): Promise<Annota
   if (!isOk(listed)) throw new Error(listed.error);
   return listed.data;
 }
+
+describe('hasNoteText', () => {
+  it('is true only for annotations with non-blank note text', async () => {
+    const stored = await storeAnnotations([
+      input({ note: 'a thought' }),
+      input({ note: '  \n ' }),
+      input({ note: null }),
+    ]);
+
+    expect(stored.map(hasNoteText)).toEqual([true, false, false]);
+  });
+});
 
 describe('listNotes', () => {
   it('lists only annotations that carry note text by default', async () => {

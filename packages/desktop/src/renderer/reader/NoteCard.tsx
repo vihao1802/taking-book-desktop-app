@@ -1,3 +1,4 @@
+import { hasNoteText } from '@taking-book/core';
 import type { Annotation } from '../../shared/types';
 import { HIGHLIGHT_FILL } from './highlights';
 
@@ -12,7 +13,6 @@ interface NoteCardProps {
  */
 export function NoteCard({ annotation }: NoteCardProps) {
   const hasQuote = annotation.quote.trim().length > 0;
-  const hasText = annotation.note !== null && annotation.note.trim().length > 0;
 
   return (
     <li className="border-border/60 bg-background/40 flex flex-col gap-1.5 rounded-md border p-2.5">
@@ -36,7 +36,7 @@ export function NoteCard({ annotation }: NoteCardProps) {
           {annotation.quote}
         </blockquote>
       )}
-      {hasText && <p className="text-sm break-words whitespace-pre-wrap">{annotation.note}</p>}
+      {hasNoteText(annotation) && <p className="text-sm break-words whitespace-pre-wrap">{annotation.note}</p>}
     </li>
   );
 }

@@ -1,20 +1,13 @@
 import { useRef } from 'react';
 import { X } from 'lucide-react';
-import type { Annotation } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { NoteCard } from './NoteCard';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
+import type { NotesSidebarState } from './useNotesSidebar';
 
 interface NotesSidebarProps {
-  /** The Notes to list, already filtered and in reading order. */
-  notes: Annotation[];
-  showHighlights: boolean;
-  onShowHighlightsChange: (show: boolean) => void;
-  onClose: () => void;
-  /** Current width in pixels, between SIDEBAR_MIN_WIDTH and SIDEBAR_MAX_WIDTH. */
-  width: number;
-  /** Called with the requested width while the user drags or uses the keyboard; the owner clamps it. */
-  onWidthChange: (width: number) => void;
+  /** The sidebar's state from `useNotesSidebar`; the owner clamps widths requested through it. */
+  state: NotesSidebarState;
 }
 
 /**
@@ -23,14 +16,8 @@ interface NotesSidebarProps {
  * outside and all pointer events stop here to keep clicks from toggling the
  * reader overlay or closing the Reader sidebar.
  */
-export function NotesSidebar({
-  notes,
-  showHighlights,
-  onShowHighlightsChange,
-  onClose,
-  width,
-  onWidthChange,
-}: NotesSidebarProps) {
+export function NotesSidebar({ state }: NotesSidebarProps) {
+  const { notes, showHighlights, onShowHighlightsChange, close, width, onWidthChange } = state;
   const asideRef = useRef<HTMLElement>(null);
 
   return (
@@ -44,7 +31,7 @@ export function NotesSidebar({
     >
       <div className="border-border/60 flex items-center gap-1 border-b py-1.5 pr-2 pl-3.5">
         <h2 className="flex-1 text-sm font-medium">Notes</h2>
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close notes" className="size-7">
+        <Button variant="ghost" size="icon" onClick={close} aria-label="Close notes" className="size-7">
           <X className="size-4" />
         </Button>
       </div>
