@@ -17,6 +17,9 @@
   --btn-hover: rgba(0, 0, 0, 0.1);
   --overlay-bg: rgba(250, 249, 247, 0.92);
   --overlay-fg: #1a1a1a;
+  /* Reflow reads as a printed page (warm paper, serif) so it can't be mistaken
+     for the PDF page view; each theme tints its own background. */
+  --reflow-bg: #f1ece1;
   /* Find-bar matches: translucent so they read on the white page canvas and on
      every reader theme; the current match is stronger than the rest. */
   --search-match: rgba(250, 204, 21, 0.45);
@@ -74,6 +77,7 @@
   --btn-hover: rgba(255, 255, 255, 0.14);
   --overlay-bg: rgba(19, 19, 19, 0.92);
   --overlay-fg: #e8e6e3;
+  --reflow-bg: #1b1a18;
 
   --dash-bg: #171512;
   --dash-rail: #1c1a16;
@@ -99,6 +103,7 @@
   --btn-hover: rgba(91, 70, 54, 0.14);
   --overlay-bg: rgba(244, 236, 216, 0.94);
   --overlay-fg: #5b4636;
+  --reflow-bg: #ede2c6;
 
   --dash-bg: #f0e7d1;
   --dash-rail: #f5eede;
@@ -143,6 +148,8 @@
   --color-ring: var(--ring);
 
   --color-overlay: var(--overlay-bg);
+  --color-reflow: var(--reflow-bg);
+  --font-reflow: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
   --color-nav: var(--nav-bg);
   --color-rail: var(--rail);
   --color-ink: var(--ink);

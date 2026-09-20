@@ -509,7 +509,7 @@ export function ReflowReader({
         </div>
       ) : (
         <div
-          className={`absolute inset-0 flex justify-center overflow-y-auto overflow-x-hidden px-4 py-10${positioned ? '' : ' invisible'}`}
+          className={`bg-reflow absolute inset-0 flex justify-center overflow-y-auto overflow-x-hidden px-4 py-10${positioned ? '' : ' invisible'}`}
           ref={scrollRef}
           onScroll={handleScroll}
           onClick={handleClick}
@@ -633,7 +633,7 @@ const ReflowArticle = memo(function ReflowArticle({
   return (
     <article
       ref={articleRef}
-      className="text-foreground w-full max-w-full leading-[1.65]"
+      className="text-foreground font-reflow w-full max-w-full leading-[1.65]"
       style={{ fontSize: baseSize * zoom }}
       onMouseUp={onMouseUp}
     >
