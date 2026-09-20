@@ -17,3 +17,10 @@ Shared vocabulary for the taking-book monorepo. When a term is defined here, use
 - **Custom zoom**: any whole zoom percentage entered directly in the dropdown's custom field, accepted only when in the range [50, 200]; anything else is rejected as invalid.
 - **Zoom snapping**: the behavior of the overlay's `−`/`+` buttons, which jump to the nearest zoom preset strictly below/above the current value rather than stepping continuously.
 - **Theme**: the app color scheme: light, dark, sepia, or system. Changed in Settings; not shown in the reader overlay.
+- **Annotation**: a saved mark a reader leaves in a Book. It holds a Highlight, a Note, or both — never neither. It is identified with its Book by content hash, and is anchored to real PDF page numbers so it can be found again in either reader mode.
+- **Highlight**: a colored mark over a passage of text the reader selected. A Highlight can stand alone, without a Note.
+- **Note**: the text a reader writes on an Annotation (formerly called a "comment"; do not use "comment" any more). A Note usually rides on a Highlight, so it is tied to a quoted passage; a Note with no Highlight is a Page note.
+- **Page note**: a Note attached to a PDF page as a whole rather than to a passage. It has no quoted text and no color, and jumping to it lands on its page without highlighting anything.
+- **Reader sidebar**: the left-hand panel in the reader hosting the Thumbnails and Outlines tabs. It floats over the page, and clicking outside it closes it.
+- **Notes sidebar**: the right-hand panel in the reader listing the Notes of the open Book. It is toggled by its own icon in the overlay's top bar, slides in from the right, and pushes the page so it narrows instead of being covered. It stays open until closed explicitly — clicking the page does not close it — and it may be open at the same time as the Reader sidebar. Its width is resizable and remembered separately from the Reader sidebar's.
+- **Notes view**: the app-level view, reached from an icon in the navigation rail between Favorites and Statistics, that lists the Notes of every Book so a reader can manage them in one place.
