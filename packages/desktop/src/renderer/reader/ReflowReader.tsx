@@ -31,9 +31,9 @@ import {
   findRangeIgnoringWhitespace,
   HIGHLIGHT_FILL,
   rangeFromOffsets,
-  rangeGlobalOffsets,
   selectionRect,
 } from './highlights';
+import { selectionToParagraphs, type ReflowSelection } from './reflowSelection';
 import { ReaderBars } from './ReaderBars';
 import { clearSearchHighlights, setSearchHighlights } from './searchHighlights';
 import type { DocumentSearch } from './useDocumentSearch';
@@ -65,14 +65,6 @@ type FlowItem = { kind: 'para'; para: ReflowParagraph; index: number } | { kind:
 
 function flowItemPage(item: FlowItem): number {
   return item.kind === 'image' ? item.image.pageIndex : item.para.pageIndex;
-}
-
-/** One contiguous stretch of selected text inside a single reflow paragraph. */
-interface ReflowSelection {
-  index: number;
-  start: number;
-  end: number;
-  quote: string;
 }
 
 interface ReflowReaderProps {
@@ -488,15 +480,13 @@ export function ReflowReader({
       return;
     }
     const range = selection.getRangeAt(0);
-    const offsets = rangeGlobalOffsets(article, range);
     const rect = selectionRect();
-    if (!offsets || !rect || !article.contains(range.commonAncestorContainer)) {
+    if (!rect || !article.contains(range.commonAncestorContainer)) {
       setSelectionToolbar(null);
       return;
     }
-    const [globalStart, globalEnd] = offsets;
-    const items = selectionToParagraphs(article, globalStart, globalEnd);
-    if (items.length === 0) {
+    const items = selectionToParagraphs(article, range);
+    if (!items || items.length === 0) {
       setSelectionToolbar(null);
       return;
     }
@@ -692,6 +682,7 @@ const ReflowArticle = memo(function ReflowArticle({
               ) : (
                 <Paragraph
                   paragraph={item.para}
+                  index={item.index}
                   zoom={zoom}
                   marks={annotationsByPara.get(item.index) ?? EMPTY_MARKS}
                   onOpenAnnotation={onOpenAnnotation}
@@ -715,11 +706,14 @@ const ReflowArticle = memo(function ReflowArticle({
  */
 const Paragraph = memo(function Paragraph({
   paragraph,
+  index,
   zoom,
   marks,
   onOpenAnnotation,
 }: {
   paragraph: ReflowParagraph;
+  /** Position in the document's paragraph list; written on the `<p>` for selections to read back. */
+  index: number;
   zoom: number;
   marks: Annotation[];
   onOpenAnnotation: (annotation: Annotation) => void;
@@ -766,6 +760,7 @@ const Paragraph = memo(function Paragraph({
   if (paragraph.contents) {
     return (
       <ContentsEntry
+        index={index}
         fontSize={paragraph.fontSize * zoom}
         level={paragraph.contents.level}
         title={renderRange(0, paragraph.contents.pageStart)}
@@ -780,6 +775,7 @@ const Paragraph = memo(function Paragraph({
     // must render as one.
     return (
       <p
+        data-para-index={index}
         className="bg-muted text-foreground mb-[1em] max-w-full overflow-x-auto rounded-md px-[1em] py-[0.75em] font-mono leading-[1.5] whitespace-pre"
         style={{ fontSize: paragraph.fontSize * zoom }}
       >
@@ -790,6 +786,7 @@ const Paragraph = memo(function Paragraph({
 
   return (
     <p
+      data-para-index={index}
       className="mb-[1em]"
       style={{
         fontSize: paragraph.fontSize * zoom,
@@ -816,11 +813,13 @@ const Paragraph = memo(function Paragraph({
  * offsets that highlights and selections are anchored to.
  */
 function ContentsEntry({
+  index,
   fontSize,
   level,
   title,
   page,
 }: {
+  index: number;
   fontSize: number;
   level: number;
   title: ReactNode;
@@ -828,6 +827,7 @@ function ContentsEntry({
 }) {
   return (
     <p
+      data-para-index={index}
       className="mb-[0.4em] flex items-baseline"
       style={{ fontSize, paddingLeft: `${level * CONTENTS_INDENT_EM}em` }}
     >
@@ -946,27 +946,4 @@ function measurePageEdges(container: HTMLElement, article: HTMLElement): PageEdg
 function samePageEdges(a: PageEdges, b: PageEdges): boolean {
   if (a.offsets.length !== b.offsets.length || Math.abs(a.end - b.end) > 0.5) return false;
   return a.offsets.every((offset, i) => Math.abs(offset - b.offsets[i]) <= 0.5);
-}
-
-/** Maps global text offsets over the article back to per-paragraph ranges. */
-function selectionToParagraphs(
-  article: HTMLElement,
-  globalStart: number,
-  globalEnd: number,
-): ReflowSelection[] {
-  const paras = Array.from(article.querySelectorAll<HTMLElement>('p'));
-  const out: ReflowSelection[] = [];
-  let acc = 0;
-  for (let i = 0; i < paras.length; i++) {
-    const length = paras[i].textContent?.length ?? 0;
-    const start = Math.max(globalStart, acc);
-    const end = Math.min(globalEnd, acc + length);
-    if (start < end) {
-      const quote = (paras[i].textContent ?? '').slice(start - acc, end - acc);
-      if (quote.trim().length > 0) out.push({ index: i, start: start - acc, end: end - acc, quote });
-    }
-    acc += length;
-    if (acc >= globalEnd) break;
-  }
-  return out;
 }
