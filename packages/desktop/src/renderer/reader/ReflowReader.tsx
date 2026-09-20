@@ -4,7 +4,8 @@ import { Loader2 } from 'lucide-react';
 import {
   getParagraphTextAlign,
   offsetForPageLocation,
-  pageIndexAtOffset,
+  PAGE_PROBE_PX,
+  pageIndexAtScroll,
   pageLocationAtOffset,
   stepZoomMultiplier,
   type PageLocation,
@@ -51,12 +52,6 @@ const CONTENTS_LEADER_OPACITY = 0.45;
 /** Keyboard paging: fraction of the viewport a screen step scrolls, and a line step in px. */
 const SCREEN_STEP_RATIO = 0.9;
 const LINE_STEP_PX = 48;
-/**
- * A page counts as current once its top is within this many px of the viewport
- * top. Page tops are fractional layout positions while scrollTop is rounded, so
- * a page scrolled to exactly would otherwise read as the previous one.
- */
-const PAGE_PROBE_PX = 2;
 /** Matches painted on each side of the current one; a common word can match tens of thousands of times. */
 const SEARCH_HIGHLIGHT_WINDOW = 500;
 
@@ -247,7 +242,7 @@ export function ReflowReader({
     };
   }, [measurePages, hasArticle]);
 
-  const currentPage = pageIndexAtOffset(pageEdges.offsets, scrollTop + PAGE_PROBE_PX) + 1;
+  const currentPage = pageIndexAtScroll(pageEdges.offsets, scrollTop) + 1;
   const onLocationChangeRef = useRef(onLocationChange);
   onLocationChangeRef.current = onLocationChange;
   // While a location handed in through `initialLocation` is still being applied,

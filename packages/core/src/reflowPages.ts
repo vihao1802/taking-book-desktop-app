@@ -25,6 +25,26 @@ export function pageIndexAtOffset(offsets: number[], y: number): number {
   return Math.max(low, 0);
 }
 
+/**
+ * A page counts as current once its top is within this many px of the viewport
+ * top. Page tops are fractional layout positions while browsers round `scrollTop`
+ * to a whole physical pixel, so a page scrolled to exactly can read as up to a
+ * pixel short of its own top, and would otherwise be taken for the previous one.
+ */
+export const PAGE_PROBE_PX = 2;
+
+/**
+ * Finds which page is at the top of a scroll container, allowing for the
+ * rounding of `scrollTop` (see `PAGE_PROBE_PX`).
+ *
+ * @param offsets - Top offset of each page, ascending; `offsets[i]` is page `i + 1`.
+ * @param scrollTop - The container's scroll offset.
+ * @returns The 0-based index of the page under the top of the viewport.
+ */
+export function pageIndexAtScroll(offsets: number[], scrollTop: number): number {
+  return pageIndexAtOffset(offsets, scrollTop + PAGE_PROBE_PX);
+}
+
 function pageSpan(offsets: number[], totalHeight: number, pageIndex: number): { top: number; height: number } {
   const top = offsets[pageIndex];
   const bottom = pageIndex + 1 < offsets.length ? offsets[pageIndex + 1] : totalHeight;

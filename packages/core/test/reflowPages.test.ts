@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { offsetForPageLocation, pageIndexAtOffset, pageLocationAtOffset } from '../src';
+import { PAGE_PROBE_PX, offsetForPageLocation, pageIndexAtOffset, pageIndexAtScroll, pageLocationAtOffset } from '../src';
 
 // Three pages: [0, 100), [100, 150), [150, 400).
 const OFFSETS = [0, 100, 150];
@@ -70,5 +70,29 @@ describe('offsetForPageLocation', () => {
       const location = pageLocationAtOffset(OFFSETS, TOTAL, y);
       expect(offsetForPageLocation(OFFSETS, TOTAL, location)).toBeCloseTo(y);
     }
+  });
+});
+
+describe('pageIndexAtScroll', () => {
+  // Fractional page tops, as a PDF layout produces them.
+  const FRACTIONAL = [12, 1234.6, 2456.2];
+
+  it('reads a page scrolled to as itself even when the browser rounded scrollTop just below its top', () => {
+    // scrollTo({ top: 1234.6 }) can leave scrollTop at 1234 or 1234.5.
+    expect(pageIndexAtOffset(FRACTIONAL, 1234)).toBe(0);
+    expect(pageIndexAtScroll(FRACTIONAL, 1234)).toBe(1);
+    expect(pageIndexAtScroll(FRACTIONAL, 1234.5)).toBe(1);
+  });
+
+  it('keeps the previous page while its bottom is still clearly in view', () => {
+    expect(pageIndexAtScroll(FRACTIONAL, 1234.6 - PAGE_PROBE_PX - 1)).toBe(0);
+  });
+
+  it('reads the first page for offsets above it', () => {
+    expect(pageIndexAtScroll(FRACTIONAL, 0)).toBe(0);
+  });
+
+  it('returns index 0 when there are no pages', () => {
+    expect(pageIndexAtScroll([], 500)).toBe(0);
   });
 });

@@ -3,7 +3,7 @@ import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 // eslint-disable-next-line import/no-unresolved
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { useEffect, useMemo, useRef, useState, type MutableRefObject, type RefObject } from 'react';
-import { pageIndexAtOffset } from '@taking-book/core';
+import { pageIndexAtScroll } from '@taking-book/core';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -237,8 +237,9 @@ function layoutPages(
   return { heights, offsets, scales, totalHeight: acc, complete };
 }
 
+/** The 0-based index of the page at the top of the viewport; see `pageIndexAtScroll` for the rounding it allows for. */
 export function pageFromOffset(layout: PageLayout, scrollTop: number): number {
-  return pageIndexAtOffset(layout.offsets, scrollTop);
+  return pageIndexAtScroll(layout.offsets, scrollTop);
 }
 
 export function useLatest<T>(value: T): MutableRefObject<T> {

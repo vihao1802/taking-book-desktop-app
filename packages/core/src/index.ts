@@ -99,8 +99,10 @@ export {
 } from './reflow';
 export { assignCodeColors, isPlainInk, type ColoredText } from './reflowColors';
 export {
+  PAGE_PROBE_PX,
   offsetForPageLocation,
   pageIndexAtOffset,
+  pageIndexAtScroll,
   pageLocationAtOffset,
   type PageLocation,
 } from './reflowPages';

@@ -1,6 +1,12 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { offsetForPageLocation, pageLocationAtOffset, type IndexedTextMatch, type PageLocation } from '@taking-book/core';
+import {
+  PAGE_PROBE_PX,
+  offsetForPageLocation,
+  pageLocationAtOffset,
+  type IndexedTextMatch,
+  type PageLocation,
+} from '@taking-book/core';
 import type { Annotation, AnnotationColor } from '../../shared/types';
 import { pageFromOffset, type PageLayout } from './pdf';
 import { PdfPageView, type PageTextSelection } from './PdfPageView';
@@ -104,7 +110,7 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
       const position = scrollable > 0 ? st / scrollable : 0;
       onCurrentPageRef.current(page);
       onScrollPositionRef.current(page, position);
-      onLocationChangeRef.current?.(pageLocationAtOffset(layout.offsets, layout.totalHeight, st));
+      onLocationChangeRef.current?.(pageLocationAtOffset(layout.offsets, layout.totalHeight, st + PAGE_PROBE_PX));
     });
   }, [layout]);
 
