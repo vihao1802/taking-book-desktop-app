@@ -1,5 +1,11 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { findMatchesInTexts, type IndexedTextMatch, type TextMatch } from '@taking-book/core';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  buildSearchIndex,
+  findMatchesInIndex,
+  type IndexedTextMatch,
+  type SearchIndex,
+  type TextMatch,
+} from '@taking-book/core';
 
 /** State of the reader's find bar, shared by page and reflow modes. */
 export interface DocumentSearch {
@@ -55,9 +61,18 @@ export function useDocumentSearch(texts: readonly string[]): DocumentSearch {
   // typing stays responsive and the match list catches up.
   const deferredQuery = useDeferredValue(query);
 
+  // The texts are prepared for searching once, not per keystroke. The previous
+  // index is kept so that a list still being extracted only pays for its new
+  // entries each time it grows.
+  const indexRef = useRef<SearchIndex | undefined>(undefined);
+  const index = useMemo(() => {
+    if (!open) return undefined;
+    indexRef.current = buildSearchIndex(texts, indexRef.current);
+    return indexRef.current;
+  }, [open, texts]);
   const matches = useMemo(
-    () => (open ? findMatchesInTexts(texts, deferredQuery) : NO_MATCHES),
-    [open, texts, deferredQuery],
+    () => (index ? findMatchesInIndex(index, deferredQuery) : NO_MATCHES),
+    [index, deferredQuery],
   );
   const activeIndex = matches.length === 0 ? -1 : Math.min(rawActiveIndex, matches.length - 1);
 

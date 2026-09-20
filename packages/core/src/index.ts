@@ -57,7 +57,15 @@ export {
   type ResolveShortcutOptions,
   type ShortcutPlatform,
 } from './readerShortcuts';
-export { findMatchesInTexts, findTextMatches, type IndexedTextMatch, type TextMatch } from './textSearch';
+export {
+  buildSearchIndex,
+  findMatchesInIndex,
+  findMatchesInTexts,
+  findTextMatches,
+  type IndexedTextMatch,
+  type SearchIndex,
+  type TextMatch,
+} from './textSearch';
 export {
   ZOOM_PRESETS,
   clampZoomPercent,

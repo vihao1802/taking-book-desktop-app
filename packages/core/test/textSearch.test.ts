@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findMatchesInTexts, findTextMatches } from '../src/textSearch';
+import { buildSearchIndex, findMatchesInIndex, findMatchesInTexts, findTextMatches } from '../src/textSearch';
 
 describe('findTextMatches', () => {
   it('returns offsets into the original text', () => {
@@ -58,5 +58,38 @@ describe('findMatchesInTexts', () => {
 
   it('returns nothing for an empty query', () => {
     expect(findMatchesInTexts(['a', 'b'], '')).toEqual([]);
+  });
+});
+
+describe('buildSearchIndex', () => {
+  it('finds the same matches as searching the texts directly', () => {
+    const texts = ['one fish', 'no luck', 'Fish  fish', 'İx fish'];
+    expect(findMatchesInIndex(buildSearchIndex(texts), 'fish')).toEqual(findMatchesInTexts(texts, 'fish'));
+  });
+
+  it('can be searched again with another query', () => {
+    const index = buildSearchIndex(['red fish', 'blue fish']);
+    expect(findMatchesInIndex(index, 'red')).toHaveLength(1);
+    expect(findMatchesInIndex(index, 'fish')).toHaveLength(2);
+  });
+
+  it('returns nothing for an empty query', () => {
+    expect(findMatchesInIndex(buildSearchIndex(['a', 'b']), ' ')).toEqual([]);
+  });
+
+  it('reuses the entries of texts that did not change when a list grows', () => {
+    const first = buildSearchIndex(['page one', 'page two']);
+    const grown = buildSearchIndex(['page one', 'page two', 'page three'], first);
+    expect(grown.entries[0]).toBe(first.entries[0]);
+    expect(grown.entries[1]).toBe(first.entries[1]);
+    expect(findMatchesInIndex(grown, 'three')).toEqual([{ textIndex: 2, start: 5, end: 10 }]);
+  });
+
+  it('normalizes again a text that changed under the same position', () => {
+    const first = buildSearchIndex(['old text']);
+    const changed = buildSearchIndex(['new text'], first);
+    expect(changed.entries[0]).not.toBe(first.entries[0]);
+    expect(findMatchesInIndex(changed, 'old')).toEqual([]);
+    expect(findMatchesInIndex(changed, 'new')).toHaveLength(1);
   });
 });
