@@ -116,7 +116,7 @@ function OutlineRow({
           onClick={() => {
             if (node.page !== null) onSelect(node.page);
           }}
-          title={clickable ? `Go to page ${node.page}` : 'Destination unavailable'}
+          title={clickable ? `${node.title} — page ${node.page}` : `${node.title} (destination unavailable)`}
           className={cn(
             'min-w-0 flex-1 truncate text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm',
             clickable ? 'cursor-pointer' : 'cursor-default opacity-50',

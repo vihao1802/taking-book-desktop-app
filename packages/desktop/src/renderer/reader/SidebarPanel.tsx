@@ -1,7 +1,12 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { LayoutGrid, ListTree, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import {
+  SIDEBAR_KEYBOARD_STEP,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+} from './sidebar-width';
 
 /** Which sidebar tab is visible; null means the sidebar is closed. */
 export type SidebarTab = 'thumbnails' | 'outlines';
@@ -12,6 +17,10 @@ interface SidebarPanelProps {
   onClose: () => void;
   /** When false the thumbnails tab is hidden (e.g. reflow mode has no page images). */
   showThumbnails: boolean;
+  /** Current width in pixels, between SIDEBAR_MIN_WIDTH and SIDEBAR_MAX_WIDTH. */
+  width: number;
+  /** Called with the requested width while the user drags or uses the keyboard; the owner clamps it. */
+  onWidthChange: (width: number) => void;
   children: ReactNode;
 }
 
@@ -26,8 +35,17 @@ const TAB_LABEL: Record<SidebarTab, string> = {
  * untouched; all pointer events are stopped so clicks here never toggle the
  * reader overlay.
  */
-export function SidebarPanel({ tab, onTabChange, onClose, showThumbnails, children }: SidebarPanelProps) {
+export function SidebarPanel({
+  tab,
+  onTabChange,
+  onClose,
+  showThumbnails,
+  width,
+  onWidthChange,
+  children,
+}: SidebarPanelProps) {
   const asideRef = useRef<HTMLElement>(null);
+  const [dragging, setDragging] = useState(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -52,11 +70,39 @@ export function SidebarPanel({ tab, onTabChange, onClose, showThumbnails, childr
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, []);
 
+  // The panel's left edge is fixed, so the pointer's distance from it is the
+  // width the user is asking for.
+  const resizeToPointer = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const aside = asideRef.current;
+    if (aside) onWidthChange(event.clientX - aside.getBoundingClientRect().left);
+  };
+
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(true);
+  };
+
+  const finishResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDragging(false);
+  };
+
+  const resizeWithKeyboard = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key === 'ArrowLeft') onWidthChange(width - SIDEBAR_KEYBOARD_STEP);
+    else if (event.key === 'ArrowRight') onWidthChange(width + SIDEBAR_KEYBOARD_STEP);
+    else return;
+    event.preventDefault();
+  };
+
   return (
     <aside
       ref={asideRef}
       aria-label={TAB_LABEL[tab]}
-      className="bg-overlay text-foreground pointer-events-auto absolute top-16 bottom-16 left-2 z-[5] flex w-60 flex-col overflow-hidden rounded-lg shadow-lg backdrop-blur-md"
+      style={{ width }}
+      className="bg-overlay text-foreground pointer-events-auto absolute top-16 bottom-16 left-2 z-[5] flex max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-lg shadow-lg backdrop-blur-md"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
@@ -88,7 +134,30 @@ export function SidebarPanel({ tab, onTabChange, onClose, showThumbnails, childr
           <X className="size-4" />
         </Button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      {/* The right margin keeps the list's scrollbar clear of the resize handle. */}
+      <div className="mr-1.5 flex min-h-0 flex-1 flex-col">{children}</div>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        aria-valuenow={width}
+        aria-valuemin={SIDEBAR_MIN_WIDTH}
+        aria-valuemax={SIDEBAR_MAX_WIDTH}
+        tabIndex={0}
+        onPointerDown={startResize}
+        onPointerMove={(e) => {
+          if (dragging) resizeToPointer(e);
+        }}
+        onPointerUp={finishResize}
+        onPointerCancel={finishResize}
+        onDoubleClick={() => onWidthChange(SIDEBAR_MIN_WIDTH)}
+        onKeyDown={resizeWithKeyboard}
+        className={cn(
+          'absolute inset-y-0 right-0 w-1.5 cursor-col-resize outline-none transition-colors',
+          'hover:bg-primary/30 focus-visible:bg-primary/30',
+          dragging && 'bg-primary/40',
+        )}
+      />
     </aside>
   );
 }

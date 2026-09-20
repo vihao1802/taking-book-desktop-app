@@ -8,6 +8,7 @@ import {
   getFileZoom,
   getLastPosition,
   getReadingMinutesByBook,
+  getSidebarWidth,
   getTheme,
   isOk,
   listAnnotations,
@@ -23,6 +24,7 @@ import {
   setFileZoom,
   setFileTags,
   setFileTitle,
+  setSidebarWidth,
   setTheme,
   upsertFile,
 } from '@taking-book/core';
@@ -244,6 +246,12 @@ export function registerIpc(db: SqlDriver): void {
 
   ipcMain.handle('settings:theme:set', (_event, theme: Parameters<typeof setTheme>[1]) =>
     setTheme(db, theme),
+  );
+
+  ipcMain.handle('settings:sidebarWidth:get', () => getSidebarWidth(db));
+
+  ipcMain.handle('settings:sidebarWidth:set', (_event, width: number) =>
+    setSidebarWidth(db, width),
   );
 
   ipcMain.handle('window:fullscreen:get', (event): Result<boolean> => {

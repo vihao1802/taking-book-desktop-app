@@ -18,6 +18,7 @@ import { Overlay } from './Overlay';
 import { SidebarPanel, type SidebarTab } from './SidebarPanel';
 import { OutlineView } from './OutlineView';
 import { usePdfOutline } from './usePdfOutline';
+import { usePersistedSidebarWidth } from './usePersistedSidebarWidth';
 import { AnnotationPopup } from './AnnotationPopup';
 import { SelectionToolbar } from './SelectionToolbar';
 import { ReflowFigure } from './ReflowFigure';
@@ -129,6 +130,7 @@ export function ReflowReader({
   const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; x: number; y: number } | null>(null);
   const [activePopup, setActivePopup] = useState<{ annotation: Annotation; x: number; y: number } | null>(null);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
+  const [sidebarWidth, setSidebarWidth] = usePersistedSidebarWidth();
   const { nodes: outlineNodes, loading: outlineLoading } = usePdfOutline(pdf);
   const hideTimerRef = useRef<number>(0);
   const rafRef = useRef(0);
@@ -595,6 +597,8 @@ export function ReflowReader({
           onTabChange={setSidebarTab}
           onClose={() => setSidebarTab(null)}
           showThumbnails={false}
+          width={sidebarWidth}
+          onWidthChange={setSidebarWidth}
         >
           <OutlineView
             nodes={outlineNodes}

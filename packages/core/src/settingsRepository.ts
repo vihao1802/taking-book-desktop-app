@@ -68,6 +68,26 @@ export async function setSetting(
   }
 }
 
+const SIDEBAR_WIDTH_KEY = 'reader.sidebarWidth';
+
+/**
+ * Reads the reader sidebar's saved width in pixels.
+ *
+ * @returns The width, or null when it was never saved or the stored value is not a finite number.
+ */
+export async function getSidebarWidth(db: SqlDriver): Promise<Result<number | null>> {
+  const stored = await getSetting(db, SIDEBAR_WIDTH_KEY);
+  if (!stored.ok) return stored;
+  if (stored.data === null) return ok(null);
+  const width = Number(stored.data);
+  return ok(Number.isFinite(width) ? width : null);
+}
+
+/** Persists the reader sidebar's width in pixels. */
+export function setSidebarWidth(db: SqlDriver, width: number): Promise<Result<void>> {
+  return setSetting(db, SIDEBAR_WIDTH_KEY, String(width));
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

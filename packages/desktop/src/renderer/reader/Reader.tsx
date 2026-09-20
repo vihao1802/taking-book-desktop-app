@@ -21,7 +21,9 @@ import { useDocumentSearch } from './useDocumentSearch';
 import { usePageTexts } from './usePageTexts';
 import { useReaderShortcuts } from './useReaderShortcuts';
 import { useFullScreen } from './useFullScreen';
+import { usePersistedSidebarWidth } from './usePersistedSidebarWidth';
 import { usePersistedZoom } from './usePersistedZoom';
+import { getThumbnailWidth } from './sidebar-width';
 
 const HIDE_DELAY_MS = 2500;
 
@@ -89,6 +91,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   const [currentPage, setCurrentPage] = useState(1);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
+  const [sidebarWidth, setSidebarWidth] = usePersistedSidebarWidth();
   const { nodes: outlineNodes, loading: outlineLoading } = usePdfOutline(pdf);
   const hideTimerRef = useRef<number>(0);
   // Null until the saved position has been read: saving before that would
@@ -439,12 +442,15 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           onTabChange={setSidebarTab}
           onClose={() => setSidebarTab(null)}
           showThumbnails
+          width={sidebarWidth}
+          onWidthChange={setSidebarWidth}
         >
           {sidebarTab === 'thumbnails' ? (
             <ThumbnailsView
               pdf={pdf}
               total={pdf.numPages}
               currentPage={currentPage}
+              thumbWidth={getThumbnailWidth(sidebarWidth)}
               onSelect={selectSidebarPage}
             />
           ) : (

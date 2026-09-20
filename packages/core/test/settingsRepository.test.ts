@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTheme, setTheme, settingsSchema } from '../src';
+import { getSidebarWidth, getTheme, setSidebarWidth, setTheme, settingsSchema } from '../src';
 import { isOk } from '../src';
 import { createMemoryDriver } from './helpers';
 
@@ -28,5 +28,32 @@ describe('settingsRepository', () => {
 
     const theme = await getTheme(db);
     expect(isOk(theme) && theme.data === 'system').toBe(true);
+  });
+
+  it('has no sidebar width until one is saved', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+
+    const width = await getSidebarWidth(db);
+    expect(isOk(width) && width.data === null).toBe(true);
+  });
+
+  it('persists and reads back the sidebar width', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+
+    await setSidebarWidth(db, 360);
+    await setSidebarWidth(db, 412);
+    const width = await getSidebarWidth(db);
+    expect(isOk(width) && width.data === 412).toBe(true);
+  });
+
+  it('treats a non-numeric stored sidebar width as unset', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+    await db.run("INSERT INTO settings (key, value) VALUES ('reader.sidebarWidth', 'wide')");
+
+    const width = await getSidebarWidth(db);
+    expect(isOk(width) && width.data === null).toBe(true);
   });
 });
