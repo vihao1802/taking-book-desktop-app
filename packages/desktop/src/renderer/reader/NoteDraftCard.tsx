@@ -32,7 +32,8 @@ export function NoteDraftCard({ state }: NoteDraftCardProps) {
   const pageNote = isPageNote(draft);
   const kindLabel = pageNote ? 'page note' : 'note';
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  // Handled on the card, not the text box, so Escape also works from a swatch or a button.
+  const handleKeyDown = (event: KeyboardEvent<HTMLLIElement>) => {
     const action = resolveNoteDraftKey(event.nativeEvent);
     if (action === null) return;
     // Escape would otherwise also close the reader's layers underneath (sidebar, then reader).
@@ -46,6 +47,7 @@ export function NoteDraftCard({ state }: NoteDraftCardProps) {
     <li
       ref={cardRef}
       aria-label={`New ${kindLabel}`}
+      onKeyDown={handleKeyDown}
       className="border-primary/60 bg-background/60 flex flex-col gap-2 rounded-md border p-2.5"
     >
       <div className="text-muted-foreground text-xs">New {kindLabel} · Page {draft.page}</div>
@@ -62,7 +64,6 @@ export function NoteDraftCard({ state }: NoteDraftCardProps) {
         rows={4}
         value={draft.text}
         onChange={(event) => changeText(event.target.value)}
-        onKeyDown={handleKeyDown}
         placeholder="Write a note…"
         aria-label="Note text"
         className="border-input bg-secondary/50 placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-2.5 py-1.5 text-sm outline-none focus-visible:ring-[3px]"
