@@ -567,7 +567,7 @@ export function ReflowReader({
       {!error && (
         <Overlay
           visible={overlayVisible}
-          title={`${file.title} — reflow`}
+          title={file.title}
           page={currentPage}
           total={pdf?.numPages ?? pageSections.length}
           mode="reflow"

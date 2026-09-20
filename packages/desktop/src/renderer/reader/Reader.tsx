@@ -9,6 +9,7 @@ import { OutlineView } from './OutlineView';
 import { usePdfOutline } from './usePdfOutline';
 import { fileUrl, getScrollbarWidth, useElementSize, usePageLayout, usePdfDocument } from './pdf';
 import { PdfPages, type PdfPagesHandle } from './PdfPages';
+import { ModeToast, type ModeSwitch } from './ModeToast';
 import { ReflowReader } from './ReflowReader';
 import { useReflowDocument } from './useReflowDocument';
 import { useReadingSession } from './useReadingSession';
@@ -24,6 +25,7 @@ const HIDE_DELAY_MS = 2500;
 
 export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
   const [mode, setMode] = useState<ReadMode>('page');
+  const [modeSwitch, setModeSwitch] = useState<ModeSwitch | null>(null);
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
   const {
     paragraphs,
@@ -244,8 +246,11 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     // The tracked page is the fallback for a location that was never recorded;
     // handing over nothing would drop the other view onto page 1.
     setHandoffLocation(locationRef.current ?? { page: currentPage, fraction: 0 });
-    setMode((current) => (current === 'page' ? 'reflow' : 'page'));
-  }, [currentPage]);
+    const next: ReadMode = mode === 'page' ? 'reflow' : 'page';
+    setMode(next);
+    setModeSwitch({ id: Date.now(), mode: next });
+  }, [currentPage, mode]);
+  const clearModeSwitch = useCallback(() => setModeSwitch(null), []);
 
   const toggleSidebarTab = (tab: SidebarTab) => setSidebarTab((current) => (current === tab ? null : tab));
 
@@ -338,31 +343,34 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
 
   if (mode === 'reflow') {
     return (
-      <ReflowReader
-        file={file}
-        pdf={pdf}
-        paragraphs={paragraphs}
-        images={images}
-        pageTexts={pageTexts}
-        error={reflowError}
-        progress={reflowProgress}
-        onClose={onClose}
-        initialLocation={handoffLocation}
-        onLocationChange={recordLocation}
-        onToggleMode={toggleMode}
-        zoom={zoom}
-        onZoomChange={setZoom}
-        search={search}
-        onOpenFind={openFind}
-        goToRequest={goToRequest}
-        onOpenGoTo={openGoToPage}
-        onCloseGoTo={closeGoToPage}
-        annotations={annotations}
-        onCreate={create}
-        onSetNote={setNote}
-        onDelete={remove}
-        getImageData={getImageData}
-      />
+      <>
+        <ReflowReader
+          file={file}
+          pdf={pdf}
+          paragraphs={paragraphs}
+          images={images}
+          pageTexts={pageTexts}
+          error={reflowError}
+          progress={reflowProgress}
+          onClose={onClose}
+          initialLocation={handoffLocation}
+          onLocationChange={recordLocation}
+          onToggleMode={toggleMode}
+          zoom={zoom}
+          onZoomChange={setZoom}
+          search={search}
+          onOpenFind={openFind}
+          goToRequest={goToRequest}
+          onOpenGoTo={openGoToPage}
+          onCloseGoTo={closeGoToPage}
+          annotations={annotations}
+          onCreate={create}
+          onSetNote={setNote}
+          onDelete={remove}
+          getImageData={getImageData}
+        />
+        <ModeToast modeSwitch={modeSwitch} onDone={clearModeSwitch} />
+      </>
     );
   }
 
@@ -464,6 +472,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           )}
         </SidebarPanel>
       )}
+      <ModeToast modeSwitch={modeSwitch} onDone={clearModeSwitch} />
     </div>
   );
 }

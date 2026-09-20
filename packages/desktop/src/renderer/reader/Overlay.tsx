@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, FileText, Frame, LayoutGrid, ListTree, PanelLeft, TextWrap } from 'lucide-react';
 import { clampZoomPercent } from '@taking-book/core';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -162,6 +163,7 @@ export function Overlay({
             </div>
           )}
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
+          {mode === 'reflow' && <Badge variant="secondary">Reflow</Badge>}
           {mode === 'page' && (
             <Button
               variant="ghost"
