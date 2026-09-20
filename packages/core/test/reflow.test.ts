@@ -6,6 +6,7 @@ import {
   extractLines,
   filterBoilerplateParagraphs,
   fontStyleFromName,
+  getParagraphTextAlign,
   normalizeReflowSizes,
   paragraphsFromLines,
   reflowPage,
@@ -246,6 +247,67 @@ describe('paragraph alignment', () => {
     expect(both[0].text).toBe('centered line one line two');
     expect(both[0].align).toBe('center');
     expect(paragraphsFromLines([a, skewed, full(80)], 0)[0].align).toBeUndefined();
+  });
+});
+
+describe('flush-right title pages', () => {
+  const title = (text: string, y: number, right: number): ReflowLine => ({
+    ...line(text, y, right - text.length * 20, 40),
+    right,
+  });
+
+  it('keeps a right-aligned two-line title in one flush-right paragraph', () => {
+    const paragraphs = paragraphsFromLines(
+      [title('Designing Data-Intensive', 100, 1000), title('Applications', 150, 1000)],
+      0,
+    );
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0].text).toBe('Designing Data-Intensive Applications');
+    expect(paragraphs[0].indent).toBe(false);
+    expect(paragraphs[0].align).toBe('right');
+  });
+
+  it('marks a lone short line flush with the column edge as right-aligned', () => {
+    const author = title('Martin Kleppmann', 600, 1000);
+    const paragraphs = paragraphsFromLines(
+      [title('Designing Data-Intensive', 100, 1000), author],
+      0,
+    );
+    expect(paragraphs[1].align).toBe('right');
+  });
+
+  it('still treats a normal first-line indent as a new paragraph', () => {
+    const full = (y: number, x = 0): ReflowLine => ({ ...line('x'.repeat(50), y, x), right: 300 });
+    const paragraphs = paragraphsFromLines([full(20), full(34, 18)], 0);
+    expect(paragraphs).toHaveLength(2);
+    expect(paragraphs[1].indent).toBe(true);
+    expect(paragraphs[1].align).toBeUndefined();
+  });
+});
+
+describe('getParagraphTextAlign', () => {
+  const paragraph = (overrides: Partial<ReflowParagraph>): ReflowParagraph => ({
+    text: 'text',
+    fontSize: REFLOW_TARGET_FONT_SIZE,
+    indent: false,
+    pageIndex: 0,
+    y: 0,
+    runs: [],
+    ...overrides,
+  });
+
+  it('justifies body text', () => {
+    expect(getParagraphTextAlign(paragraph({}))).toBe('justify');
+  });
+
+  it('left-aligns headings and tables instead of justifying them', () => {
+    expect(getParagraphTextAlign(paragraph({ fontSize: REFLOW_TARGET_FONT_SIZE * 2 }))).toBe('left');
+    expect(getParagraphTextAlign(paragraph({ isTable: true }))).toBe('left');
+  });
+
+  it('prefers detected alignment over the default', () => {
+    const heading = paragraph({ fontSize: REFLOW_TARGET_FONT_SIZE * 2, align: 'right' });
+    expect(getParagraphTextAlign(heading)).toBe('right');
   });
 });
 

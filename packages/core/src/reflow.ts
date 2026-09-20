@@ -409,7 +409,15 @@ export function paragraphsFromLines(
     // ... / each recipient ..."), which is a hanging indent, not a new paragraph.
     const isHangingIndent =
       paragraphLines[paragraphLines.length - 1].length === 1 && startsWithListMarker(lastLine.text);
-    const indent = !isHangingIndent && line.x - lastLine.x > opts.indentRatio * line.fontSize;
+    // A big shift right with both lines ending at the same edge is a
+    // right-aligned block (a title page), not a first-line indent.
+    const continuesRightAligned =
+      line.x - lastLine.x > RIGHT_ALIGNED_SHIFT_RATIO * line.fontSize &&
+      Math.abs(line.right - lastLine.right) <= RIGHT_EDGE_TOLERANCE_RATIO * line.fontSize;
+    const indent =
+      !isHangingIndent &&
+      !continuesRightAligned &&
+      line.x - lastLine.x > opts.indentRatio * line.fontSize;
 
     const startsNew =
       gap > opts.paragraphGapRatio * line.fontSize ||
@@ -438,6 +446,11 @@ export function paragraphsFromLines(
   return paragraphs;
 }
 
+/** Allowed offset (× font size) between the right edges of two lines that count as flush right. */
+const RIGHT_EDGE_TOLERANCE_RATIO = 0.5;
+/** Rightward shift (× font size) beyond which a flush-right line is aligned text, not a paragraph indent. */
+const RIGHT_ALIGNED_SHIFT_RATIO = 3;
+
 /** How far inside the text column (× font size) a line must sit on each side to count as centered. */
 const CENTER_INSET_RATIO = 1.5;
 /** Allowed offset (× font size) between a line's midpoint and the column midpoint. */
@@ -445,7 +458,7 @@ const CENTER_TOLERANCE_RATIO = 1;
 
 /**
  * Sets `align: 'center'` on paragraphs whose every line is centered in the
- * page's text column. The column is the span of all body lines on the page, so
+ * page's text column, and `align: 'right'` on paragraphs that are flush right. The column is the span of all body lines on the page, so
  * a full-width left-aligned paragraph (whose lines start at the column's left
  * edge) is never mistaken for centered text, however its fragments average out.
  * Table rows are skipped: they scroll horizontally and stay left-aligned.
@@ -471,9 +484,31 @@ function markCenteredParagraphs(
     );
   };
 
+  const isRightEdge = (line: ReflowLine): boolean =>
+    Math.abs(columnRight - line.right) <= RIGHT_EDGE_TOLERANCE_RATIO * line.fontSize;
+
+  // Flush right means the lines share a right edge but start at different
+  // places (ragged left) or sit further inside the column than any paragraph indent would. Justified body text
+  // shares a right edge too, but its lines all start at the column's left.
+  const isFlushRight = (lines: ReflowLine[]): boolean => {
+    const first = lines[0];
+    const sharesRightEdge = lines.every(
+      (line) => Math.abs(line.right - first.right) <= RIGHT_EDGE_TOLERANCE_RATIO * line.fontSize,
+    );
+    if (!sharesRightEdge) return false;
+    const starts = lines.map((line) => line.x);
+    const raggedLeft =
+      lines.length > 1 && Math.max(...starts) - Math.min(...starts) > first.fontSize;
+    const insideColumn = lines.every(
+      (line) => isRightEdge(line) && line.x - columnLeft >= RIGHT_ALIGNED_SHIFT_RATIO * line.fontSize,
+    );
+    return raggedLeft || insideColumn;
+  };
+
   paragraphs.forEach((paragraph, index) => {
     if (paragraph.isTable || paragraph.contents) return;
     if (paragraphLines[index].every(isCentered)) paragraph.align = 'center';
+    else if (isFlushRight(paragraphLines[index])) paragraph.align = 'right';
   });
 }
 
@@ -522,6 +557,24 @@ export function dominantFontSize(paragraphs: ReflowParagraph[]): number | null {
     }
   }
   return dominant;
+}
+
+/** Rendered size (× body size) above which a paragraph is a heading and is never justified. */
+const HEADING_SIZE_RATIO = 1.2;
+
+/**
+ * Returns the CSS text alignment a paragraph renders with. Detected alignment
+ * wins; otherwise body text is justified, but tables and headings stay left
+ * aligned because justifying a short, large line stretches its words apart.
+ * `paragraph.fontSize` must already be normalized to `bodySize`.
+ */
+export function getParagraphTextAlign(
+  paragraph: ReflowParagraph,
+  bodySize = REFLOW_TARGET_FONT_SIZE,
+): 'left' | 'center' | 'right' | 'justify' {
+  if (paragraph.isTable) return 'left';
+  if (paragraph.align) return paragraph.align;
+  return paragraph.fontSize > bodySize * HEADING_SIZE_RATIO ? 'left' : 'justify';
 }
 
 /**

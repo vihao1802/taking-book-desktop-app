@@ -53,6 +53,7 @@ export {
   filterBoilerplateParagraphs,
   fontStyleFromName,
   normalizeReflowSizes,
+  getParagraphTextAlign,
   paragraphsFromLines,
   reflowPage,
   type PositionedReflowImage,

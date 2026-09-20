@@ -2,6 +2,7 @@ import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Loader2 } from 'lucide-react';
 import {
+  getParagraphTextAlign,
   pageIndexAtOffset,
   pageLocationAtOffset,
   stepZoomMultiplier,
@@ -726,7 +727,7 @@ const Paragraph = memo(function Paragraph({
         // Table rows keep their original small size and never wrap: each row
         // scrolls horizontally instead of reflowing, so columns stay on one
         // line and body-text upscaling can't break the table layout.
-        textAlign: paragraph.isTable ? 'left' : (paragraph.align ?? 'justify'),
+        textAlign: getParagraphTextAlign(paragraph),
         textIndent: paragraph.isTable ? undefined : paragraph.indent ? '1.6em' : undefined,
         whiteSpace: paragraph.isTable ? 'nowrap' : undefined,
         overflowX: paragraph.isTable ? 'auto' : undefined,
