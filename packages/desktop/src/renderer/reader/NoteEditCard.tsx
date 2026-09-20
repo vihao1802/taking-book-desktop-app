@@ -1,6 +1,4 @@
 import { hasNoteText, isPageNote } from '@taking-book/core';
-import { Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import type { Annotation } from '../../shared/types';
 import { HighlightColorPicker } from './HighlightColorPicker';
 import { NoteCardShell } from './NoteCardShell';
@@ -22,14 +20,15 @@ const DELETE_QUESTIONS = { note: 'Delete this note?', highlight: 'Delete this hi
 /**
  * A Note card in edit mode, in the Notes sidebar or the Notes view. The text and highlight color of the Note
  * change in place; Cmd/Ctrl+Enter or Save stores the text and Escape or Cancel
- * closes the card. Both delete controls are trash-can icons: the one beside the
- * text deletes the Note (keeping its Highlight), the one beside the colors
- * deletes the Highlight itself. Deleting written text asks first, inline.
+ * closes the card. The one trash-can icon deletes the Note while there is text
+ * (keeping its Highlight, or removing a Page note entirely) and, once a Highlight
+ * has none, the Highlight itself. Deleting written text asks first, inline.
  */
 export function NoteEditCard({ annotation, actions, onDone }: NoteEditCardProps) {
   const editor = useNoteEditor({ annotation, actions, onDone });
   const { pendingDelete, busy, error } = editor;
   const hasQuote = !isPageNote(annotation);
+  const holdsNote = hasNoteText(annotation);
 
   return (
     <NoteCardShell
@@ -41,22 +40,7 @@ export function NoteEditCard({ annotation, actions, onDone }: NoteEditCardProps)
       onCancel={pendingDelete ? editor.cancelDelete : onDone}
     >
       <NoteTextBox value={editor.text} onChange={editor.changeText} />
-      {hasQuote && (
-        <div className="flex items-center justify-between gap-2">
-          <HighlightColorPicker value={annotation.color} onChange={editor.changeColor} disabled={busy} />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground size-7"
-            aria-label="Delete highlight"
-            title="Delete highlight"
-            disabled={busy}
-            onClick={editor.requestDeleteHighlight}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
-      )}
+      {hasQuote && <HighlightColorPicker value={annotation.color} onChange={editor.changeColor} disabled={busy} />}
       {error && (
         <p role="alert" className="text-destructive text-xs">
           Couldn&apos;t update this note: {error}
@@ -66,9 +50,9 @@ export function NoteEditCard({ annotation, actions, onDone }: NoteEditCardProps)
         <NoteDeleteConfirm question={DELETE_QUESTIONS[pendingDelete]} onCancel={editor.cancelDelete} onConfirm={editor.confirmDelete} />
       ) : (
         <NoteEditFooter
-          canDeleteNote={hasNoteText(annotation)}
+          deleteTarget={holdsNote ? 'note' : 'highlight'}
           busy={busy}
-          onDeleteNote={editor.requestDeleteNote}
+          onDelete={holdsNote ? editor.requestDeleteNote : editor.requestDeleteHighlight}
           onCancel={onDone}
           onSave={editor.save}
         />
