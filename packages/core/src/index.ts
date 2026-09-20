@@ -25,6 +25,7 @@ export {
   readingSessionsSchema,
   recordReadingSession,
 } from './readingSessionsRepository';
+export { findNearestNote, locateNote, type NoteLocation } from './noteJump';
 export { hasNoteText, listLibraryNotes, listNotes, type BookNotes, type ListLibraryNotesOptions, type ListNotesOptions } from './notes';
 export {
   getNotesSidebarWidth,

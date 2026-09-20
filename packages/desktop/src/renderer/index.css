@@ -255,6 +255,24 @@
   }
 }
 
+/* Jumping to a Note flashes its highlight for a second (see flashHighlight.ts):
+   a ring and a stronger tint that both fade back to the highlight's normal look. */
+@keyframes tb-note-flash {
+  0%,
+  55% {
+    box-shadow: 0 0 0 3px var(--primary);
+    filter: saturate(2) brightness(0.85);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+    filter: none;
+  }
+}
+
+.tb-note-flash {
+  animation: tb-note-flash 1s ease-out;
+}
+
 /* ---------- Find-bar matches (CSS Custom Highlight API, see searchHighlights.ts) ---------- */
 
 ::highlight(tb-search) {

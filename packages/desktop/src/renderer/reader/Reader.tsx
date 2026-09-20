@@ -10,12 +10,13 @@ import { NotesSidebar } from './NotesSidebar';
 import { usePdfOutline } from './usePdfOutline';
 import { fileUrl, getScrollbarWidth, useElementSize, usePageLayout, usePdfDocument } from './pdf';
 import { PdfPages, type PdfPagesHandle } from './PdfPages';
-import { ModeToast, type ModeSwitch } from './ModeToast';
+import { ReaderToast, type ReaderNotice } from './ReaderToast';
 import { ReflowReader } from './ReflowReader';
 import { useReflowDocument } from './useReflowDocument';
 import { useReadingSession } from './useReadingSession';
 import { useAnnotations } from './useAnnotations';
 import { useNotesSidebar } from './useNotesSidebar';
+import { useNoteJump } from './useNoteJump';
 import { findRangeIgnoringWhitespace } from './highlights';
 import type { PageTextSelection } from './PdfPageView';
 import { ReaderBars } from './ReaderBars';
@@ -29,9 +30,14 @@ import { getThumbnailWidth } from './sidebar-width';
 
 const HIDE_DELAY_MS = 2500;
 
+const MODE_LABELS: Record<ReadMode, string> = {
+  page: 'Page view',
+  reflow: 'Reflow view',
+};
+
 export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
   const [mode, setMode] = useState<ReadMode>('page');
-  const [modeSwitch, setModeSwitch] = useState<ModeSwitch | null>(null);
+  const [notice, setNotice] = useState<ReaderNotice | null>(null);
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
   const {
     paragraphs,
@@ -44,6 +50,7 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   } = useReflowDocument(pdf, mode === 'reflow', { fileHash: file.hash });
   const { annotations, create, setNote, remove } = useAnnotations(file.hash);
   const notesSidebar = useNotesSidebar(annotations);
+  const { noteJump, jumpToNote, finishNoteJump } = useNoteJump(mode, setNotice);
   useReadingSession(file.id);
 
   // Find-in-document searches page text in page mode and paragraph text in
@@ -237,9 +244,9 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     setHandoffLocation(locationRef.current ?? { page: currentPage, fraction: 0 });
     const next: ReadMode = mode === 'page' ? 'reflow' : 'page';
     setMode(next);
-    setModeSwitch({ id: Date.now(), mode: next });
+    setNotice({ id: Date.now(), message: MODE_LABELS[next] });
   }, [currentPage, mode]);
-  const clearModeSwitch = useCallback(() => setModeSwitch(null), []);
+  const clearNotice = useCallback(() => setNotice(null), []);
 
   const toggleSidebarTab = (tab: SidebarTab) => setSidebarTab((current) => (current === tab ? null : tab));
 
@@ -359,9 +366,12 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           onSetNote={setNote}
           onDelete={remove}
           notesSidebar={notesSidebar}
+          onJumpToNote={jumpToNote}
+          noteJump={noteJump}
+          onNoteJumpDone={finishNoteJump}
           getImageData={getImageData}
         />
-        <ModeToast modeSwitch={modeSwitch} onDone={clearModeSwitch} />
+        <ReaderToast notice={notice} onDone={clearNotice} />
       </>
     );
   }
@@ -406,6 +416,8 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
               onCreate={createFromPage}
               onSetNote={setNote}
               onDelete={remove}
+              noteJump={noteJump}
+              onNoteJumpDone={finishNoteJump}
             />
           ) : (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
@@ -477,8 +489,8 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
           )}
         </SidebarPanel>
       )}
-      {notesSidebar.open && <NotesSidebar state={notesSidebar} />}
-      <ModeToast modeSwitch={modeSwitch} onDone={clearModeSwitch} />
+      {notesSidebar.open && <NotesSidebar state={notesSidebar} readingPage={currentPage} onJump={jumpToNote} />}
+      <ReaderToast notice={notice} onDone={clearNotice} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { Annotation, AnnotationColor } from '../../shared/types';
 import { pageFromOffset, type PageLayout } from './pdf';
 import { PdfPageView, type PageTextSelection } from './PdfPageView';
 import { groupMatchesByText } from './useDocumentSearch';
+import type { FinishNoteJump, NoteJump } from './useNoteJump';
 
 export interface PdfPagesHandle {
   /** Jumps to a page instantly; pass `smooth` for short hops like next/previous page. */
@@ -38,6 +39,9 @@ interface PdfPagesProps {
   ) => Promise<Annotation | null>;
   onSetNote: (id: number, note: string | null) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  /** A jump to a Note that this view still has to carry out; null when there is none. */
+  noteJump: NoteJump | null;
+  onNoteJumpDone: FinishNoteJump;
 }
 
 const NO_MATCHES: IndexedTextMatch[] = [];
@@ -62,6 +66,8 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
     onCreate,
     onSetNote,
     onDelete,
+    noteJump,
+    onNoteJumpDone,
   },
   ref,
 ) {
@@ -176,6 +182,22 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
     el.scrollTo({ top: layout.offsets[match.textIndex] });
   }, [pendingReveal]);
 
+  // A Note on a page that is not mounted is brought near first; once mounted
+  // the page centers the highlight itself. When its page is already mounted this
+  // must not scroll to the page top, or it would undo that centering (children's
+  // effects run first). A jump that cannot land on a passage ends here.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!noteJump || !el) return;
+    const pageIndex = noteJump.annotation.page - 1;
+    const pageMounted = pageIndex >= start && pageIndex < end;
+    const hasPassage = noteJump.location === 'passage';
+    if (!(hasPassage && pageMounted) && pageIndex >= 0 && pageIndex < layout.heights.length) {
+      el.scrollTo({ top: layout.offsets[pageIndex], behavior: 'instant' });
+    }
+    if (!hasPassage) onNoteJumpDone(noteJump.request, noteJump.location === 'page');
+  }, [noteJump]);
+
   const slots = [];
   for (let i = start; i < end; i++) {
     const group = matchGroups.get(i);
@@ -200,6 +222,8 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
           onCreate={onCreate}
           onSetNote={onSetNote}
           onDelete={onDelete}
+          noteJump={noteJump?.location === 'passage' && noteJump.annotation.page === i + 1 ? noteJump : null}
+          onNoteJumpDone={onNoteJumpDone}
         />
       </div>,
     );

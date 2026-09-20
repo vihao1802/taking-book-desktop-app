@@ -14,6 +14,8 @@ import {
   type HighlightRect,
 } from './highlights';
 import { clearSearchHighlights, setSearchHighlights } from './searchHighlights';
+import { flashHighlight } from './flashHighlight';
+import type { FinishNoteJump, NoteJump } from './useNoteJump';
 import { getPageCached } from './pdf';
 
 /** A selected stretch of text anchored to a PDF page's joined text content. */
@@ -45,6 +47,9 @@ interface PdfPageViewProps {
   ) => Promise<Annotation | null>;
   onSetNote: (id: number, note: string | null) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  /** A jump to a passage on this page still to be carried out; null when there is none. */
+  noteJump: NoteJump | null;
+  onNoteJumpDone: FinishNoteJump;
 }
 
 /**
@@ -67,6 +72,8 @@ export function PdfPageView({
   onCreate,
   onSetNote,
   onDelete,
+  noteJump,
+  onNoteJumpDone,
 }: PdfPageViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -150,6 +157,26 @@ export function PdfPageView({
     }
     setHighlightRects(byAnnotation);
   }, [textLayerReady, annotations, pageNumber, cssScale]);
+
+  // Carry out a jump to a Note on this page: bring its highlight to the middle
+  // of the view and flash it. Waits for the highlight rects, which only exist
+  // once the text layer has laid out; a highlight with no rects is text this
+  // page no longer has at that offset, which counts as not found.
+  useEffect(() => {
+    if (!noteJump || !textLayerReady) return;
+    const annotationId = noteJump.annotation.id;
+    if (!highlightRects.has(annotationId)) return;
+    const marks = pageRef.current?.querySelectorAll(`[data-annotation-id="${annotationId}"]`);
+    if (!marks || marks.length === 0) {
+      // The page may already be mounted, in which case the page list did not scroll to it.
+      pageRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      onNoteJumpDone(noteJump.request, false);
+      return;
+    }
+    marks[0].scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    flashHighlight(marks);
+    onNoteJumpDone(noteJump.request, true);
+  }, [noteJump, textLayerReady, highlightRects, onNoteJumpDone]);
 
   // Paint find-bar matches over the text layer once it has laid out its spans.
   useEffect(() => {
@@ -270,6 +297,7 @@ export function PdfPageView({
         (annotations.find((a) => a.id === id) ? rects : []).map((rect, i) => (
           <div
             key={`${id}-${i}`}
+            data-annotation-id={id}
             className="absolute z-20 cursor-pointer"
             style={{
               left: rect.x,

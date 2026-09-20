@@ -38,6 +38,8 @@ import { clearSearchHighlights, setSearchHighlights } from './searchHighlights';
 import type { DocumentSearch } from './useDocumentSearch';
 import { useFullScreen } from './useFullScreen';
 import { useLocationAnchor } from './useLocationAnchor';
+import { flashHighlight } from './flashHighlight';
+import type { FinishNoteJump, NoteJump } from './useNoteJump';
 import { useReaderShortcuts } from './useReaderShortcuts';
 
 const HIDE_DELAY_MS = 2500;
@@ -100,6 +102,11 @@ interface ReflowReaderProps {
   onDelete: (id: number) => Promise<void>;
   /** The Notes sidebar, whose state lives in the reader so it survives a mode toggle. */
   notesSidebar: NotesSidebarState;
+  /** Asks the reader to jump to a Note the reader clicked in the Notes sidebar. */
+  onJumpToNote: (annotation: Annotation) => void;
+  /** A jump to a Note that this view still has to carry out; null when there is none. */
+  noteJump: NoteJump | null;
+  onNoteJumpDone: FinishNoteJump;
   getImageData: (pageIndex: number, ref: string) => Promise<unknown>;
 }
 
@@ -127,6 +134,9 @@ export function ReflowReader({
   onSetNote,
   onDelete,
   notesSidebar,
+  onJumpToNote,
+  noteJump,
+  onNoteJumpDone,
   getImageData,
 }: ReflowReaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -363,6 +373,31 @@ export function ReflowReader({
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: targetFor(el), behavior: 'smooth' });
   }, []);
+
+  // Carry out a jump to a Note: center its highlight and flash it, or just show
+  // its page when there is no passage to show. The document streams in page by
+  // page, so the jump waits until the Note's page (and the one after it, which
+  // fixes where that page ends) is laid out; the effect re-runs as sections grow.
+  useEffect(() => {
+    if (!noteJump) return;
+    const { annotation, location, request } = noteJump;
+    if (progress !== null && pageSections.length <= annotation.page) return;
+
+    const marks =
+      location === 'passage' ? articleRef.current?.querySelectorAll(`mark[data-annotation-id="${annotation.id}"]`) : undefined;
+    if (marks && marks.length > 0) {
+      marks[0].scrollIntoView({ block: 'center', behavior: 'instant' });
+      flashHighlight(marks);
+      onNoteJumpDone(request, true);
+      return;
+    }
+    const el = scrollRef.current;
+    const edges = measureEdges();
+    if (el && edges && annotation.page <= edges.offsets.length) {
+      el.scrollTo({ top: edges.offsets[annotation.page - 1], behavior: 'instant' });
+    }
+    onNoteJumpDone(request, location === 'page');
+  }, [noteJump, progress, pageSections, measureEdges, onNoteJumpDone]);
 
   const clearSelectionUi = () => {
     setSelectionToolbar(null);
@@ -637,7 +672,7 @@ export function ReflowReader({
           />
         </SidebarPanel>
       )}
-      {notesSidebar.open && <NotesSidebar state={notesSidebar} />}
+      {notesSidebar.open && <NotesSidebar state={notesSidebar} readingPage={currentPage} onJump={onJumpToNote} />}
     </div>
   );
 }
@@ -734,6 +769,7 @@ const Paragraph = memo(function Paragraph({
       nodes.push(
         <mark
           key={mark.id}
+          data-annotation-id={mark.id}
           className="cursor-pointer rounded-[2px]"
           style={{ backgroundColor: HIGHLIGHT_FILL[mark.color], padding: '0 1px' }}
           onClick={(e) => {
