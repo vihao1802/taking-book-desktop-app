@@ -42,7 +42,7 @@ export interface NotesSidebarState {
 /**
  * State of the Notes sidebar, owned by the reader (above both reader modes) so
  * that it stays open, at the same width, across a page/reflow toggle. It starts
- * closed for every book, and its "show highlights too" filter is reset each time
+ * closed for every book, and its "show highlights" filter is reset each time
  * it opens so the default view is always just the reader's own notes. It also
  * tracks which card is being edited, since a click on a highlight in either
  * reader view has to reach it.

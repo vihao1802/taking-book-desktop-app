@@ -47,7 +47,7 @@ export function NotesView({ onOpenNote }: NotesViewProps): ReactElement {
             onChange={(e) => setShowHighlights(e.target.checked)}
             className="accent-primary size-4 cursor-pointer"
           />
-          Show highlights too
+          Show highlights
         </label>
         <Input
           ref={searchRef}

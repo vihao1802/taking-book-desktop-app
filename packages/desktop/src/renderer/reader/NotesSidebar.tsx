@@ -96,7 +96,7 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
           onChange={(e) => onShowHighlightsChange(e.target.checked)}
           className="accent-primary size-3.5 cursor-pointer"
         />
-        Show highlights too
+        Show highlights
       </label>
       {/* The margins keep the list's scrollbar clear of the resize handle on the left edge. */}
       <div ref={listRef} className="ml-1.5 min-h-0 flex-1 overflow-y-auto">
