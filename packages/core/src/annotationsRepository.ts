@@ -347,6 +347,42 @@ export async function setAnnotationColor(
   }
 }
 
+/** Where a quote sits in the reflow view: a paragraph and a character range inside it. */
+export interface ReflowAnchor {
+  paraIndex: number;
+  paraStart: number;
+  paraEnd: number;
+}
+
+/**
+ * Fills in the reflow anchor of an annotation made in page view, once the
+ * reflow text exists to match it against. It is derived data, not an edit, so
+ * the sync clock is left alone (like assigning a uid): stamping it would let a
+ * backfill on this device win over a newer Note edit made on another one. An
+ * anchor that is already set is never replaced.
+ *
+ * @param db - The data-access driver.
+ * @param id - Local id of the annotation.
+ * @param anchor - The paragraph range holding the annotation's quote.
+ * @returns The annotation as stored, or an error message when it is missing or deleted.
+ */
+export async function setAnnotationReflowAnchor(
+  db: SqlDriver,
+  id: number,
+  anchor: ReflowAnchor,
+): Promise<Result<Annotation>> {
+  try {
+    await db.run(
+      `UPDATE annotations SET para_index = ?, para_start = ?, para_end = ?
+       WHERE id = ? AND para_index IS NULL AND deleted_at IS NULL`,
+      [anchor.paraIndex, anchor.paraStart, anchor.paraEnd, id],
+    );
+    return getAnnotation(db, id);
+  } catch (error) {
+    return err(`Failed to set reflow anchor for annotation ${id}: ${errorMessage(error)}`);
+  }
+}
+
 /** Tombstones an annotation (a Highlight, a Note or both) so the delete propagates through sync. */
 export async function deleteAnnotation(
   db: SqlDriver,

@@ -75,6 +75,7 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
     fileHash: file.hash,
     mode,
     paragraphs,
+    reflowTextReady,
     showNotice: setNotice,
     noteToOpen,
     viewReady: initialPosition !== undefined && (mode === 'page' || reflowTextReady),

@@ -14,7 +14,9 @@ export {
   migrateAnnotationsSchema,
   setAnnotationColor,
   setAnnotationNote,
+  setAnnotationReflowAnchor,
   type CreateAnnotationOptions,
+  type ReflowAnchor,
 } from './annotationsRepository';
 export { deriveAnnotationUid, resolveAnnotationUid, type AnnotationUidGenerator } from './annotationUid';
 export { deleteNote, saveNoteDraft, saveNoteText, savePageNote, type NoteAnchor, type NoteDraft, type PageNoteInput } from './notesRepository';

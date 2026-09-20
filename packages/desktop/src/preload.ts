@@ -30,6 +30,7 @@ const api: ReaderApi = {
   saveNoteText: (id, text) => ipcRenderer.invoke('annotations:note:save', id, text),
   deleteNote: (id) => ipcRenderer.invoke('annotations:note:delete', id),
   setAnnotationColor: (id, color) => ipcRenderer.invoke('annotations:color:set', id, color),
+  setAnnotationReflowAnchor: (id, anchor) => ipcRenderer.invoke('annotations:reflowAnchor:set', id, anchor),
   deleteAnnotation: (id) => ipcRenderer.invoke('annotations:delete', id),
   getTheme: () => ipcRenderer.invoke('settings:theme:get'),
   setTheme: (theme) => ipcRenderer.invoke('settings:theme:set', theme),

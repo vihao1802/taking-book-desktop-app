@@ -10,6 +10,7 @@ import {
   listAnnotationsForSync,
   listLibraryAnnotations,
   setAnnotationNote,
+  setAnnotationReflowAnchor,
   upsertFile,
 } from '../src';
 import type { SqlDriver, SyncAnnotation } from '../src';
@@ -334,5 +335,40 @@ describe('listLibraryAnnotations', () => {
     await deleteFile(db, Number(removed?.id));
 
     expect(await listLibraryQuotes(db)).toEqual(['kept']);
+  });
+});
+
+describe('setAnnotationReflowAnchor', () => {
+  const pageOnly = { page: 3, pageStart: 10, pageEnd: 24, quote: 'selected words', color: 'yellow' as const, note: 'kept', paraIndex: null, paraStart: null, paraEnd: null };
+  const anchor = { paraIndex: 7, paraStart: 4, paraEnd: 18 };
+
+  it('fills in the reflow anchor without touching the sync clock or anything else', async () => {
+    const db = await dbWithBook();
+    const created = await createAnnotation(db, 'h1', pageOnly, { updatedAt: 100, updatedBy: 'dev-a' });
+    if (!isOk(created)) throw new Error(created.error);
+
+    const result = await setAnnotationReflowAnchor(db, created.data.id, anchor);
+
+    expect(result).toMatchObject({ ok: true, data: { ...anchor, note: 'kept', pageStart: 10, updatedAt: 100, updatedBy: 'dev-a' } });
+  });
+
+  it('never replaces an anchor that is already set', async () => {
+    const db = await dbWithBook();
+    const created = await createAnnotation(db, 'h1', { ...pageOnly, paraIndex: 2, paraStart: 0, paraEnd: 5 });
+    if (!isOk(created)) throw new Error(created.error);
+
+    const result = await setAnnotationReflowAnchor(db, created.data.id, anchor);
+
+    expect(result).toMatchObject({ ok: true, data: { paraIndex: 2, paraStart: 0, paraEnd: 5 } });
+  });
+
+  it('reports a missing or deleted annotation', async () => {
+    const db = await dbWithBook();
+    const created = await createAnnotation(db, 'h1', pageOnly);
+    if (!isOk(created)) throw new Error(created.error);
+    await deleteAnnotation(db, created.data.id);
+
+    expect(isOk(await setAnnotationReflowAnchor(db, created.data.id, anchor))).toBe(false);
+    expect(isOk(await setAnnotationReflowAnchor(db, 999, anchor))).toBe(false);
   });
 });

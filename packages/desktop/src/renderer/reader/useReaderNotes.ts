@@ -8,11 +8,14 @@ import { useNoteDraft, type NoteDraftState } from './useNoteDraft';
 import { useNoteJump, type FinishNoteJump, type NoteJump } from './useNoteJump';
 import { useNotesSidebar, type NotesSidebarState } from './useNotesSidebar';
 import { useOpenToNote } from './useOpenToNote';
+import { useReflowAnchors } from './useReflowAnchors';
 
 interface UseReaderNotesOptions {
   fileHash: string;
   mode: ReadMode;
   paragraphs: readonly ReflowParagraph[];
+  /** True once reflow extraction has finished, so the paragraphs are final. */
+  reflowTextReady: boolean;
   showNotice: (notice: ReaderNotice) => void;
   /** A Note chosen in the Notes view: the book opens at it with the Notes sidebar on its card. Null for a normal open. */
   noteToOpen: Annotation | null;
@@ -39,8 +42,9 @@ export interface ReaderNotes extends NoteActions {
  * the book's annotations, the Notes sidebar, the draft card, jumping to a Note,
  * and the arrival from the Notes view.
  */
-export function useReaderNotes({ fileHash, mode, paragraphs, showNotice, noteToOpen, viewReady }: UseReaderNotesOptions): ReaderNotes {
-  const { annotations, create, saveNoteDraft, editActions } = useAnnotations(fileHash);
+export function useReaderNotes({ fileHash, mode, paragraphs, reflowTextReady, showNotice, noteToOpen, viewReady }: UseReaderNotesOptions): ReaderNotes {
+  const { annotations: storedAnnotations, create, saveNoteDraft, editActions } = useAnnotations(fileHash);
+  const annotations = useReflowAnchors({ annotations: storedAnnotations, paragraphs, reflowTextReady });
   const notesSidebar = useNotesSidebar(annotations);
   const noteDraft = useNoteDraft({ fileHash, saveNote: saveNoteDraft });
   const { noteJump, jumpToNote, finishNoteJump } = useNoteJump(mode, showNotice);
