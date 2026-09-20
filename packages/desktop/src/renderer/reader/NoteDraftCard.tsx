@@ -1,9 +1,9 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useEffect, useRef } from 'react';
 import { isPageNote } from '@taking-book/core';
-import { Button } from '@/components/ui/button';
 import { HighlightColorPicker } from './HighlightColorPicker';
-import { HIGHLIGHT_FILL } from './highlights';
-import { resolveNoteDraftKey } from './note-draft-keys';
+import { NoteCardButtons } from './NoteCardButtons';
+import { NoteCardShell } from './NoteCardShell';
+import { NoteTextBox } from './NoteTextBox';
 import type { NoteDraftState } from './useNoteDraft';
 
 interface NoteDraftCardProps {
@@ -32,56 +32,25 @@ export function NoteDraftCard({ state }: NoteDraftCardProps) {
   const pageNote = isPageNote(draft);
   const kindLabel = pageNote ? 'page note' : 'note';
 
-  // Handled on the card, not the text box, so Escape also works from a swatch or a button.
-  const handleKeyDown = (event: KeyboardEvent<HTMLLIElement>) => {
-    const action = resolveNoteDraftKey(event.nativeEvent);
-    if (action === null) return;
-    // Escape would otherwise also close the reader's layers underneath (sidebar, then reader).
-    event.preventDefault();
-    event.stopPropagation();
-    if (action === 'save') void save();
-    else cancel();
-  };
-
   return (
-    <li
-      ref={cardRef}
-      aria-label={`New ${kindLabel}`}
-      onKeyDown={handleKeyDown}
-      className="border-primary/60 bg-background/60 flex flex-col gap-2 rounded-md border p-2.5"
+    <NoteCardShell
+      cardRef={cardRef}
+      label={`New ${kindLabel}`}
+      header={`New ${kindLabel} · Page ${draft.page}`}
+      quote={pageNote ? null : { text: draft.quote, color: draft.color }}
+      onSave={() => void save()}
+      onCancel={cancel}
     >
-      <div className="text-muted-foreground text-xs">New {kindLabel} · Page {draft.page}</div>
-      {!pageNote && (
-        <blockquote
-          className="text-muted-foreground line-clamp-4 border-l-2 pl-2 text-xs italic"
-          style={{ borderColor: HIGHLIGHT_FILL[draft.color] }}
-        >
-          {draft.quote}
-        </blockquote>
-      )}
-      <textarea
-        autoFocus
-        rows={4}
-        value={draft.text}
-        onChange={(event) => changeText(event.target.value)}
-        placeholder="Write a note…"
-        aria-label="Note text"
-        className="border-input bg-secondary/50 placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-2.5 py-1.5 text-sm outline-none focus-visible:ring-[3px]"
-      />
+      <NoteTextBox value={draft.text} onChange={changeText} />
       {!pageNote && <HighlightColorPicker value={draft.color} onChange={changeColor} />}
       {error && (
         <p role="alert" className="text-destructive text-xs">
           Couldn&apos;t save this {kindLabel}: {error}
         </p>
       )}
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs" disabled={saving} onClick={cancel}>
-          Cancel
-        </Button>
-        <Button size="sm" className="h-auto px-2 py-1 text-xs" disabled={saving} onClick={() => void save()}>
-          Save
-        </Button>
+      <div className="flex justify-end">
+        <NoteCardButtons disabled={saving} onCancel={cancel} onSave={() => void save()} />
       </div>
-    </li>
+    </NoteCardShell>
   );
 }
