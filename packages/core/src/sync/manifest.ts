@@ -1,4 +1,4 @@
-import type { AnnotationColor } from '../models';
+import { resolveAnnotationUid } from '../annotationUid';
 import type { SyncAnnotation, SyncManifest, SyncRecord } from './types';
 
 /**
@@ -16,6 +16,7 @@ function isValidAnnotation(value: unknown): value is SyncAnnotation {
   const annotation = value as Record<string, unknown>;
   return (
     typeof annotation.id === 'number' &&
+    (annotation.uid == null || typeof annotation.uid === 'string') &&
     typeof annotation.page === 'number' &&
     (annotation.pageStart == null || typeof annotation.pageStart === 'number') &&
     (annotation.pageEnd == null || typeof annotation.pageEnd === 'number') &&
@@ -56,7 +57,7 @@ function isValidRecord(value: unknown): value is SyncRecord {
 /**
  * Normalizes a parsed record so newer clients tolerate manifests written by
  * older ones: missing fields (favorite, pageCount, reflowZoom, annotations) fall back to
- * defaults.
+ * defaults, and an annotation without a uid gets its deterministic one (ADR-0003).
  */
 function normalizeRecord(value: SyncRecord): SyncRecord {
   return {
@@ -65,7 +66,10 @@ function normalizeRecord(value: SyncRecord): SyncRecord {
     pageCount: value.pageCount ?? null,
     lastMode: value.lastMode ?? null,
     reflowZoom: value.reflowZoom ?? null,
-    annotations: value.annotations ?? [],
+    annotations: (value.annotations ?? []).map((annotation) => ({
+      ...annotation,
+      uid: resolveAnnotationUid(value.hash, annotation),
+    })),
   };
 }
 

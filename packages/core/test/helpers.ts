@@ -1,5 +1,9 @@
 import Database from 'better-sqlite3';
+import { createAnnotation as createAnnotationWithUid } from '../src/annotationsRepository';
+import type { Annotation, CreateAnnotationInput } from '../src/models';
+import type { Result } from '../src/result';
 import type { SqlDriver, SqlRunResult, SqlValue } from '../src/sql';
+import type { SyncStamp, SyncStorage } from '../src/sync/types';
 
 /**
  * Test-only adapter: backs the platform-agnostic SqlDriver interface with
@@ -47,4 +51,58 @@ function normalizeRow(row: unknown): Record<string, SqlValue> {
     }
   }
   return out;
+}
+
+let testUidCounter = 0;
+
+/** Returns a uid generator that yields `<prefix>-1`, `<prefix>-2`, ... for one simulated device. */
+export function sequentialUids(prefix: string): () => string {
+  let next = 0;
+  return () => {
+    next += 1;
+    return `${prefix}-${next}`;
+  };
+}
+
+/**
+ * Creates an annotation with a process-unique uid, for tests that do not care
+ * about identity. Tests about identity pass their own generator to core.
+ */
+export function createAnnotation(
+  db: SqlDriver,
+  fileHash: string,
+  input: CreateAnnotationInput,
+  stamp?: SyncStamp,
+): Promise<Result<Annotation>> {
+  return createAnnotationWithUid(db, fileHash, input, {
+    stamp,
+    generateUid: () => {
+      testUidCounter += 1;
+      return `test-uid-${testUidCounter}`;
+    },
+  });
+}
+
+/** In-memory cloud-drive folder, shared by simulated devices in a test. */
+export function createMemoryStorage(): SyncStorage & { dump(): Map<string, Uint8Array> } {
+  const files = new Map<string, Uint8Array>();
+  return {
+    async readFile(key) {
+      return { ok: true, data: files.get(key) ?? null };
+    },
+    async writeFile(key, data) {
+      files.set(key, data);
+      return { ok: true, data: undefined };
+    },
+    async deleteFile(key) {
+      files.delete(key);
+      return { ok: true, data: undefined };
+    },
+    async listFiles(prefix) {
+      return { ok: true, data: [...files.keys()].filter((key) => key.startsWith(prefix)) };
+    },
+    dump() {
+      return files;
+    },
+  };
 }

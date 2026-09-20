@@ -217,31 +217,10 @@ export async function applySyncRecords(
         row.updated_at !== record.updatedAt ||
         row.updated_by !== record.updatedBy ||
         row.deleted_at != null !== deleted;
-      if (!changed) continue;
-      await db.run(
-        `UPDATE files SET title = ?, status = ?, tags = ?, favorite = ?, last_page = ?, last_position = ?, last_mode = ?, page_count = ?, zoom = ?, reflow_zoom = ?, last_read_at = ?,
-           updated_at = ?, updated_by = ?, deleted_at = ? WHERE id = ?`,
-        [
-          record.title,
-          record.status,
-          JSON.stringify(record.tags),
-          record.favorite ? 1 : 0,
-          record.lastPage,
-          record.lastPosition,
-          record.lastMode,
-          record.pageCount,
-          record.zoom,
-          record.reflowZoom ?? null,
-          record.lastReadAt ?? null,
-          record.updatedAt,
-          record.updatedBy,
-          deleted ? record.updatedAt : null,
-          row.id,
-        ],
-      );
-      if (deleted && row.deleted_at == null) counts.deleted += 1;
-      else counts.updated += 1;
-
+      if (changed) await updateFileRecord(db, row, record, counts);
+      // Annotations merge by their own identity and clock, so they are applied
+      // even when the book's own fields did not change: adding an annotation
+      // never touches the book's clock.
       const applied = await applyRecordAnnotations(db, record.hash, record.annotations);
       if (!applied.ok) return applied;
     }
@@ -249,6 +228,39 @@ export async function applySyncRecords(
   } catch (error) {
     return err(`Failed to apply sync records: ${errorMessage(error)}`);
   }
+}
+
+/** Writes a changed record onto its existing row and counts it as updated or deleted. */
+async function updateFileRecord(
+  db: SqlDriver,
+  row: FileRow,
+  record: SyncRecord,
+  counts: ApplySyncCounts,
+): Promise<void> {
+  const deleted = record.deleted;
+  await db.run(
+    `UPDATE files SET title = ?, status = ?, tags = ?, favorite = ?, last_page = ?, last_position = ?, last_mode = ?, page_count = ?, zoom = ?, reflow_zoom = ?, last_read_at = ?,
+       updated_at = ?, updated_by = ?, deleted_at = ? WHERE id = ?`,
+    [
+      record.title,
+      record.status,
+      JSON.stringify(record.tags),
+      record.favorite ? 1 : 0,
+      record.lastPage,
+      record.lastPosition,
+      record.lastMode,
+      record.pageCount,
+      record.zoom,
+      record.reflowZoom ?? null,
+      record.lastReadAt ?? null,
+      record.updatedAt,
+      record.updatedBy,
+      deleted ? record.updatedAt : null,
+      row.id,
+    ],
+  );
+  if (deleted && row.deleted_at == null) counts.deleted += 1;
+  else counts.updated += 1;
 }
 
 /** Inserts a brand-new local row for a live sync record that this device has never seen. */

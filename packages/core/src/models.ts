@@ -94,7 +94,10 @@ export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink';
  * when the text could not be matched in that mode at creation time.
  */
 export interface Annotation {
+  /** Local row key used by the UI and IPC layer; it means nothing on another device. */
   id: number;
+  /** Globally stable identity, generated once where the annotation was created; sync matches on this. */
+  uid: string;
   fileHash: string;
   /** 1-based PDF page the highlighted text lives on. */
   page: number;

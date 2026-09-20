@@ -9,8 +9,11 @@ export {
   deleteAnnotation,
   listAnnotations,
   listAnnotationsForSync,
+  migrateAnnotationsSchema,
   setAnnotationNote,
+  type CreateAnnotationOptions,
 } from './annotationsRepository';
+export { deriveAnnotationUid, resolveAnnotationUid, type AnnotationUidGenerator } from './annotationUid';
 export {
   computeCurrentStreak,
   computeLongestStreak,
@@ -95,7 +98,7 @@ export {
   type ApplySyncCounts,
 } from './sync/syncRepository';
 export { emptyManifest, parseManifest, serializeManifest } from './sync/manifest';
-export { isNewerThan, mergeRecords, pickWinner } from './sync/merge';
+export { isNewerThan, mergeAnnotations, mergeRecords, pickWinner } from './sync/merge';
 export { syncLibrary, type SyncLibraryOptions } from './sync/syncLibrary';
 export type { SyncAnnotation, SyncManifest, SyncRecord, SyncStamp, SyncStorage, SyncSummary } from './sync/types';
 export {

@@ -1,4 +1,5 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron';
+import { randomUUID } from 'node:crypto';
 import {
   computeReadingStats,
   createAnnotation,
@@ -219,7 +220,7 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('annotations:list', (_event, fileHash: string) => listAnnotations(db, fileHash));
 
   ipcMain.handle('annotations:create', async (_event, fileHash: string, input: CreateAnnotationInput) =>
-    createAnnotation(db, fileHash, input, await stamp()),
+    createAnnotation(db, fileHash, input, { stamp: await stamp(), generateUid: randomUUID }),
   );
 
   ipcMain.handle('annotations:note:set', async (_event, id: number, note: string | null) =>

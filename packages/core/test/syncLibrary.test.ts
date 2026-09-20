@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   annotationsSchema,
-  createAnnotation,
   deleteFile,
   filesSchema,
   isOk,
@@ -12,34 +11,8 @@ import {
   upsertFile,
 } from '../src';
 import type { Result, SqlDriver } from '../src';
-import { createMemoryDriver } from './helpers';
+import { createAnnotation, createMemoryDriver, createMemoryStorage } from './helpers';
 import type { SyncStorage } from '../src/sync/types';
-
-/** In-memory cloud-drive folder, shared by "devices" during a test. */
-function createMemoryStorage(): SyncStorage & { dump(): Map<string, Uint8Array> } {
-  const files = new Map<string, Uint8Array>();
-  return {
-    async readFile(key) {
-      const data = files.get(key);
-      return { ok: true, data: data ?? null };
-    },
-    async writeFile(key, data) {
-      files.set(key, data);
-      return { ok: true, data: undefined };
-    },
-    async deleteFile(key) {
-      files.delete(key);
-      return { ok: true, data: undefined };
-    },
-    async listFiles(prefix) {
-      const keys = [...files.keys()].filter((key) => key.startsWith(prefix));
-      return { ok: true, data: keys };
-    },
-    dump() {
-      return files;
-    },
-  };
-}
 
 async function addBook(db: SqlDriver, hash: string, title: string, path = `/docs/${hash}.pdf`) {
   const result = await upsertFile(db, { filePath: path, hash, title });

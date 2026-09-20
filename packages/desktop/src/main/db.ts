@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import Database from 'better-sqlite3';
-import { annotationsSchema, filesSchema, migrateFilesSchema, readingSessionsSchema, settingsSchema } from '@taking-book/core';
+import { annotationsSchema, filesSchema, migrateAnnotationsSchema, migrateFilesSchema, readingSessionsSchema, settingsSchema } from '@taking-book/core';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { SqlDriver } from '@taking-book/core';
@@ -23,5 +23,7 @@ export async function getDriver(): Promise<SqlDriver> {
   db.exec(`${filesSchema()} ${settingsSchema()} ${readingSessionsSchema()} ${annotationsSchema()}`);
   driver = createSqlDriver(db);
   await migrateFilesSchema(driver);
+  const migratedAnnotations = await migrateAnnotationsSchema(driver);
+  if (!migratedAnnotations.ok) console.error(`Annotation uid migration failed; new annotations cannot be saved until it succeeds: ${migratedAnnotations.error}`);
   return driver;
 }

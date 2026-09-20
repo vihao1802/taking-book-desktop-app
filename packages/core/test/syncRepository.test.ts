@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   annotationsSchema,
   applySyncRecords,
-  createAnnotation,
   deleteFile,
   filesSchema,
   isOk,
@@ -13,7 +12,7 @@ import {
   setFileStatus,
   upsertFile,
 } from '../src';
-import { createMemoryDriver } from './helpers';
+import { createAnnotation, createMemoryDriver } from './helpers';
 import type { SyncRecord } from '../src/sync/types';
 
 function record(hash: string, overrides: Partial<SyncRecord> = {}): SyncRecord {

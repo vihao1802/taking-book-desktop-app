@@ -16,7 +16,13 @@ export interface SyncStamp {
  * merged per annotation instead of clobbering each other.
  */
 export interface SyncAnnotation extends SyncStamp {
+  /**
+   * The writer's local row id. Still written so older builds, which match by
+   * it, keep validating the record; newer builds match by `uid` instead.
+   */
   id: number;
+  /** Globally stable identity; absent on records written by older builds. */
+  uid?: string;
   page: number;
   pageStart: number | null;
   pageEnd: number | null;

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   annotationsSchema,
   applyRecordAnnotations,
-  createAnnotation,
   deleteAnnotation,
   deleteFile,
   filesSchema,
@@ -13,11 +12,13 @@ import {
   upsertFile,
 } from '../src';
 import type { SqlDriver, SyncAnnotation } from '../src';
-import { createMemoryDriver } from './helpers';
+import { createAnnotation as createAnnotationCore } from '../src';
+import { createAnnotation, createMemoryDriver } from './helpers';
 
 function syncAnnotation(overrides: Partial<SyncAnnotation> = {}): SyncAnnotation {
   return {
     id: 1,
+    uid: 'sync-uid-1',
     page: 3,
     pageStart: 10,
     pageEnd: 24,
@@ -142,13 +143,13 @@ describe('applyRecordAnnotations', () => {
     }
   });
 
-  it('a newer remote edit wins over a local one by id', async () => {
+  it('a newer remote edit wins over a local one with the same uid', async () => {
     const db = await dbWithBook();
-    await createAnnotation(
+    await createAnnotationCore(
       db,
       'h1',
       { page: 3, pageStart: 10, pageEnd: 24, quote: 'selected words', color: 'yellow', note: null, paraIndex: null, paraStart: null, paraEnd: null },
-      { updatedAt: 100, updatedBy: 'dev-a' },
+      { generateUid: () => 'sync-uid-1', stamp: { updatedAt: 100, updatedBy: 'dev-a' } },
     );
     const applied = await applyRecordAnnotations(db, 'h1', [
       syncAnnotation({ note: 'edited remotely', updatedAt: 400, updatedBy: 'dev-remote' }),
@@ -165,11 +166,11 @@ describe('applyRecordAnnotations', () => {
 
   it('a remote tombstone deletes a local annotation', async () => {
     const db = await dbWithBook();
-    await createAnnotation(
+    await createAnnotationCore(
       db,
       'h1',
       { page: 3, pageStart: 10, pageEnd: 24, quote: 'selected words', color: 'yellow', note: null, paraIndex: null, paraStart: null, paraEnd: null },
-      { updatedAt: 100, updatedBy: 'dev-a' },
+      { generateUid: () => 'sync-uid-1', stamp: { updatedAt: 100, updatedBy: 'dev-a' } },
     );
     const applied = await applyRecordAnnotations(db, 'h1', [
       syncAnnotation({ deleted: true, updatedAt: 500, updatedBy: 'dev-remote' }),

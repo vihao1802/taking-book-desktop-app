@@ -1,3 +1,5 @@
+import type { AnnotationUidGenerator } from './annotationUid';
+import { deriveAnnotationUid, resolveAnnotationUid } from './annotationUid';
 import type { Annotation, AnnotationColor, CreateAnnotationInput } from './models';
 import type { Result } from './result';
 import { err, ok } from './result';
@@ -16,6 +18,7 @@ const COLORS: readonly AnnotationColor[] = ['yellow', 'green', 'blue', 'pink'];
 
 interface AnnotationRow {
   id: number;
+  uid: string | null;
   file_hash: string;
   page: number;
   page_start: number | null;
@@ -35,6 +38,7 @@ interface AnnotationRow {
 function rowToRow(row: Record<string, SqlValue>): AnnotationRow {
   return {
     id: Number(row.id),
+    uid: row.uid == null ? null : String(row.uid),
     file_hash: String(row.file_hash),
     page: Number(row.page),
     page_start: row.page_start == null ? null : Number(row.page_start),
@@ -55,6 +59,7 @@ function rowToRow(row: Record<string, SqlValue>): AnnotationRow {
 function toAnnotation(row: AnnotationRow): Annotation {
   return {
     id: row.id,
+    uid: rowUid(row),
     fileHash: row.file_hash,
     page: row.page,
     pageStart: row.page_start,
@@ -74,6 +79,7 @@ function toAnnotation(row: AnnotationRow): Annotation {
 function toSyncAnnotation(row: AnnotationRow): SyncAnnotation {
   return {
     id: row.id,
+    uid: rowUid(row),
     page: row.page,
     pageStart: row.page_start,
     pageEnd: row.page_end,
@@ -89,15 +95,26 @@ function toSyncAnnotation(row: AnnotationRow): SyncAnnotation {
   };
 }
 
+/** The row's identity; rows not yet backfilled fall back to the derived one so they still match across devices. */
+function rowUid(row: AnnotationRow): string {
+  return resolveAnnotationUid(row.file_hash, { id: row.id, uid: row.uid });
+}
+
 function isColor(value: string): value is AnnotationColor {
   return (COLORS as readonly string[]).includes(value);
 }
 
-/** Returns the schema DDL for the annotations table, plus its lookup index. */
+/**
+ * Returns the schema DDL for the annotations table, plus its lookup index.
+ * The per-book unique index on `uid` is created by `migrateAnnotationsSchema`
+ * instead, because on a database from before uids the column does not exist
+ * yet when this DDL runs.
+ */
 export function annotationsSchema(): string {
   return `
     CREATE TABLE IF NOT EXISTS annotations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uid TEXT,
       file_hash TEXT NOT NULL,
       page INTEGER NOT NULL,
       page_start INTEGER,
@@ -115,6 +132,37 @@ export function annotationsSchema(): string {
     );
     CREATE INDEX IF NOT EXISTS idx_annotations_file ON annotations(file_hash);
   `;
+}
+
+/**
+ * Brings an annotations table from before stable identities up to date: adds
+ * the `uid` column, gives every existing row its deterministic uid (including
+ * tombstones, so their deletes still line up across devices), and creates the
+ * per-book unique index on `uid`. It does not touch any sync clock, because
+ * assigning an identity is not an edit. Idempotent, so it is safe to run on
+ * every start and on a fresh database.
+ */
+export async function migrateAnnotationsSchema(db: SqlDriver): Promise<Result<void>> {
+  try {
+    const columns = await db.all('PRAGMA table_info(annotations)');
+    if (!columns.some((column) => String(column.name) === 'uid')) {
+      await db.run('ALTER TABLE annotations ADD COLUMN uid TEXT');
+    }
+    const pending = await db.all('SELECT id, file_hash FROM annotations WHERE uid IS NULL');
+    for (const row of pending) {
+      const id = Number(row.id);
+      await db.run('UPDATE annotations SET uid = ? WHERE id = ?', [
+        deriveAnnotationUid(String(row.file_hash), id),
+        id,
+      ]);
+    }
+    await db.exec(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_annotations_file_uid ON annotations(file_hash, uid)',
+    );
+    return ok(undefined);
+  } catch (error) {
+    return err(`Failed to migrate annotations schema: ${errorMessage(error)}`);
+  }
 }
 
 /**
@@ -159,25 +207,37 @@ export async function listAnnotationsForSync(
   }
 }
 
+/** Options for `createAnnotation`. */
+export interface CreateAnnotationOptions {
+  /** Supplies the annotation's globally stable uid; core has no platform randomness of its own. */
+  generateUid: AnnotationUidGenerator;
+  /** LWW clock for the write; defaults to the current time with an empty device id. */
+  stamp?: SyncStamp;
+}
+
 /**
  * Records a new highlight/comment. The two anchors (page text and reflow
  * paragraph) are both optional so either reader mode can create one; the
- * anchor for the other mode is filled in best-effort by the caller.
+ * anchor for the other mode is filled in best-effort by the caller. The
+ * annotation gets its uid from `options.generateUid`, once, and keeps it for
+ * life so sync can match it across devices.
  */
 export async function createAnnotation(
   db: SqlDriver,
   fileHash: string,
   input: CreateAnnotationInput,
-  stamp?: SyncStamp,
+  options: CreateAnnotationOptions,
 ): Promise<Result<Annotation>> {
   if (!isColor(input.color)) return err(`Unknown highlight color: ${input.color}`);
-  const clock = stamp ?? defaultStamp();
+  const clock = options.stamp ?? defaultStamp();
+  const uid = options.generateUid();
   try {
     const result = await db.run(
-      `INSERT INTO annotations (file_hash, page, page_start, page_end, quote, color, note,
+      `INSERT INTO annotations (uid, file_hash, page, page_start, page_end, quote, color, note,
          para_index, para_start, para_end, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        uid,
         fileHash,
         input.page,
         input.pageStart,
@@ -192,25 +252,9 @@ export async function createAnnotation(
         clock.updatedBy,
       ],
     );
-    return ok(toAnnotation({
-      ...rowToRow({
-        file_hash: fileHash,
-        page: input.page,
-        page_start: input.pageStart,
-        page_end: input.pageEnd,
-        quote: input.quote,
-        color: input.color,
-        note: input.note,
-        para_index: input.paraIndex,
-        para_start: input.paraStart,
-        para_end: input.paraEnd,
-        created_at: '',
-        updated_at: clock.updatedAt,
-        updated_by: clock.updatedBy,
-        deleted_at: null,
-      } as Record<string, SqlValue>),
-      id: result.lastInsertRowid,
-    }));
+    const row = await db.get('SELECT * FROM annotations WHERE id = ?', [result.lastInsertRowid]);
+    if (!row) return err(`Annotation ${result.lastInsertRowid} vanished after insert`);
+    return ok(toAnnotation(rowToRow(row)));
   } catch (error) {
     return err(`Failed to create annotation: ${errorMessage(error)}`);
   }
@@ -260,8 +304,11 @@ export async function deleteAnnotation(
 /**
  * Merges a book's annotations from a sync manifest into the local table,
  * resolving per-annotation conflicts by LWW so two devices can each add a
- * highlight without losing the other's. The incoming list is authoritative for
- * ids present in it; local-only ids keep their current state.
+ * highlight without losing the other's. Annotations are matched by `uid`, never
+ * by the local integer id (which two devices hand out independently); one
+ * without a `uid` is matched by its derived one. The incoming list is
+ * authoritative for the uids present in it; local-only annotations keep their
+ * current state.
  */
 export async function applyRecordAnnotations(
   db: SqlDriver,
@@ -269,88 +316,95 @@ export async function applyRecordAnnotations(
   remote: SyncAnnotation[],
 ): Promise<Result<void>> {
   try {
-    const localRows = await db.all(
-      'SELECT * FROM annotations WHERE file_hash = ?',
-      [fileHash],
-    );
-    const local = new Map(localRows.map((row) => [Number(row.id), rowToRow(row)]));
-    const byId = new Map(remote.map((a) => [a.id, a]));
-    const ids = new Set<number>([...local.keys(), ...byId.keys()]);
-    for (const id of ids) {
-      const incoming = byId.get(id);
-      const existing = local.get(id);
-      if (!incoming) continue;
-      if (!existing) {
-        if (incoming.deleted) continue;
-        await db.run(
-          `INSERT INTO annotations (id, file_hash, page, page_start, page_end, quote, color, note,
-             para_index, para_start, para_end, updated_at, updated_by, deleted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-          [
-            id,
-            fileHash,
-            incoming.page,
-            incoming.pageStart,
-            incoming.pageEnd,
-            incoming.quote,
-            incoming.color,
-            incoming.note,
-            incoming.paraIndex,
-            incoming.paraStart,
-            incoming.paraEnd,
-            incoming.updatedAt,
-            incoming.updatedBy,
-          ],
-        );
-        continue;
-      }
-      const localSync: SyncAnnotation = {
-        id,
-        page: existing.page,
-        pageStart: existing.page_start,
-        pageEnd: existing.page_end,
-        quote: existing.quote,
-        color: existing.color as AnnotationColor,
-        note: existing.note,
-        paraIndex: existing.para_index,
-        paraStart: existing.para_start,
-        paraEnd: existing.para_end,
-        updatedAt: existing.updated_at,
-        updatedBy: existing.updated_by,
-        deleted: existing.deleted_at != null,
-      };
-      const winner = isNewerThan(incoming, localSync) ? incoming : localSync;
-      if (winner.deleted) {
-        await db.run(
-          'UPDATE annotations SET deleted_at = ?, updated_at = ?, updated_by = ? WHERE id = ?',
-          [winner.updatedAt, winner.updatedAt, winner.updatedBy, id],
-        );
-      } else {
-        await db.run(
-          `UPDATE annotations SET page = ?, page_start = ?, page_end = ?, quote = ?, color = ?, note = ?,
-             para_index = ?, para_start = ?, para_end = ?, updated_at = ?, updated_by = ?, deleted_at = NULL
-           WHERE id = ?`,
-          [
-            winner.page,
-            winner.pageStart,
-            winner.pageEnd,
-            winner.quote,
-            winner.color,
-            winner.note,
-            winner.paraIndex,
-            winner.paraStart,
-            winner.paraEnd,
-            winner.updatedAt,
-            winner.updatedBy,
-            id,
-          ],
-        );
-      }
+    const localRows = await db.all('SELECT * FROM annotations WHERE file_hash = ?', [fileHash]);
+    const local = new Map(localRows.map((raw) => {
+      const row = rowToRow(raw);
+      return [rowUid(row), row] as const;
+    }));
+    for (const [uid, incoming] of newestByUid(fileHash, remote)) {
+      const existing = local.get(uid);
+      if (existing) await mergeIntoExisting(db, existing, incoming);
+      else if (!incoming.deleted) await insertRemoteAnnotation(db, fileHash, uid, incoming);
     }
     return ok(undefined);
   } catch (error) {
     return err(`Failed to apply annotations for ${fileHash}: ${errorMessage(error)}`);
   }
+}
+
+/** Collapses a remote list to one annotation per uid, keeping the newest if a manifest repeats one. */
+function newestByUid(fileHash: string, remote: SyncAnnotation[]): Map<string, SyncAnnotation> {
+  const newest = new Map<string, SyncAnnotation>();
+  for (const annotation of remote) {
+    const uid = resolveAnnotationUid(fileHash, annotation);
+    const seen = newest.get(uid);
+    if (!seen || isNewerThan(annotation, seen)) newest.set(uid, annotation);
+  }
+  return newest;
+}
+
+/** Inserts an annotation first seen in a manifest; the local id is assigned here, not copied from the writer. */
+async function insertRemoteAnnotation(
+  db: SqlDriver,
+  fileHash: string,
+  uid: string,
+  incoming: SyncAnnotation,
+): Promise<void> {
+  await db.run(
+    `INSERT INTO annotations (uid, file_hash, page, page_start, page_end, quote, color, note,
+       para_index, para_start, para_end, updated_at, updated_by, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+    [
+      uid,
+      fileHash,
+      incoming.page,
+      incoming.pageStart,
+      incoming.pageEnd,
+      incoming.quote,
+      incoming.color,
+      incoming.note,
+      incoming.paraIndex,
+      incoming.paraStart,
+      incoming.paraEnd,
+      incoming.updatedAt,
+      incoming.updatedBy,
+    ],
+  );
+}
+
+/** Applies an incoming version to the local row for the same uid when it is strictly newer. */
+async function mergeIntoExisting(
+  db: SqlDriver,
+  existing: AnnotationRow,
+  incoming: SyncAnnotation,
+): Promise<void> {
+  if (!isNewerThan(incoming, toSyncAnnotation(existing))) return;
+  if (incoming.deleted) {
+    await db.run(
+      'UPDATE annotations SET deleted_at = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [incoming.updatedAt, incoming.updatedAt, incoming.updatedBy, existing.id],
+    );
+    return;
+  }
+  await db.run(
+    `UPDATE annotations SET page = ?, page_start = ?, page_end = ?, quote = ?, color = ?, note = ?,
+       para_index = ?, para_start = ?, para_end = ?, updated_at = ?, updated_by = ?, deleted_at = NULL
+     WHERE id = ?`,
+    [
+      incoming.page,
+      incoming.pageStart,
+      incoming.pageEnd,
+      incoming.quote,
+      incoming.color,
+      incoming.note,
+      incoming.paraIndex,
+      incoming.paraStart,
+      incoming.paraEnd,
+      incoming.updatedAt,
+      incoming.updatedBy,
+      existing.id,
+    ],
+  );
 }
 
 function errorMessage(error: unknown): string {

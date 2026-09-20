@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   annotationsSchema,
-  createAnnotation,
   filesSchema,
   isOk,
   listAnnotations,
@@ -9,7 +8,7 @@ import {
   upsertFile,
 } from '../src';
 import type { Annotation, CreateAnnotationInput } from '../src';
-import { createMemoryDriver } from './helpers';
+import { createAnnotation, createMemoryDriver } from './helpers';
 
 function input(overrides: Partial<CreateAnnotationInput> = {}): CreateAnnotationInput {
   return {
