@@ -134,3 +134,4 @@ export {
   type OAuthTokenResponse,
 } from './sync/cloud';
 export { deriveCodeChallenge, generateCodeVerifier } from './sync/pkce';
+export { processPagesInOrder, type ProcessPagesOptions } from './pageProcessing';

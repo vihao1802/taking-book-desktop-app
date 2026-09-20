@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
+import { processPagesInOrder } from '@taking-book/core';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { getPageCached } from './pdf';
 
 const FLUSH_EVERY_PAGES = 25;
+
+/**
+ * Pages read at once. Kept low because this runs while the reader is paging
+ * through the book: the pdf.js worker is shared with page rendering, and a long
+ * queue of text requests would delay the page the reader is waiting for.
+ */
+const TEXT_CONCURRENCY = 2;
 
 export interface PageTextsProgress {
   done: number;
@@ -35,20 +43,28 @@ export function usePageTexts(
     setProgress({ done: 0, total: pdf.numPages });
     (async () => {
       const collected: string[] = [];
-      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-        const page = await getPageCached(pdf, pageNumber);
-        const content = await page.getTextContent();
-        if (cancelled) return;
-        let pageText = '';
-        for (const item of content.items) {
-          if ('str' in item && typeof item.str === 'string') pageText += item.str;
-        }
-        collected.push(pageText);
-        if (pageNumber % FLUSH_EVERY_PAGES === 0) {
-          setTexts([...collected]);
-          setProgress({ done: pageNumber, total: pdf.numPages });
-        }
-      }
+      await processPagesInOrder({
+        total: pdf.numPages,
+        concurrency: TEXT_CONCURRENCY,
+        isCancelled: () => cancelled,
+        processPage: async (pageNumber) => {
+          const page = await getPageCached(pdf, pageNumber);
+          const content = await page.getTextContent();
+          let pageText = '';
+          for (const item of content.items) {
+            if ('str' in item && typeof item.str === 'string') pageText += item.str;
+          }
+          return pageText;
+        },
+        onPage: (pageNumber, pageText) => {
+          collected.push(pageText);
+          if (pageNumber % FLUSH_EVERY_PAGES === 0) {
+            setTexts([...collected]);
+            setProgress({ done: pageNumber, total: pdf.numPages });
+          }
+        },
+      });
+      if (cancelled) return;
       loadedPdfRef.current = pdf;
       setTexts(collected);
       setProgress(null);

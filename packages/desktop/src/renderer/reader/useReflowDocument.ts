@@ -7,6 +7,7 @@ import {
   isMonospaceFont,
   isOk,
   normalizeReflowSizes,
+  processPagesInOrder,
   reflowPage,
   type PositionedReflowImage,
   type ReflowCacheEntry,
@@ -121,6 +122,13 @@ export const MIN_REFLOW_CHARS = 400;
 
 const FLUSH_EVERY_PAGES = 10;
 
+/**
+ * Pages extracted at once. The pdf.js worker is one thread, so this does not
+ * parse faster by itself; it keeps the worker fed while this thread reflows the
+ * previous page, instead of each waiting on the other.
+ */
+const EXTRACTION_CONCURRENCY = 4;
+
 export interface ReflowDocumentOptions {
   /** Content hash of the book; keys the on-disk cache of extracted text. */
   fileHash: string;
@@ -147,6 +155,61 @@ async function loadReflowCache(fileHash: string): Promise<ReflowCacheEntry | nul
     console.warn(`Reflow cache lookup failed for ${fileHash}:`, error);
     return null;
   }
+}
+
+/** The text of one page and the paragraphs it reflows into. */
+interface ExtractedPage {
+  text: string;
+  paragraphs: ReflowParagraph[];
+}
+
+/**
+ * Extracts one page's text and paragraphs. Depends on nothing but the page, so
+ * pages can be extracted in any order and overlapped; joining them into a
+ * document (and the boilerplate filter, which needs every page) happens later.
+ */
+async function extractPage(pdf: PDFDocumentProxy, pageNumber: number): Promise<ExtractedPage> {
+  const page = await getPageCached(pdf, pageNumber);
+  // Operator lists are cached per page; fetching one here forces the
+  // page's fonts into `commonObjs` so each fragment's bold/italic can
+  // be resolved from its font name.
+  const [content, opList] = await Promise.all([page.getTextContent(), page.getOperatorList()]);
+  const pageView = page.getViewport({ scale: 1 });
+  const figures = extractVectorFiguresFromOperatorList(opList, pageNumber - 1, pageView);
+  const items: ReturnType<typeof toReflowItem>[] = [];
+  const fontStyles = resolveFontStyles(page, content);
+  let text = '';
+  for (const it of content.items) {
+    if ('str' in it && typeof it.str === 'string') {
+      if (isTextFragment(it)) items.push(toReflowItem(it, fontStyles.get(it.fontName) ?? EMPTY_FONT_STYLE));
+      text += it.str;
+    }
+  }
+  // A drawing's labels would read as body text and table rows; the
+  // drawing itself is shown as a figure instead.
+  // Colors live only in the operator list; attach them to code before
+  // fragments are regrouped into lines, while content order still holds.
+  const coloredItems = assignCodeColors(items, extractTextColors(opList));
+  return { text, paragraphs: reflowPage(dropTextInsideFigures(coloredItems, figures), pageNumber - 1) };
+}
+
+/** The figures painted on one page, and the page's area (needed to drop full-page backgrounds). */
+interface PageFigures {
+  area: number;
+  found: ReflowImage[];
+}
+
+async function extractPageFigures(pdf: PDFDocumentProxy, pageNumber: number): Promise<PageFigures> {
+  const page = await getPageCached(pdf, pageNumber);
+  const viewport = page.getViewport({ scale: 1 });
+  const opList = await page.getOperatorList();
+  return {
+    area: viewport.width * viewport.height,
+    found: [
+      ...extractImagesFromOperatorList(opList, pageNumber - 1, viewport.width),
+      ...extractVectorFiguresFromOperatorList(opList, pageNumber - 1, viewport),
+    ],
+  };
 }
 
 /** Stores a finished extraction; best-effort, since the cache is disposable. */
@@ -232,42 +295,27 @@ export function useReflowDocument(
         }
         const all: ReflowParagraph[] = [];
         const texts: string[] = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await getPageCached(pdf, i);
-          // Operator lists are cached per page; fetching one here forces the
-          // page's fonts into `commonObjs` so each fragment's bold/italic can
-          // be resolved from its font name.
-          const [content, opList] = await Promise.all([page.getTextContent(), page.getOperatorList()]);
-          const pageView = page.getViewport({ scale: 1 });
-          const figures = extractVectorFiguresFromOperatorList(opList, i - 1, pageView);
-          const items: ReturnType<typeof toReflowItem>[] = [];
-          const fontStyles = resolveFontStyles(page, content);
-          let pageText = '';
-          for (const it of content.items) {
-            if ('str' in it && typeof it.str === 'string') {
-              if (isTextFragment(it)) items.push(toReflowItem(it, fontStyles.get(it.fontName) ?? EMPTY_FONT_STYLE));
-              pageText += it.str;
+        await processPagesInOrder({
+          total: pdf.numPages,
+          concurrency: EXTRACTION_CONCURRENCY,
+          isCancelled: () => cancelled,
+          processPage: (pageNumber) => extractPage(pdf, pageNumber),
+          onPage: (pageNumber, extracted) => {
+            texts.push(extracted.text);
+            all.push(...extracted.paragraphs);
+            // Intermediate flushes show raw text as soon as possible; the final
+            // pass applies the boilerplate filter with the complete document so
+            // repeated headers/watermarks are judged against every page. Both
+            // passes normalize so the reading size is roughly stable while
+            // streaming; the final pass recomputes the dominant size from the
+            // complete (filtered) document, so a small nudge may land at the end.
+            if (pageNumber % FLUSH_EVERY_PAGES === 0 && !cancelled) {
+              setPageTexts([...texts]);
+              setParagraphs(normalizeReflowSizes(all));
+              setProgress({ done: pageNumber, total: pdf.numPages });
             }
-          }
-          texts.push(pageText);
-          // A drawing's labels would read as body text and table rows; the
-          // drawing itself is shown as a figure instead.
-          // Colors live only in the operator list; attach them to code before
-          // fragments are regrouped into lines, while content order still holds.
-          const coloredItems = assignCodeColors(items, extractTextColors(opList));
-          all.push(...reflowPage(dropTextInsideFigures(coloredItems, figures), i - 1));
-          // Intermediate flushes show raw text as soon as possible; the final
-          // pass applies the boilerplate filter with the complete document so
-          // repeated headers/watermarks are judged against every page. Both
-          // passes normalize so the reading size is roughly stable while
-          // streaming; the final pass recomputes the dominant size from the
-          // complete (filtered) document, so a small nudge may land at the end.
-          if (i % FLUSH_EVERY_PAGES === 0 && !cancelled) {
-            setPageTexts([...texts]);
-            setParagraphs(normalizeReflowSizes(all));
-            setProgress({ done: i, total: pdf.numPages });
-          }
-        }
+          },
+        });
         if (!cancelled) {
           const filtered = filterBoilerplateParagraphs(all);
           const normalized = normalizeReflowSizes(filtered);
@@ -337,28 +385,28 @@ export function useReflowDocument(
         const collected: ReflowImage[] = [];
         const areas: Array<number | undefined> = [];
         const seenPlacements = new Set<string>();
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await getPageCached(pdf, i);
-          const viewport = page.getViewport({ scale: 1 });
-          areas[i - 1] = viewport.width * viewport.height;
-          const opList = await page.getOperatorList();
-          const found = [
-            ...extractImagesFromOperatorList(opList, i - 1, viewport.width),
-            ...extractVectorFiguresFromOperatorList(opList, i - 1, viewport),
-          ];
-          for (const image of found) {
-            // Running headers, footers, and watermarks sit at the same spot on
-            // every page; keep only the first instance of each placement.
-            const key = `${image.x.toFixed(1)}|${image.y.toFixed(1)}|${image.width.toFixed(1)}|${image.height.toFixed(1)}`;
-            if (seenPlacements.has(key)) continue;
-            seenPlacements.add(key);
-            collected.push(image);
-          }
-          if (!cancelled && i % FLUSH_EVERY_PAGES === 0) {
-            setRawImages([...collected]);
-            setPageAreas([...areas]);
-          }
-        }
+        await processPagesInOrder({
+          total: pdf.numPages,
+          concurrency: EXTRACTION_CONCURRENCY,
+          isCancelled: () => cancelled,
+          processPage: (pageNumber) => extractPageFigures(pdf, pageNumber),
+          // Delivered in page order, which "the first instance of each placement" depends on.
+          onPage: (pageNumber, { area, found }) => {
+            areas[pageNumber - 1] = area;
+            for (const image of found) {
+              // Running headers, footers, and watermarks sit at the same spot on
+              // every page; keep only the first instance of each placement.
+              const key = `${image.x.toFixed(1)}|${image.y.toFixed(1)}|${image.width.toFixed(1)}|${image.height.toFixed(1)}`;
+              if (seenPlacements.has(key)) continue;
+              seenPlacements.add(key);
+              collected.push(image);
+            }
+            if (!cancelled && pageNumber % FLUSH_EVERY_PAGES === 0) {
+              setRawImages([...collected]);
+              setPageAreas([...areas]);
+            }
+          },
+        });
         if (cancelled) return;
         setRawImages([...collected]);
         setPageAreas([...areas]);
