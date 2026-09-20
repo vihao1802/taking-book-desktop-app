@@ -187,7 +187,6 @@ export function Overlay({
             disabled={reflowDisabled}
             aria-label="Toggle reflow"
             aria-pressed={mode === 'reflow'}
-            className={cn(mode === 'reflow' && 'bg-accent text-accent-foreground')}
             title={
               reflowDisabled
                 ? 'This book is image-based and has no extractable text'
