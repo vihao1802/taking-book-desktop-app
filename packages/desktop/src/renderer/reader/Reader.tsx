@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { isOk, stepZoomMultiplier, type PageLocation } from '@taking-book/core';
+import { isOk, stepZoomMultiplier, type LastPosition, type PageLocation, type ReadMode } from '@taking-book/core';
 import type { Annotation, AnnotationColor, BookFile, CreateAnnotationInput } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Overlay, clampZoom } from './Overlay';
@@ -23,7 +23,7 @@ import { useReaderShortcuts } from './useReaderShortcuts';
 const HIDE_DELAY_MS = 2500;
 
 export function Reader({ file, onClose }: { file: BookFile; onClose: () => void }) {
-  const [mode, setMode] = useState<'page' | 'reflow'>('page');
+  const [mode, setMode] = useState<ReadMode>('page');
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
   const {
     paragraphs,
@@ -75,25 +75,33 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
   // a page number means the same place in both.
   const locationRef = useRef<PageLocation | null>(null);
   const [handoffLocation, setHandoffLocation] = useState<PageLocation | undefined>(undefined);
-  const recordLocation = useCallback((location: PageLocation) => {
-    locationRef.current = location;
-  }, []);
   const [currentPage, setCurrentPage] = useState(1);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
   const { nodes: outlineNodes, loading: outlineLoading } = usePdfOutline(pdf);
   const hideTimerRef = useRef<number>(0);
-  const positionRef = useRef({ page: 1, position: 0, mode: 'page' as 'page' | 'reflow' });
+  // Null until the saved position has been read: saving before that would
+  // overwrite it with the placeholder page 1 if the reader is closed early.
+  const positionRef = useRef<LastPosition | null>(null);
   const saveTimerRef = useRef<number>(0);
 
   useEffect(() => {
     let cancelled = false;
-    window.api.getLastPosition(file.id).then((pos) => {
-      if (cancelled || !isOk(pos) || !pos.data) return;
-      setInitialPosition(pos.data.position);
-      // Reopen in the view the book was last read in so a reflow session
-      // never overwrites the page-mode position (or vice versa).
-      setMode(pos.data.mode);
+    window.api.getLastPosition(file.id).then((res) => {
+      if (cancelled || !isOk(res)) return;
+      const saved = res.data;
+      positionRef.current = saved ?? { page: 1, position: 0, mode: 'page' };
+      setInitialPosition(saved?.position ?? 0);
+      if (!saved) return;
+      // Reopen in the view the book was last read in. Reflow saves a page plus
+      // how far down it, the same shape the mode toggle hands over, so it can
+      // reopen on the exact spot instead of the top of the document.
+      if (saved.mode === 'reflow') {
+        const location = { page: saved.page, fraction: Math.min(Math.max(saved.position, 0), 1) };
+        locationRef.current = location;
+        setHandoffLocation(location);
+      }
+      setMode(saved.mode);
     });
     return () => {
       cancelled = true;
@@ -136,42 +144,43 @@ export function Reader({ file, onClose }: { file: BookFile; onClose: () => void 
     return () => window.clearTimeout(zoomSaveTimerRef.current);
   }, [zoom, file.id]);
 
-  useEffect(() => {
-    positionRef.current.page = currentPage;
-  }, [currentPage]);
+  const persistPosition = useCallback(() => {
+    const current = positionRef.current;
+    if (current) window.api.saveLastPosition(file.id, current.page, current.position, current.mode);
+  }, [file.id]);
 
   const savePosition = useCallback(
-    (page: number, position: number, mode: 'page' | 'reflow' = 'page') => {
+    (page: number, position: number, mode: ReadMode = 'page') => {
       positionRef.current = { page, position, mode };
       window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = window.setTimeout(() => {
-        window.api.saveLastPosition(
-          file.id,
-          positionRef.current.page,
-          positionRef.current.position,
-          positionRef.current.mode,
-        );
-      }, 400);
+      saveTimerRef.current = window.setTimeout(persistPosition, 400);
     },
-    [file.id],
+    [persistPosition],
+  );
+
+  // Both views report where they are as a page plus how far down it. Page mode
+  // saves through its own scroll callback (a whole-layout fraction); reflow has
+  // no other writer, so its location is saved here. Reader is the single writer
+  // of the last position, so a view closing can't overwrite the other's save.
+  const recordLocation = useCallback(
+    (location: PageLocation) => {
+      locationRef.current = location;
+      if (mode === 'reflow') savePosition(location.page, location.fraction, 'reflow');
+    },
+    [mode, savePosition],
   );
 
   useEffect(() => {
     const saveNow = () => {
       window.clearTimeout(saveTimerRef.current);
-      window.api.saveLastPosition(
-        file.id,
-        positionRef.current.page,
-        positionRef.current.position,
-        positionRef.current.mode,
-      );
+      persistPosition();
     };
     window.addEventListener('beforeunload', saveNow);
     return () => {
       window.removeEventListener('beforeunload', saveNow);
       saveNow();
     };
-  }, [file.id]);
+  }, [persistPosition]);
 
   // The overlay must not disappear while the user is typing (e.g. the custom
   // zoom field): focus in an editable element means an active editing session,

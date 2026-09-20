@@ -38,6 +38,10 @@ describe('progressFraction', () => {
     expect(progressFraction({ page: 10, position: 0 }, 10)).toBe(0.9);
   });
 
+  it('measures a reflow position by its real page and the fraction within it', () => {
+    expect(progressFraction({ page: 70, position: 0.5, mode: 'reflow' }, 100)).toBe(0.695);
+  });
+
   it('clamps to 1 for positions past the end', () => {
     expect(progressFraction({ page: 99, position: 0 }, 10)).toBe(1);
   });

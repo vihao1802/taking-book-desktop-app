@@ -53,7 +53,13 @@ export interface ReadingStats {
   minutesToday: number;
 }
 
-/** Where the reader should resume for a book. */
+/**
+ * Where the reader should resume for a book. `page` is always the real PDF
+ * page. `position` is how far down the reader is: a scroll fraction of the whole
+ * layout in page mode, and the fraction within `page` in reflow mode (reflow
+ * text re-wraps, so only the page and the offset inside it mean the same place
+ * after the layout changes).
+ */
 export interface LastPosition {
   page: number;
   position: number;

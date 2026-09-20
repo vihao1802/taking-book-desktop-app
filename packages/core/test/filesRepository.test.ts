@@ -119,11 +119,12 @@ describe('filesRepository', () => {
     const created = await upsertFile(db, { filePath: '/b.pdf', hash: 'h2', title: 'B' });
     if (!isOk(created)) return;
 
-    const saved = await saveLastPosition(db, created.data.id, { page: 1, position: 0.75, mode: 'reflow' });
+    const saved = await saveLastPosition(db, created.data.id, { page: 70, position: 0.75, mode: 'reflow' });
     expect(isOk(saved)).toBe(true);
 
     const loaded = await getLastPosition(db, created.data.id);
-    expect(isOk(loaded) && loaded.data?.mode === 'reflow').toBe(true);
+    expect(isOk(loaded)).toBe(true);
+    if (isOk(loaded)) expect(loaded.data).toEqual({ page: 70, position: 0.75, mode: 'reflow' });
 
     // A row written before last_mode existed reads as page mode.
     const raw = createMemoryDriver();

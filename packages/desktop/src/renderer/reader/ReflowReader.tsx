@@ -76,8 +76,7 @@ interface ReflowReaderProps {
   progress: ReflowProgress | null;
   onClose: () => void;
   onToggleMode: () => void;
-  initialFraction?: number;
-  /** Page position to open at (e.g. carried over from page mode); wins over `initialFraction`. */
+  /** Page position to open at: carried over from page mode, or restored from the last session. */
   initialLocation?: PageLocation;
   /** Called as the reader scrolls, with the page and how far down it the viewport top is. */
   onLocationChange?: (location: PageLocation) => void;
@@ -106,7 +105,6 @@ export function ReflowReader({
   progress,
   onClose,
   onToggleMode,
-  initialFraction,
   initialLocation,
   onLocationChange,
   zoom,
@@ -124,7 +122,6 @@ export function ReflowReader({
 }: ReflowReaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
-  const restoredRef = useRef(false);
   const [scrollTop, setScrollTop] = useState(0);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; x: number; y: number } | null>(null);
@@ -229,37 +226,19 @@ export function ReflowReader({
   }, [measurePages, hasArticle]);
 
   const currentPage = pageIndexAtOffset(pageEdges.offsets, scrollTop + PAGE_PROBE_PX) + 1;
-  const position = useRef({ page: 1, position: 0 });
-  const saveTimerRef = useRef<number>(0);
-
   const onLocationChangeRef = useRef(onLocationChange);
   onLocationChangeRef.current = onLocationChange;
+  // While a location handed in through `initialLocation` is still being applied,
+  // the layout is only partly measured, so a location read from it would be
+  // wrong (usually page 1) and would overwrite the position being restored.
+  const positionedRef = useRef(false);
 
-  const savePosition = useCallback(() => {
+  const reportLocation = useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    const scrollable = Math.max(el.scrollHeight - el.clientHeight, 0);
-    const frac = scrollable > 0 ? el.scrollTop / scrollable : 0;
-    position.current = { page: 1, position: frac };
+    if (!el || !positionedRef.current) return;
     const { offsets, end } = pageEdgesRef.current;
     onLocationChangeRef.current?.(pageLocationAtOffset(offsets, end, el.scrollTop + PAGE_PROBE_PX));
-    window.clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => {
-      window.api.saveLastPosition(file.id, 1, position.current.position, 'reflow');
-    }, 400);
-  }, [file.id]);
-
-  useEffect(() => {
-    const saveNow = () => {
-      window.clearTimeout(saveTimerRef.current);
-      window.api.saveLastPosition(file.id, 1, position.current.position, 'reflow');
-    };
-    window.addEventListener('beforeunload', saveNow);
-    return () => {
-      window.removeEventListener('beforeunload', saveNow);
-      saveNow();
-    };
-  }, [file.id]);
+  }, []);
 
   // The overlay must not disappear while the user is typing (e.g. the custom
   // zoom field): focus in an editable element means an active editing session,
@@ -323,25 +302,14 @@ export function ReflowReader({
       const el = scrollRef.current;
       if (!el) return;
       setScrollTop(el.scrollTop);
-      savePosition();
+      reportLocation();
     });
-  }, [savePosition]);
+  }, [reportLocation]);
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
-  // A scroll fraction can only be restored against the final article height, so
-  // wait until extraction is complete rather than trusting a partial render.
-  useEffect(() => {
-    if (progress !== null || restoredRef.current || paragraphs.length === 0) return;
-    if (initialLocation !== undefined || initialFraction === undefined) return;
-    const el = scrollRef.current;
-    if (!el || el.scrollHeight === 0) return;
-    restoredRef.current = true;
-    el.scrollTop = initialFraction * Math.max(el.scrollHeight - el.clientHeight, 0);
-    setScrollTop(el.scrollTop);
-  }, [progress, paragraphs.length, initialFraction, initialLocation]);
-
-  // A page handed over from page mode is held until the reader takes over.
+  // A page handed over from page mode, or restored from the last session, is
+  // held until the reader takes over.
   // Measuring the DOM here (not the `pageEdges` state) matters: that state can
   // still describe the empty sections rendered before any text arrived, whose
   // offsets are all ~0 and would land on page 1. Pages stream in top to bottom,
@@ -362,6 +330,7 @@ export function ReflowReader({
     ready: anchorReady,
     layoutKey: pageEdges,
   });
+  positionedRef.current = positioned;
 
   const scrollReflow = useCallback((targetFor: (el: HTMLDivElement) => number) => {
     const el = scrollRef.current;
