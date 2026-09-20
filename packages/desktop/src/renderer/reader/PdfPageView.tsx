@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { memo, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { TextLayer } from 'pdfjs-dist';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import type { TextMatch } from '@taking-book/core';
@@ -54,9 +54,11 @@ interface PdfPageViewProps {
  * One rendered page: pdf.js canvas, an overlaid selection text layer, and the
  * highlight/note overlays anchored to the page's text offsets. The text
  * layer is transparent (pdf.js text is selectable, not visible) so selection
- * works exactly as it does in reflow mode.
+ * works exactly as it does in reflow mode. Memoized: the page list re-renders
+ * as the view scrolls, and a page whose props did not change must not redo its
+ * highlight layout.
  */
-export function PdfPageView({
+export const PdfPageView = memo(function PdfPageView({
   pdf,
   pageNumber,
   cssScale,
@@ -152,7 +154,8 @@ export function PdfPageView({
       if (annotation.pageStart == null || annotation.pageEnd == null) continue;
       byAnnotation.set(annotation.id, computeHighlightRects(container, annotation.pageStart, annotation.pageEnd));
     }
-    setHighlightRects(byAnnotation);
+    // A page with no highlights before and after keeps its state, so it does not re-render for nothing.
+    setHighlightRects((previous) => (byAnnotation.size === 0 && previous.size === 0 ? previous : byAnnotation));
   }, [textLayerReady, annotations, pageNumber, cssScale]);
 
   // Carry out a jump to a Note on this page: bring its highlight to the middle
@@ -316,4 +319,4 @@ export function PdfPageView({
       )}
     </div>
   );
-}
+});

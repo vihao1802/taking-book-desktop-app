@@ -42,6 +42,7 @@ interface PdfPagesProps {
 }
 
 const NO_MATCHES: IndexedTextMatch[] = [];
+const NO_ANNOTATIONS: Annotation[] = [];
 
 export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPages(
   {
@@ -95,7 +96,9 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
       const el = scrollRef.current;
       if (!el) return;
       const st = el.scrollTop;
-      setScrollTop(st);
+      // Rendering only depends on which page is under the viewport, so an offset
+      // that stays on the same page keeps the old state and skips a re-render.
+      setScrollTop((previous) => (pageFromOffset(layout, previous) === pageFromOffset(layout, st) ? previous : st));
       const page = pageFromOffset(layout, st) + 1;
       const scrollable = Math.max(layout.totalHeight - el.clientHeight, 0);
       const position = scrollable > 0 ? st / scrollable : 0;
@@ -133,6 +136,13 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
     setScrollTop(target);
   }, [layout, containerWidth]);
 
+  // The offset kept in state may sit on an older page than the real one: pages
+  // are measured while the document is open, which moves the page boundaries
+  // under an unchanged scroll offset. Catch it up whenever the layout changes.
+  useEffect(() => {
+    setScrollTop(scrollTopRef.current);
+  }, [layout]);
+
   useEffect(() => {
     cancelAnimationFrame(rafRef.current);
     return () => cancelAnimationFrame(rafRef.current);
@@ -156,6 +166,18 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
   const end = Math.min(layout.heights.length, currentPage + visibleCount);
 
   const matchGroups = useMemo(() => groupMatchesByText(searchMatches), [searchMatches]);
+
+  // Grouped once per annotation change so each page gets a stable list: a fresh
+  // array per render would make every page redo its highlight layout on scroll.
+  const annotationsByPage = useMemo(() => {
+    const byPage = new Map<number, Annotation[]>();
+    for (const annotation of annotations) {
+      const list = byPage.get(annotation.page);
+      if (list) list.push(annotation);
+      else byPage.set(annotation.page, [annotation]);
+    }
+    return byPage;
+  }, [annotations]);
 
   // A new search request stays pending until the page holding the current match
   // has rendered its text layer and scrolled the match into view.
@@ -211,7 +233,7 @@ export const PdfPages = forwardRef<PdfPagesHandle, PdfPagesProps>(function PdfPa
           cssScale={layout.scales[i]}
           dpr={dpr}
           pageText={pageTexts[i] ?? ''}
-          annotations={annotations.filter((a) => a.page === i + 1)}
+          annotations={annotationsByPage.get(i + 1) ?? NO_ANNOTATIONS}
           searchMatches={group?.matches ?? NO_MATCHES}
           activeSearchMatch={group && activeInGroup >= 0 && activeInGroup < group.matches.length ? activeInGroup : null}
           pendingReveal={pendingReveal}
