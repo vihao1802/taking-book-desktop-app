@@ -53,7 +53,7 @@ export async function saveNoteDraft(
   draft: NoteDraft,
   options: CreateAnnotationOptions,
 ): Promise<Result<Annotation>> {
-  if (draft.quote.trim().length === 0) return err('A note draft needs a quoted passage');
+  if (isPageNote(draft)) return err('A note draft needs a quoted passage');
   const { text, ...anchor } = draft;
   const trimmed = text.trim();
   return createAnnotation(db, fileHash, { ...anchor, note: trimmed.length > 0 ? trimmed : null }, options);

@@ -87,7 +87,7 @@ export interface OpenFileResult {
 export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink';
 
 /**
- * A highlight (and its optional comment) anchored to a stretch of text. Two
+ * A highlight (and its optional note) anchored to a stretch of text. Two
  * anchors are stored so the same highlight can render in both reader modes:
  * char offsets into the page's joined pdf.js text content (page view) and
  * offsets into a reflow paragraph (reflow view). One of the pair may be null
@@ -107,7 +107,7 @@ export interface Annotation {
   /** The highlighted text, as it was selected. */
   quote: string;
   color: AnnotationColor;
-  /** Comment attached to the highlight; null when there is none. */
+  /** Note text attached to the highlight; null when there is none. */
   note: string | null;
   /** Char range into a reflow paragraph, for the reflow view. */
   paraIndex: number | null;
@@ -118,7 +118,7 @@ export interface Annotation {
   updatedBy: string;
 }
 
-/** Payload for creating a new highlight/comment. */
+/** Payload for creating a new highlight (with an optional note). */
 export interface CreateAnnotationInput {
   page: number;
   pageStart: number | null;

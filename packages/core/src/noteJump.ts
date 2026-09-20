@@ -1,4 +1,5 @@
 import type { Annotation, ReadMode } from './models';
+import { isPageNote } from './notes';
 
 /**
  * What jumping to a Note can achieve in a given reader mode:
@@ -20,7 +21,7 @@ export type NoteLocation = 'passage' | 'page' | 'lost';
  * @returns How precisely the jump can land; see `NoteLocation`.
  */
 export function locateNote(annotation: Annotation, mode: ReadMode): NoteLocation {
-  if (annotation.quote.trim().length === 0) return 'page';
+  if (isPageNote(annotation)) return 'page';
   const anchored =
     mode === 'page'
       ? annotation.pageStart !== null && annotation.pageEnd !== null

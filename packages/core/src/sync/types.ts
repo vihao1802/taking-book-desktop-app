@@ -57,7 +57,7 @@ export interface SyncRecord extends SyncStamp {
   reflowZoom: number | null;
   /** Epoch ms of the last read; null until first opened or on older manifests. */
   lastReadAt: number | null;
-  /** Highlights/comments attached to this book; empty when there are none. */
+  /** Highlights and notes attached to this book; empty when there are none. */
   annotations: SyncAnnotation[];
   deleted: boolean;
 }

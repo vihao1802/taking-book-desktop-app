@@ -36,7 +36,7 @@ import {
   setTheme,
   upsertFile,
 } from '@taking-book/core';
-import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, NoteDraft, PageNoteInput, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
+import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, NoteDraft, PageNoteInput, ReadMode, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
 import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -58,6 +58,9 @@ export function registerIpc(db: SqlDriver): void {
   const userDataDir = app.getPath('userData');
   async function stamp(): Promise<SyncStamp> {
     return { updatedAt: Date.now(), updatedBy: await getDeviceId(db) };
+  }
+  async function createAnnotationOptions(): Promise<CreateAnnotationOptions> {
+    return { stamp: await stamp(), generateUid: randomUUID };
   }
 
   async function cloudProvider(): Promise<Result<ReturnType<typeof createCloudProvider>>> {
@@ -133,7 +136,7 @@ export function registerIpc(db: SqlDriver): void {
       return { ok: true, data: undefined };
     } catch (error) {
       console.error(`Book file is not readable (${filePath}): ${errorMessage(error)}`);
-      const missing = (error as NodeJS.ErrnoException).code === 'ENOENT';
+      const missing = isFileMissing(error);
       return { ok: false, error: missing ? 'Its file has been moved or deleted.' : 'Its file could not be read.' };
     }
   });
@@ -195,7 +198,7 @@ export function registerIpc(db: SqlDriver): void {
     try {
       json = await readFile(reflowCacheFile(hash), 'utf8');
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { ok: true, data: null };
+      if (isFileMissing(error)) return { ok: true, data: null };
       return { ok: false, error: `Failed to read reflow cache for ${hash}: ${errorMessage(error)}` };
     }
     const parsed = parseReflowCache(json);
@@ -242,15 +245,15 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('annotations:listLibrary', () => listLibraryAnnotations(db));
 
   ipcMain.handle('annotations:create', async (_event, fileHash: string, input: CreateAnnotationInput) =>
-    createAnnotation(db, fileHash, input, { stamp: await stamp(), generateUid: randomUUID }),
+    createAnnotation(db, fileHash, input, await createAnnotationOptions()),
   );
 
   ipcMain.handle('annotations:draft:save', async (_event, fileHash: string, draft: NoteDraft) =>
-    saveNoteDraft(db, fileHash, draft, { stamp: await stamp(), generateUid: randomUUID }),
+    saveNoteDraft(db, fileHash, draft, await createAnnotationOptions()),
   );
 
   ipcMain.handle('annotations:pageNote:save', async (_event, fileHash: string, input: PageNoteInput) =>
-    savePageNote(db, fileHash, input, { stamp: await stamp(), generateUid: randomUUID }),
+    savePageNote(db, fileHash, input, await createAnnotationOptions()),
   );
 
   ipcMain.handle('annotations:note:save', async (_event, id: number, text: string) =>
@@ -343,6 +346,11 @@ export function registerIpc(db: SqlDriver): void {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** True when a filesystem call failed because the file does not exist (ENOENT). */
+function isFileMissing(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
 /** Returns the local calendar day as YYYY-MM-DD for a given date. */
