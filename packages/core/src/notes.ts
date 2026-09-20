@@ -1,4 +1,5 @@
-import type { Annotation } from './models';
+import type { Annotation, BookFile } from './models';
+import { sortByRecentlyRead } from './recentlyRead';
 
 export interface ListNotesOptions {
   /** Also list Highlights that carry no note text. Off by default so writing is not buried by markings. */
@@ -45,4 +46,60 @@ export function listNotes(annotations: readonly Annotation[], options: ListNotes
   return annotations
     .filter((annotation) => includeHighlights || hasNoteText(annotation))
     .sort(compareInReadingOrder);
+}
+
+/** One book's Notes as listed in the Notes view. */
+export interface BookNotes {
+  file: BookFile;
+  notes: Annotation[];
+}
+
+export interface ListLibraryNotesOptions {
+  /** Also list Highlights that carry no note text, like `listNotes`; independent of any per-book filter. */
+  includeHighlights?: boolean;
+  /** Case-insensitive text matched against book title, quoted passage and note text; blank matches everything. */
+  query?: string;
+}
+
+function includesIgnoringCase(text: string, lowercaseQuery: string): boolean {
+  return text.toLowerCase().includes(lowercaseQuery);
+}
+
+// A book whose title matches keeps all of its Notes: the reader is looking for
+// that book, so narrowing its Notes further by the same words would hide them.
+function searchBookNotes(group: BookNotes, lowercaseQuery: string): BookNotes {
+  if (includesIgnoringCase(group.file.title, lowercaseQuery)) return group;
+  const notes = group.notes.filter(
+    (note) => includesIgnoringCase(note.quote, lowercaseQuery) || includesIgnoringCase(note.note ?? '', lowercaseQuery),
+  );
+  return { file: group.file, notes };
+}
+
+/**
+ * Selects the Notes of every book in the library for the Notes view, grouped by
+ * book.
+ *
+ * @param files - The books in the library; annotations of any other book are ignored.
+ * @param annotations - Live annotations, possibly of several books, in any order.
+ * @param options - `query` narrows the result to books and Notes matching that text.
+ * @returns One group per book that has at least one Note to show, the most
+ *   recently read book first, each group's Notes in reading order.
+ */
+export function listLibraryNotes(
+  files: readonly BookFile[],
+  annotations: readonly Annotation[],
+  options: ListLibraryNotesOptions = {},
+): BookNotes[] {
+  const { includeHighlights = false, query = '' } = options;
+  const lowercaseQuery = query.trim().toLowerCase();
+  return sortByRecentlyRead([...files])
+    .map((file) => ({
+      file,
+      notes: listNotes(
+        annotations.filter((annotation) => annotation.fileHash === file.hash),
+        { includeHighlights },
+      ),
+    }))
+    .map((group) => (lowercaseQuery === '' ? group : searchBookNotes(group, lowercaseQuery)))
+    .filter((group) => group.notes.length > 0);
 }

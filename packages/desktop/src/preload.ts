@@ -22,6 +22,7 @@ const api: ReaderApi = {
   recordReadingSession: (fileId, minutes) => ipcRenderer.invoke('sessions:record', fileId, minutes),
   getReadingStats: () => ipcRenderer.invoke('stats:get'),
   listAnnotations: (fileHash) => ipcRenderer.invoke('annotations:list', fileHash),
+  listLibraryAnnotations: () => ipcRenderer.invoke('annotations:listLibrary'),
   createAnnotation: (fileHash, input) => ipcRenderer.invoke('annotations:create', fileHash, input),
   setAnnotationNote: (id, note) => ipcRenderer.invoke('annotations:note:set', id, note),
   deleteAnnotation: (id) => ipcRenderer.invoke('annotations:delete', id),

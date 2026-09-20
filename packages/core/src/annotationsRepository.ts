@@ -191,6 +191,25 @@ export async function listAnnotations(
   }
 }
 
+/**
+ * Lists the live annotations of every book in the library, for the Notes view.
+ * Follows the same visibility rules as `listAnnotations`: deleted annotations
+ * and those of books removed from the library are left out.
+ */
+export async function listLibraryAnnotations(db: SqlDriver): Promise<Result<Annotation[]>> {
+  try {
+    const rows = await db.all(
+      `SELECT * FROM annotations
+       WHERE deleted_at IS NULL
+         AND file_hash IN (SELECT hash FROM files WHERE deleted_at IS NULL)
+       ORDER BY file_hash, page, id`,
+    );
+    return ok(rows.map((row) => toAnnotation(rowToRow(row))));
+  } catch (error) {
+    return err(`Failed to list library annotations: ${errorMessage(error)}`);
+  }
+}
+
 /** Lists every annotation for a book — including tombstones — for sync. */
 export async function listAnnotationsForSync(
   db: SqlDriver,

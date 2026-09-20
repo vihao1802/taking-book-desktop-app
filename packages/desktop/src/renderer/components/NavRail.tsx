@@ -2,16 +2,18 @@ import {
   BarChart3,
   Home as HomeIcon,
   Library as LibraryIcon,
+  NotebookText,
   Settings,
   Star,
 } from 'lucide-react';
 
-export type View = 'home' | 'library' | 'favorites' | 'statistics' | 'settings';
+export type View = 'home' | 'library' | 'favorites' | 'notes' | 'statistics' | 'settings';
 
 const NAV_ITEMS: Array<{ id: View; label: string; icon: typeof HomeIcon }> = [
   { id: 'home', label: 'Home', icon: HomeIcon },
   { id: 'library', label: 'Library', icon: LibraryIcon },
   { id: 'favorites', label: 'Favorites', icon: Star },
+  { id: 'notes', label: 'Notes', icon: NotebookText },
   { id: 'statistics', label: 'Statistics', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];

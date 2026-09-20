@@ -8,6 +8,7 @@ import {
   isOk,
   listAnnotations,
   listAnnotationsForSync,
+  listLibraryAnnotations,
   setAnnotationNote,
   upsertFile,
 } from '../src';
@@ -303,5 +304,35 @@ describe('annotations of a book that was never in the library', () => {
 
     await upsertFile(db, { filePath: '/n.pdf', hash: 'h9', title: 'N' });
     expect(await listQuotes(db, 'h9')).toEqual(['orphan']);
+  });
+});
+
+describe('listLibraryAnnotations', () => {
+  async function listLibraryQuotes(db: SqlDriver): Promise<string[]> {
+    const listed = await listLibraryAnnotations(db);
+    expect(isOk(listed)).toBe(true);
+    return isOk(listed) ? listed.data.map((annotation) => annotation.quote).sort() : [];
+  }
+
+  it('lists the live annotations of every book in the library', async () => {
+    const db = await dbWithBook('h1');
+    await upsertFile(db, { filePath: '/b.pdf', hash: 'h2', title: 'B' });
+    await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 1, quote: 'from a' });
+    await createAnnotation(db, 'h2', { ...HIGHLIGHT_INPUT, page: 1, quote: 'from b' });
+
+    expect(await listLibraryQuotes(db)).toEqual(['from a', 'from b']);
+  });
+
+  it('leaves out deleted annotations and those of a book removed from the library', async () => {
+    const db = await dbWithBook('h1');
+    await upsertFile(db, { filePath: '/b.pdf', hash: 'h2', title: 'B' });
+    await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 1, quote: 'kept' });
+    const doomed = await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 1, quote: 'deleted' });
+    await createAnnotation(db, 'h2', { ...HIGHLIGHT_INPUT, page: 1, quote: 'orphaned' });
+    if (isOk(doomed)) await deleteAnnotation(db, doomed.data.id);
+    const removed = await db.get('SELECT id FROM files WHERE hash = ?', ['h2']);
+    await deleteFile(db, Number(removed?.id));
+
+    expect(await listLibraryQuotes(db)).toEqual(['kept']);
   });
 });

@@ -21,6 +21,8 @@ export interface ReaderApi {
   recordReadingSession(fileId: number, minutes: number): Promise<Result<void>>;
   getReadingStats(): Promise<Result<ReadingStats>>;
   listAnnotations(fileHash: string): Promise<Result<Annotation[]>>;
+  /** Live annotations of every book in the library, for the Notes view. */
+  listLibraryAnnotations(): Promise<Result<Annotation[]>>;
   createAnnotation(fileHash: string, input: CreateAnnotationInput): Promise<Result<Annotation>>;
   setAnnotationNote(id: number, note: string | null): Promise<Result<Annotation>>;
   deleteAnnotation(id: number): Promise<Result<void>>;

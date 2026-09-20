@@ -6,6 +6,7 @@ import { Favorites } from './favorites/Favorites';
 import { Home } from './home/Home';
 import { Library } from './library/Library';
 import { LibraryProvider } from './library/LibraryProvider';
+import { NotesView } from './notes/NotesView';
 import { Reader } from './reader/Reader';
 import { Settings } from './settings/Settings';
 import { Statistics } from './statistics/Statistics';
@@ -40,6 +41,8 @@ export function App() {
               <Library onOpen={setFile} />
             ) : view === 'favorites' ? (
               <Favorites onOpen={setFile} onNavigate={navigate} />
+            ) : view === 'notes' ? (
+              <NotesView />
             ) : view === 'statistics' ? (
               <Statistics onOpen={setFile} />
             ) : (

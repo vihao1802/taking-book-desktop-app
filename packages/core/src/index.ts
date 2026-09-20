@@ -9,6 +9,7 @@ export {
   deleteAnnotation,
   listAnnotations,
   listAnnotationsForSync,
+  listLibraryAnnotations,
   migrateAnnotationsSchema,
   setAnnotationNote,
   type CreateAnnotationOptions,
@@ -24,7 +25,7 @@ export {
   readingSessionsSchema,
   recordReadingSession,
 } from './readingSessionsRepository';
-export { hasNoteText, listNotes, type ListNotesOptions } from './notes';
+export { hasNoteText, listLibraryNotes, listNotes, type BookNotes, type ListLibraryNotesOptions, type ListNotesOptions } from './notes';
 export {
   getNotesSidebarWidth,
   getSetting,

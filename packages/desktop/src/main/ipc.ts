@@ -15,6 +15,7 @@ import {
   isOk,
   listAnnotations,
   listFiles,
+  listLibraryAnnotations,
   parseReflowCache,
   recordReadingSession,
   saveLastPosition,
@@ -218,6 +219,8 @@ export function registerIpc(db: SqlDriver): void {
   );
 
   ipcMain.handle('annotations:list', (_event, fileHash: string) => listAnnotations(db, fileHash));
+
+  ipcMain.handle('annotations:listLibrary', () => listLibraryAnnotations(db));
 
   ipcMain.handle('annotations:create', async (_event, fileHash: string, input: CreateAnnotationInput) =>
     createAnnotation(db, fileHash, input, { stamp: await stamp(), generateUid: randomUUID }),
