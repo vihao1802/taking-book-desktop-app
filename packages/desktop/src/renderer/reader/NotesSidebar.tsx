@@ -84,9 +84,15 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
         </Button>
       </div>
       <div className="border-border/60 flex border-b px-2 py-1.5">
-        <Button variant="ghost" size="sm" className="h-auto gap-1.5 px-1.5 py-1 text-xs" onClick={addPageNote}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-auto gap-1.5 px-1.5 py-1 text-xs"
+          title={`Write a note about page ${readingPage} as a whole, without selecting text`}
+          onClick={addPageNote}
+        >
           <FilePlus2 className="size-3.5" />
-          Page note
+          Add note to page {readingPage}
         </Button>
       </div>
       <label className="border-border/60 text-muted-foreground flex cursor-pointer items-center gap-2 border-b py-2 pr-2 pl-3.5 text-xs">
