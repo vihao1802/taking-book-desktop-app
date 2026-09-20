@@ -7,6 +7,7 @@ import {
   getDailyReadingMinutes,
   getFileZoom,
   getLastPosition,
+  getReadingMinutesByBook,
   getTheme,
   isOk,
   listAnnotations,
@@ -234,7 +235,9 @@ export function registerIpc(db: SqlDriver): void {
     const days = 30;
     const daily = await getDailyReadingMinutes(db, days, today);
     if (!isOk(daily)) return daily;
-    return { ok: true, data: computeReadingStats(daily.data, days, today) };
+    const books = await getReadingMinutesByBook(db, days, today);
+    if (!isOk(books)) return books;
+    return { ok: true, data: computeReadingStats(daily.data, days, today, books.data) };
   });
 
   ipcMain.handle('settings:theme:get', () => getTheme(db));

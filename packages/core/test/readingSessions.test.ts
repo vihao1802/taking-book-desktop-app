@@ -4,7 +4,9 @@ import {
   computeLongestStreak,
   computeReadingStats,
   dayOffset,
+  deleteFile,
   getDailyReadingMinutes,
+  getReadingMinutesByBook,
   readingSessionsSchema,
   recordReadingSession,
   upsertFile,
@@ -64,6 +66,42 @@ describe('readingSessionsRepository', () => {
   });
 });
 
+describe('getReadingMinutesByBook', () => {
+  it('sums minutes per book across days, most-read first, within the window', async () => {
+    const db = createMemoryDriver();
+    await db.exec(`${filesSchema()} ${readingSessionsSchema()}`);
+    const a = await upsertFile(db, { filePath: '/a.pdf', hash: 'ha', title: 'A' });
+    const b = await upsertFile(db, { filePath: '/b.pdf', hash: 'hb', title: 'B' });
+    if (!isOk(a) || !isOk(b)) throw new Error('setup failed');
+
+    await recordReadingSession(db, a.data.id, '2026-08-14', 10);
+    await recordReadingSession(db, a.data.id, '2026-08-15', 5);
+    await recordReadingSession(db, b.data.id, '2026-08-15', 40);
+    await recordReadingSession(db, a.data.id, '2026-07-01', 99);
+
+    const result = await getReadingMinutesByBook(db, 30, '2026-08-15');
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.data).toEqual([
+        { fileId: b.data.id, title: 'B', minutes: 40 },
+        { fileId: a.data.id, title: 'A', minutes: 15 },
+      ]);
+    }
+  });
+
+  it('leaves out books removed from the library', async () => {
+    const db = createMemoryDriver();
+    await db.exec(`${filesSchema()} ${readingSessionsSchema()}`);
+    const a = await upsertFile(db, { filePath: '/a.pdf', hash: 'ha', title: 'A' });
+    if (!isOk(a)) throw new Error('setup failed');
+    await recordReadingSession(db, a.data.id, '2026-08-15', 10);
+    await deleteFile(db, a.data.id);
+
+    const result = await getReadingMinutesByBook(db, 30, '2026-08-15');
+    expect(isOk(result) && result.data).toEqual([]);
+  });
+});
+
 describe('dayOffset', () => {
   it('moves days forward and backward across month boundaries', () => {
     expect(dayOffset('2026-08-01', -1)).toBe('2026-07-31');
@@ -111,7 +149,9 @@ describe('streak computation', () => {
       [{ day: '2026-08-14', minutes: 30 }],
       5,
       '2026-08-15',
+      [{ fileId: 1, title: 'A', minutes: 30 }],
     );
+    expect(stats.books).toEqual([{ fileId: 1, title: 'A', minutes: 30 }]);
     expect(stats.series).toEqual([
       { day: '2026-08-11', minutes: 0 },
       { day: '2026-08-12', minutes: 0 },

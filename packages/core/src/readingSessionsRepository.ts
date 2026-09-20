@@ -1,4 +1,4 @@
-import type { ReadingStats } from './models';
+import type { BookMinutes, ReadingStats } from './models';
 import type { Result } from './result';
 import { err, ok } from './result';
 import type { SqlDriver } from './sql';
@@ -70,6 +70,41 @@ export async function getDailyReadingMinutes(
   }
 }
 
+/**
+ * Returns the reading minutes per library book for the last `days` days
+ * (inclusive of today), most-read first. Books removed from the library are
+ * left out: their sessions stay in the table but are no longer something the
+ * user can act on.
+ */
+export async function getReadingMinutesByBook(
+  db: SqlDriver,
+  days: number,
+  today: string,
+): Promise<Result<BookMinutes[]>> {
+  try {
+    const cutoff = dayOffset(today, -(days - 1));
+    const rows = await db.all(
+      `SELECT f.id AS file_id, f.title AS title, SUM(s.minutes) AS minutes
+       FROM reading_sessions s
+       JOIN files f ON f.id = s.file_id
+       WHERE s.day >= ? AND f.deleted_at IS NULL
+       GROUP BY f.id
+       HAVING SUM(s.minutes) > 0
+       ORDER BY minutes DESC, f.title ASC`,
+      [cutoff],
+    );
+    return ok(
+      rows.map((row) => ({
+        fileId: Number(row.file_id),
+        title: String(row.title),
+        minutes: Number(row.minutes ?? 0),
+      })),
+    );
+  } catch (error) {
+    return err(`Failed to read per-book reading stats: ${errorMessage(error)}`);
+  }
+}
+
 /** Returns a YYYY-MM-DD string `delta` days before (negative) or after `day`. */
 export function dayOffset(day: string, delta: number): string {
   const [y, m, d] = day.split('-').map(Number);
@@ -78,11 +113,12 @@ export function dayOffset(day: string, delta: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** Builds a `ReadingStats` for the trailing window from per-day minutes. */
+/** Builds a `ReadingStats` for the trailing window from per-day and per-book minutes. */
 export function computeReadingStats(
   daily: Array<{ day: string; minutes: number }>,
   days: number,
   today: string,
+  books: BookMinutes[],
 ): ReadingStats {
   const byDay = new Map(daily.map((d) => [d.day, d.minutes]));
   const series: Array<{ day: string; minutes: number }> = [];
@@ -96,6 +132,7 @@ export function computeReadingStats(
     longestStreak: computeLongestStreak(series),
     totalMinutes: series.reduce((sum, d) => sum + d.minutes, 0),
     minutesToday: byDay.get(today) ?? 0,
+    books,
   };
 }
 

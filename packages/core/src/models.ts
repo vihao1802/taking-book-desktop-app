@@ -41,6 +41,13 @@ export interface DayMinutes {
   minutes: number;
 }
 
+/** Reading minutes accumulated on one library book over the stats window. */
+export interface BookMinutes {
+  fileId: number;
+  title: string;
+  minutes: number;
+}
+
 /** Aggregated reading statistics shown on the Statistics screen. */
 export interface ReadingStats {
   /** Reading minutes per day for the trailing window, oldest first. */
@@ -53,6 +60,8 @@ export interface ReadingStats {
   totalMinutes: number;
   /** Reading minutes recorded today. */
   minutesToday: number;
+  /** Reading minutes per library book over the window, most-read first. */
+  books: BookMinutes[];
 }
 
 /**

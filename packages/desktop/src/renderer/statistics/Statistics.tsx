@@ -9,6 +9,7 @@ import { initials } from '@/lib/initials';
 import { useLibrary } from '../library/useLibrary';
 import { AreaChart } from './AreaChart';
 import { formatDay, formatDuration } from './chartAxes';
+import { BookReadingList } from './BookReadingList';
 import { StatCard } from './StatCard';
 
 const CHART_DAYS = 30;
@@ -83,6 +84,13 @@ export function Statistics({
             data={stats?.series ?? []}
             ariaLabel={`Reading minutes per day over the last ${CHART_DAYS} days`}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-6">
+          <h3 className="text-lg font-semibold">Reading by book</h3>
+          <BookReadingList books={stats?.books ?? []} />
         </CardContent>
       </Card>
 
