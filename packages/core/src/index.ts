@@ -10,7 +10,6 @@ export {
   listAnnotations,
   listAnnotationsForSync,
   setAnnotationNote,
-  tombstoneAnnotationsForFile,
 } from './annotationsRepository';
 export {
   computeCurrentStreak,

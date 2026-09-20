@@ -118,9 +118,12 @@ export function annotationsSchema(): string {
 }
 
 /**
- * Lists the live annotations for a book, oldest first. Tombstoned rows are
- * hidden here but still returned by `listAnnotationsForSync` so deletes reach
- * other devices.
+ * Lists the live annotations for a book, in page order. Explicitly deleted
+ * (tombstoned) rows are hidden, and so is everything while the book itself is
+ * absent from the library: removing a book keeps its annotations stored, and
+ * importing the same file again shows them once more. `listAnnotationsForSync`
+ * still returns all of them so deletes and retained annotations reach other
+ * devices.
  */
 export async function listAnnotations(
   db: SqlDriver,
@@ -128,7 +131,10 @@ export async function listAnnotations(
 ): Promise<Result<Annotation[]>> {
   try {
     const rows = await db.all(
-      'SELECT * FROM annotations WHERE file_hash = ? AND deleted_at IS NULL ORDER BY page, id',
+      `SELECT * FROM annotations
+       WHERE file_hash = ? AND deleted_at IS NULL
+         AND file_hash IN (SELECT hash FROM files WHERE deleted_at IS NULL)
+       ORDER BY page, id`,
       [fileHash],
     );
     return ok(rows.map((row) => toAnnotation(rowToRow(row))));
@@ -248,23 +254,6 @@ export async function deleteAnnotation(
     return ok(undefined);
   } catch (error) {
     return err(`Failed to delete annotation ${id}: ${errorMessage(error)}`);
-  }
-}
-
-/** Tombstones every live annotation for a book, used when the file is deleted. */
-export async function tombstoneAnnotationsForFile(
-  db: SqlDriver,
-  fileHash: string,
-  stamp: SyncStamp,
-): Promise<Result<void>> {
-  try {
-    await db.run(
-      'UPDATE annotations SET deleted_at = ?, updated_at = ?, updated_by = ? WHERE file_hash = ? AND deleted_at IS NULL',
-      [stamp.updatedAt, stamp.updatedAt, stamp.updatedBy, fileHash],
-    );
-    return ok(undefined);
-  } catch (error) {
-    return err(`Failed to tombstone annotations for ${fileHash}: ${errorMessage(error)}`);
   }
 }
 

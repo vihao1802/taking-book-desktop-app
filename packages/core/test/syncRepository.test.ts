@@ -236,7 +236,7 @@ describe('annotations in sync records', () => {
     }
   });
 
-  it('tombstones annotations when a deleted file record is applied', async () => {
+  it('keeps annotations stored, but hidden, when a deleted file record is applied', async () => {
     const db = createMemoryDriver();
     await db.exec(`${filesSchema()} ${annotationsSchema()}`);
     const created = await upsertFile(db, { filePath: '/a.pdf', hash: 'h', title: 'A' });
@@ -256,7 +256,48 @@ describe('annotations in sync records', () => {
 
     const records = await listRecordsForSync(db);
     expect(isOk(records)).toBe(true);
-    if (isOk(records)) expect(records.data[0].annotations.every((a) => a.deleted)).toBe(true);
+    if (isOk(records)) {
+      expect(records.data[0].annotations).toHaveLength(1);
+      expect(records.data[0].annotations[0].deleted).toBe(false);
+    }
+
+    await upsertFile(db, { filePath: '/a.pdf', hash: 'h', title: 'A' });
+    const restored = await listAnnotations(db, 'h');
+    expect(isOk(restored)).toBe(true);
+    if (isOk(restored)) expect(restored.data).toHaveLength(1);
+  });
+
+  it('stores annotations from a deleted record on a device that never had the book', async () => {
+    const db = createMemoryDriver();
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
+    const annotation = {
+      id: 1,
+      page: 1,
+      pageStart: 0,
+      pageEnd: 2,
+      quote: 'hi',
+      color: 'yellow' as const,
+      note: 'kept',
+      paraIndex: null,
+      paraStart: null,
+      paraEnd: null,
+      updatedAt: 300,
+      updatedBy: 'dev-a',
+      deleted: false,
+    };
+
+    await applySyncRecords(
+      db,
+      [record('h', { deleted: true, updatedAt: 400, annotations: [annotation] })],
+      () => '/ignored',
+    );
+
+    const files = await listFiles(db);
+    expect(isOk(files) && files.data.length === 0).toBe(true);
+    await upsertFile(db, { filePath: '/a.pdf', hash: 'h', title: 'A' });
+    const listed = await listAnnotations(db, 'h');
+    expect(isOk(listed)).toBe(true);
+    if (isOk(listed)) expect(listed.data.map((a) => a.note)).toEqual(['kept']);
   });
 });
 

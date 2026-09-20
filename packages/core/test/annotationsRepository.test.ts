@@ -4,15 +4,15 @@ import {
   applyRecordAnnotations,
   createAnnotation,
   deleteAnnotation,
+  deleteFile,
   filesSchema,
   isOk,
   listAnnotations,
   listAnnotationsForSync,
   setAnnotationNote,
-  tombstoneAnnotationsForFile,
   upsertFile,
 } from '../src';
-import type { SyncAnnotation } from '../src';
+import type { SqlDriver, SyncAnnotation } from '../src';
 import { createMemoryDriver } from './helpers';
 
 function syncAnnotation(overrides: Partial<SyncAnnotation> = {}): SyncAnnotation {
@@ -198,29 +198,109 @@ describe('applyRecordAnnotations', () => {
   });
 });
 
-describe('tombstoneAnnotationsForFile', () => {
-  it('tombstones every annotation when the book is deleted', async () => {
+const HIGHLIGHT_INPUT = {
+  pageStart: 0,
+  pageEnd: 3,
+  color: 'yellow',
+  note: null,
+  paraIndex: null,
+  paraStart: null,
+  paraEnd: null,
+} as const;
+
+async function listQuotes(db: SqlDriver, hash = 'h1'): Promise<string[]> {
+  const listed = await listAnnotations(db, hash);
+  expect(isOk(listed)).toBe(true);
+  return isOk(listed) ? listed.data.map((annotation) => annotation.quote) : [];
+}
+
+describe('annotations of a book removed from the library', () => {
+  async function removeBook(db: SqlDriver, hash = 'h1'): Promise<void> {
+    const file = await db.get('SELECT id FROM files WHERE hash = ?', [hash]);
+    expect(file).toBeDefined();
+    const removed = await deleteFile(db, Number(file?.id));
+    expect(isOk(removed)).toBe(true);
+  }
+
+  it('keeps them stored but hides them from every list', async () => {
     const db = await dbWithBook();
-    await createAnnotation(
-      db,
-      'h1',
-      { page: 1, pageStart: 0, pageEnd: 3, quote: 'a', color: 'yellow', note: null, paraIndex: null, paraStart: null, paraEnd: null },
-    );
-    await createAnnotation(
-      db,
-      'h1',
-      { page: 2, pageStart: 1, pageEnd: 4, quote: 'b', color: 'blue', note: null, paraIndex: null, paraStart: null, paraEnd: null },
-    );
+    await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 1, quote: 'a', note: 'my note' });
+    await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 2, quote: 'b' });
 
-    const tombstoned = await tombstoneAnnotationsForFile(db, 'h1', { updatedAt: 700, updatedBy: 'dev-a' });
-    expect(isOk(tombstoned)).toBe(true);
+    await removeBook(db);
 
-    const live = await listAnnotations(db, 'h1');
-    expect(isOk(live)).toBe(true);
-    if (isOk(live)) expect(live.data).toHaveLength(0);
-
+    expect(await listQuotes(db)).toEqual([]);
     const synced = await listAnnotationsForSync(db, 'h1');
     expect(isOk(synced)).toBe(true);
-    if (isOk(synced)) expect(synced.data.every((a) => a.deleted)).toBe(true);
+    if (isOk(synced)) {
+      expect(synced.data).toHaveLength(2);
+      expect(synced.data.every((annotation) => !annotation.deleted)).toBe(true);
+    }
+  });
+
+  it('shows them again when the same file is imported again', async () => {
+    const db = await dbWithBook();
+    await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 1, quote: 'a', note: 'my note' });
+    await removeBook(db);
+
+    const reimported = await upsertFile(db, { filePath: '/moved/a.pdf', hash: 'h1', title: 'A' });
+    expect(isOk(reimported)).toBe(true);
+
+    const listed = await listAnnotations(db, 'h1');
+    expect(isOk(listed)).toBe(true);
+    if (isOk(listed)) {
+      expect(listed.data.map((annotation) => annotation.note)).toEqual(['my note']);
+    }
+  });
+
+  it('does not show them for a different file that is still in the library', async () => {
+    const db = await dbWithBook('h1');
+    await upsertFile(db, { filePath: '/b.pdf', hash: 'h2', title: 'B' });
+    await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 1, quote: 'a' });
+    await createAnnotation(db, 'h2', { ...HIGHLIGHT_INPUT, page: 1, quote: 'b' });
+
+    await removeBook(db, 'h1');
+
+    expect(await listQuotes(db, 'h1')).toEqual([]);
+    expect(await listQuotes(db, 'h2')).toEqual(['b']);
+  });
+
+  it('leaves an explicitly deleted annotation deleted after the book returns', async () => {
+    const db = await dbWithBook();
+    const keep = await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 1, quote: 'keep' });
+    const drop = await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 2, quote: 'drop' });
+    expect(isOk(keep) && isOk(drop)).toBe(true);
+    if (!isOk(drop)) return;
+    await deleteAnnotation(db, drop.data.id);
+
+    await removeBook(db);
+    await upsertFile(db, { filePath: '/a.pdf', hash: 'h1', title: 'A' });
+
+    expect(await listQuotes(db)).toEqual(['keep']);
+  });
+
+  it('still deletes a live annotation explicitly', async () => {
+    const db = await dbWithBook();
+    const created = await createAnnotation(db, 'h1', { ...HIGHLIGHT_INPUT, page: 1, quote: 'a' });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const deleted = await deleteAnnotation(db, created.data.id);
+
+    expect(isOk(deleted)).toBe(true);
+    expect(await listQuotes(db)).toEqual([]);
+  });
+});
+
+describe('annotations of a book that was never in the library', () => {
+  it('are stored but not listed until the book is imported', async () => {
+    const db = createMemoryDriver();
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
+    await applyRecordAnnotations(db, 'h9', [syncAnnotation({ id: 4, quote: 'orphan' })]);
+
+    expect(await listQuotes(db, 'h9')).toEqual([]);
+
+    await upsertFile(db, { filePath: '/n.pdf', hash: 'h9', title: 'N' });
+    expect(await listQuotes(db, 'h9')).toEqual(['orphan']);
   });
 });

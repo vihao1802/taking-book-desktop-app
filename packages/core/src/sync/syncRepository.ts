@@ -1,8 +1,4 @@
-import {
-  applyRecordAnnotations,
-  listAnnotationsForSync,
-  tombstoneAnnotationsForFile,
-} from '../annotationsRepository';
+import { applyRecordAnnotations, listAnnotationsForSync } from '../annotationsRepository';
 import type { BookStatus, ReadMode } from '../models';
 import type { Result } from '../result';
 import { err, ok } from '../result';
@@ -194,30 +190,12 @@ export async function applySyncRecords(
     for (const record of records) {
       const existing = await db.get('SELECT * FROM files WHERE hash = ?', [record.hash]);
       if (!existing) {
-        if (record.deleted) continue;
-        const path = await resolvePath(record.hash);
-        await db.run(
-          `INSERT INTO files (hash, path, title, status, tags, favorite, last_page, last_position, last_mode, page_count, zoom, reflow_zoom, last_read_at, updated_at, updated_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            record.hash,
-            path,
-            record.title,
-            record.status,
-            JSON.stringify(record.tags),
-            record.favorite ? 1 : 0,
-            record.lastPage,
-            record.lastPosition,
-            record.lastMode,
-            record.pageCount,
-            record.zoom,
-            record.reflowZoom ?? null,
-            record.lastReadAt ?? null,
-            record.updatedAt,
-            record.updatedBy,
-          ],
-        );
-        counts.added += 1;
+        // A tombstoned record has no book to add here, but its annotations are
+        // still stored so importing the same file later brings them back.
+        if (!record.deleted) {
+          await insertFileRecord(db, record, await resolvePath(record.hash));
+          counts.added += 1;
+        }
         const applied = await applyRecordAnnotations(db, record.hash, record.annotations);
         if (!applied.ok) return applied;
         continue;
@@ -264,21 +242,38 @@ export async function applySyncRecords(
       if (deleted && row.deleted_at == null) counts.deleted += 1;
       else counts.updated += 1;
 
-      if (deleted) {
-        const tombstoned = await tombstoneAnnotationsForFile(db, record.hash, {
-          updatedAt: record.updatedAt,
-          updatedBy: record.updatedBy,
-        });
-        if (!tombstoned.ok) return tombstoned;
-      } else {
-        const applied = await applyRecordAnnotations(db, record.hash, record.annotations);
-        if (!applied.ok) return applied;
-      }
+      const applied = await applyRecordAnnotations(db, record.hash, record.annotations);
+      if (!applied.ok) return applied;
     }
     return ok(counts);
   } catch (error) {
     return err(`Failed to apply sync records: ${errorMessage(error)}`);
   }
+}
+
+/** Inserts a brand-new local row for a live sync record that this device has never seen. */
+async function insertFileRecord(db: SqlDriver, record: SyncRecord, path: string): Promise<void> {
+  await db.run(
+    `INSERT INTO files (hash, path, title, status, tags, favorite, last_page, last_position, last_mode, page_count, zoom, reflow_zoom, last_read_at, updated_at, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      record.hash,
+      path,
+      record.title,
+      record.status,
+      JSON.stringify(record.tags),
+      record.favorite ? 1 : 0,
+      record.lastPage,
+      record.lastPosition,
+      record.lastMode,
+      record.pageCount,
+      record.zoom,
+      record.reflowZoom ?? null,
+      record.lastReadAt ?? null,
+      record.updatedAt,
+      record.updatedBy,
+    ],
+  );
 }
 
 function errorMessage(error: unknown): string {

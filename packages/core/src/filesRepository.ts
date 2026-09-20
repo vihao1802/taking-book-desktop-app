@@ -2,7 +2,6 @@ import type { BookFile, BookStatus, LastPosition, ReadMode } from './models';
 import type { Result } from './result';
 import { err, ok } from './result';
 import type { SqlDriver, SqlValue } from './sql';
-import { tombstoneAnnotationsForFile } from './annotationsRepository';
 import { defaultStamp, filesSchema as syncFilesSchema } from './sync/syncRepository';
 import type { SyncStamp } from './sync/types';
 
@@ -311,9 +310,10 @@ export async function setFilePageCount(
 /**
  * Removes a file from the library by tombstoning it: the row stays so the
  * delete propagates to other devices, but the library view hides it. The
- * book's annotations are tombstoned under the same clock so their deletes
- * propagate too. Returns the stamp under which it was tombstoned so callers
- * can sync the change.
+ * book's annotations are deliberately left alone: they stay stored (and hidden
+ * while the book is absent) so they come back when the same file is imported
+ * again. Returns the stamp under which it was tombstoned so callers can sync
+ * the change.
  */
 export async function deleteFile(
   db: SqlDriver,
@@ -322,15 +322,13 @@ export async function deleteFile(
 ): Promise<Result<SyncStamp>> {
   const clock = stamp ?? defaultStamp();
   try {
-    const row = await db.get('SELECT hash FROM files WHERE id = ?', [id]);
+    const row = await db.get('SELECT id FROM files WHERE id = ?', [id]);
     if (!row) return err(`No file with id ${id}`);
     const result = await db.run(
       'UPDATE files SET deleted_at = ?, updated_at = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
       [clock.updatedAt, clock.updatedAt, clock.updatedBy, id],
     );
     if (result.changes === 0) return err(`No live file with id ${id}`);
-    const tombstoned = await tombstoneAnnotationsForFile(db, String(row.hash), clock);
-    if (!tombstoned.ok) return tombstoned;
     return ok(clock);
   } catch (error) {
     return err(`Failed to delete file ${id}: ${errorMessage(error)}`);

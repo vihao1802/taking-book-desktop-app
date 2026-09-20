@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   annotationsSchema,
+  createAnnotation,
   deleteFile,
   filesSchema,
   isOk,
+  listAnnotations,
+  listAnnotationsForSync,
   listFiles,
   syncLibrary,
   upsertFile,
@@ -300,6 +303,51 @@ describe('syncLibrary', () => {
       expect(filesA.data.map((f) => f.hash).sort()).toEqual(['aaa', 'bbb']);
       expect(filesB.data.map((f) => f.hash).sort()).toEqual(['aaa', 'bbb']);
     }
+  });
+
+  it('keeps a book\'s notes on other devices when it is removed elsewhere', async () => {
+    const shared = createMemoryStorage();
+    const syncDevice = (db: SqlDriver) =>
+      syncLibrary(db, {
+        local: localStorageWith('aaa'),
+        remote: shared,
+        resolveLocalPath: (hash) => `/blobs/${hash}`,
+      });
+
+    const deviceA = createMemoryDriver();
+    await deviceA.exec(`${filesSchema()} ${annotationsSchema()}`);
+    await addBook(deviceA, 'aaa', 'Book A');
+    const created = await createAnnotation(
+      deviceA,
+      'aaa',
+      { page: 1, pageStart: 0, pageEnd: 2, quote: 'hi', color: 'yellow', note: 'my note', paraIndex: null, paraStart: null, paraEnd: null },
+      { updatedAt: 100, updatedBy: 'dev-a' },
+    );
+    expect(isOk(created)).toBe(true);
+    const deviceB = createMemoryDriver();
+    await deviceB.exec(`${filesSchema()} ${annotationsSchema()}`);
+    await syncDevice(deviceA);
+    await syncDevice(deviceB);
+
+    const onA = await listFiles(deviceA);
+    expect(isOk(onA)).toBe(true);
+    if (!isOk(onA)) return;
+    await deleteFile(deviceA, onA.data[0].id, { updatedAt: Date.now() + 1000, updatedBy: 'dev-a' });
+    await syncDevice(deviceA);
+    await syncDevice(deviceB);
+
+    const filesOnB = await listFiles(deviceB);
+    expect(isOk(filesOnB) && filesOnB.data.length === 0).toBe(true);
+    const storedOnB = await listAnnotationsForSync(deviceB, 'aaa');
+    expect(isOk(storedOnB)).toBe(true);
+    if (isOk(storedOnB)) {
+      expect(storedOnB.data.map((a) => [a.note, a.deleted])).toEqual([['my note', false]]);
+    }
+
+    await upsertFile(deviceB, { filePath: '/b/aaa.pdf', hash: 'aaa', title: 'Book A' });
+    const restored = await listAnnotations(deviceB, 'aaa');
+    expect(isOk(restored)).toBe(true);
+    if (isOk(restored)) expect(restored.data.map((a) => a.note)).toEqual(['my note']);
   });
 
   it('records a missing remote read as a warning, not a failure', async () => {
