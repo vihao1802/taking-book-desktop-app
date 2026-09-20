@@ -21,6 +21,8 @@ export interface ReflowTextItem {
   bold?: boolean;
   /** Rendered with a slanted style; detected from the PDF font name. */
   italic?: boolean;
+  /** Set in a fixed-pitch font; lines made only of such fragments are treated as code. */
+  monospace?: boolean;
 }
 
 /**
@@ -48,6 +50,31 @@ export function fontStyleFromName(name: string | null): { bold: boolean; italic:
   };
 }
 
+/** PostScript names of common fixed-pitch fonts. "Monotype" is a foundry, not a pitch. */
+const MONOSPACE_FONT_NAME =
+  /mono(?!type)|courier|consolas|menlo|monaco|inconsolata|lucida\s?console|source\s?code|fira\s?code|jetbrains|cousine|andale|typewriter/i;
+
+/**
+ * Decides whether a PDF font is fixed-pitch, from either its PostScript name
+ * or the generic family pdf.js falls back to (which follows the font
+ * descriptor's FixedPitch flag). Either signal is enough because fonts often
+ * carry one without the other. Unresolvable fonts are treated as proportional.
+ *
+ * @param name - The font's PostScript name (e.g. "ABCDEF+Consolas"), if known.
+ * @param fallbackFamily - pdf.js's generic fallback family ("monospace", "serif", ...), if known.
+ * @returns True when text in this font should be rendered as code.
+ */
+export function isMonospaceFont(name: string | null, fallbackFamily: string | null): boolean {
+  if (fallbackFamily != null && /monospace/i.test(fallbackFamily)) return true;
+  return name != null && MONOSPACE_FONT_NAME.test(name);
+}
+
+/** Layout of a code line, kept so the paragraph builder can restore its indentation. */
+export interface ReflowCodeMetrics {
+  /** Horizontal advance of one character, from the line's own glyph widths. */
+  charWidth: number;
+}
+
 /** A reconstructed line of text (left-to-right join of fragments). */
 export interface ReflowLine {
   x: number;
@@ -60,6 +87,12 @@ export interface ReflowLine {
   runs: ReflowRun[];
   /** True when the line looks like a table row: multi-column with aligned neighbors. */
   isTable?: boolean;
+  /**
+   * Set when every fragment is monospace. `text` then keeps the spacing between
+   * fragments (padded to the character grid) instead of collapsing it, and `x`
+   * is where the first non-space character sits, so indentation can be compared.
+   */
+  code?: ReflowCodeMetrics;
 }
 
 /** A block of text that can be re-wrapped at render time. */
@@ -87,6 +120,12 @@ export interface ReflowParagraph {
    * where the page label begins, so the renderer can right-align it.
    */
   contents?: { level: number; pageStart: number };
+  /**
+   * True for a block of source code. Unlike prose, `text` keeps its line breaks
+   * (`\n`) and leading spaces, so the renderer must show it preformatted rather
+   * than re-wrap it. Runs still partition `text` exactly.
+   */
+  code?: boolean;
 }
 
 /**
@@ -203,8 +242,12 @@ export function extractLines(
 
   return lines.map((line, lineIndex) => {
     line.items.sort((a, b) => a.x - b.x);
-    const joined = joinLineRuns(line.items, opts.wordGapRatio);
     const fontSize = Math.max(...line.items.map((i) => i.fontSize));
+    // Code is checked before tables: the wide gaps of aligned code would
+    // otherwise read as table columns.
+    const codeLine = buildCodeLine(line.items, line.y, fontSize);
+    if (codeLine) return codeLine;
+    const joined = joinLineRuns(line.items, opts.wordGapRatio);
     return {
       x: line.items[0].x,
       right: Math.max(...line.items.map((i) => i.x + i.width)),
@@ -304,6 +347,72 @@ function joinLineRuns(items: ReflowTextItem[], wordGapRatio: number): { text: st
   return collapseRuns(runs);
 }
 
+/** Fallback advance of one monospace character, as a fraction of font size (the usual 0.6 em). */
+const CODE_CHAR_WIDTH_RATIO = 0.6;
+
+/** The median per-character advance of the fragments, robust to a stray wide glyph. */
+function medianCharWidth(items: ReflowTextItem[], fallback: number): number {
+  const widths = items
+    .filter((item) => item.str.length > 0 && item.width > 0)
+    .map((item) => item.width / item.str.length)
+    .sort((a, b) => a - b);
+  return widths.length === 0 ? fallback : widths[Math.floor(widths.length / 2)];
+}
+
+/**
+ * Drops leading and trailing whitespace across a run list without disturbing
+ * the styling of what remains. Returns how many leading characters were cut,
+ * which is the line's indentation in characters.
+ */
+function trimRuns(runs: ReflowRun[]): { runs: ReflowRun[]; leading: number } {
+  const text = runs.map((run) => run.text).join('');
+  const leading = text.length - text.trimStart().length;
+  const end = text.trimEnd().length;
+  const trimmed: ReflowRun[] = [];
+  let offset = 0;
+  for (const run of runs) {
+    const from = Math.max(leading - offset, 0);
+    const to = Math.min(end - offset, run.text.length);
+    if (to > from) trimmed.push({ ...run, text: run.text.slice(from, to) });
+    offset += run.text.length;
+  }
+  return { runs: trimmed, leading };
+}
+
+/**
+ * Builds a code line from its fragments, or returns null when any fragment is
+ * proportional. Code is laid out on a character grid, so each fragment is
+ * padded with spaces up to its column instead of being joined by the prose
+ * word-gap heuristic; that keeps the spacing inside the line (aligned
+ * comments, operators) exactly as typeset.
+ */
+function buildCodeLine(items: ReflowTextItem[], y: number, fontSize: number): ReflowLine | null {
+  if (items.length === 0 || !items.every((item) => item.monospace === true)) return null;
+  const charWidth = medianCharWidth(items, fontSize * CODE_CHAR_WIDTH_RATIO);
+  const originX = items[0].x;
+  const padded: ReflowRun[] = [];
+  let length = 0;
+  for (const item of items) {
+    const column = Math.round((item.x - originX) / charWidth);
+    if (column > length) {
+      appendRun(padded, ' '.repeat(column - length), false, false);
+      length = column;
+    }
+    appendRun(padded, item.str, item.bold ?? false, item.italic ?? false);
+    length += item.str.length;
+  }
+  const { runs, leading } = trimRuns(padded);
+  return {
+    x: originX + leading * charWidth,
+    right: Math.max(...items.map((item) => item.x + item.width)),
+    y,
+    fontSize,
+    text: runs.map((run) => run.text).join(''),
+    runs,
+    code: { charWidth },
+  };
+}
+
 /**
  * Normalizes run whitespace to match the line's `text` exactly: whitespace
  * runs collapse to a single neutral space and leading/trailing whitespace is
@@ -394,9 +503,27 @@ export function paragraphsFromLines(
     const prev = paragraphs[paragraphs.length - 1];
     const entry = contentsEntries[index];
 
-    // Table rows and contents entries stand alone: never merge one into body
-    // text, body text into one, or two of them into one paragraph.
-    if (!prev || !lastLine || line.isTable || prev.isTable || entry || prev.contents) {
+    if (line.code) {
+      if (prev?.code && lastLine && isSameCodeBlock(lastLine, line)) {
+        paragraphLines[paragraphLines.length - 1].push(line);
+      } else {
+        paragraphs.push({
+          text: line.text,
+          fontSize: line.fontSize,
+          indent: false,
+          pageIndex,
+          y: line.y,
+          runs: [...line.runs],
+          code: true,
+        });
+        paragraphLines.push([line]);
+      }
+      return;
+    }
+
+    // Table rows, contents entries and code blocks stand alone: never merge one
+    // into body text, body text into one, or two of them into one paragraph.
+    if (!prev || !lastLine || line.isTable || prev.isTable || entry || prev.contents || prev.code) {
       paragraphs.push(standaloneParagraph(line, pageIndex, entry));
       paragraphLines.push([line]);
       return;
@@ -442,8 +569,48 @@ export function paragraphsFromLines(
     }
   });
 
+  paragraphs.forEach((paragraph, index) => {
+    if (paragraph.code) Object.assign(paragraph, buildCodeText(paragraphLines[index]));
+  });
   markCenteredParagraphs(paragraphs, paragraphLines, lines);
   return paragraphs;
+}
+
+/**
+ * Vertical gap (× font size) above which two code lines belong to different
+ * listings. Wide enough to hold a blank line inside one listing.
+ */
+const CODE_BLOCK_MAX_GAP_RATIO = 3.6;
+/** Line pitch (× font size) assumed at most, so a lone blank-line gap is not mistaken for the pitch. */
+const CODE_LINE_HEIGHT_CAP_RATIO = 1.3;
+/** Blank lines kept between two code lines, however tall the gap. */
+const CODE_MAX_BLANK_LINES = 2;
+
+function isSameCodeBlock(previous: ReflowLine, line: ReflowLine): boolean {
+  return line.y - previous.y <= CODE_BLOCK_MAX_GAP_RATIO * line.fontSize;
+}
+
+/**
+ * Joins a listing's lines into one text that keeps its shape: a newline per
+ * line, extra newlines where the page has blank lines, and each line indented
+ * by its offset from the listing's left edge in characters. The runs partition
+ * the text exactly, like every other paragraph.
+ */
+function buildCodeText(lines: ReflowLine[]): { text: string; runs: ReflowRun[] } {
+  const blockLeft = Math.min(...lines.map((line) => line.x));
+  const charWidth = lines[0].code?.charWidth ?? lines[0].fontSize * CODE_CHAR_WIDTH_RATIO;
+  const gaps = lines.slice(1).map((line, i) => line.y - lines[i].y);
+  const lineHeight = Math.min(...gaps, lines[0].fontSize * CODE_LINE_HEIGHT_CAP_RATIO);
+  const runs: ReflowRun[] = [];
+  lines.forEach((line, index) => {
+    if (index > 0) {
+      const blanks = Math.min(CODE_MAX_BLANK_LINES, Math.max(0, Math.round(gaps[index - 1] / lineHeight) - 1));
+      appendRun(runs, '\n'.repeat(1 + blanks), false, false);
+    }
+    appendRun(runs, ' '.repeat(Math.max(0, Math.round((line.x - blockLeft) / charWidth))), false, false);
+    for (const run of line.runs) appendRun(runs, run.text, run.bold, run.italic);
+  });
+  return { text: runs.map((run) => run.text).join(''), runs };
 }
 
 /** Allowed offset (× font size) between the right edges of two lines that count as flush right. */
@@ -468,7 +635,7 @@ function markCenteredParagraphs(
   paragraphLines: ReflowLine[][],
   pageLines: ReflowLine[],
 ): void {
-  const bodyLines = pageLines.filter((line) => !line.isTable);
+  const bodyLines = pageLines.filter((line) => !line.isTable && !line.code);
   if (bodyLines.length === 0) return;
   const columnLeft = Math.min(...bodyLines.map((line) => line.x));
   const columnRight = Math.max(...bodyLines.map((line) => line.right));
@@ -506,7 +673,7 @@ function markCenteredParagraphs(
   };
 
   paragraphs.forEach((paragraph, index) => {
-    if (paragraph.isTable || paragraph.contents) return;
+    if (paragraph.isTable || paragraph.contents || paragraph.code) return;
     if (paragraphLines[index].every(isCentered)) paragraph.align = 'center';
     else if (isFlushRight(paragraphLines[index])) paragraph.align = 'right';
   });
@@ -533,8 +700,8 @@ export const REFLOW_TARGET_FONT_SIZE = 20;
 /**
  * Returns the font size carrying the most text across the document (weighted
  * by character count), so a long body at 12px beats a repeated 20px heading.
- * Table paragraphs are excluded: their small print must not drag the body
- * scale down, and their own size is left untouched by normalization. A
+ * Table and code paragraphs are excluded: their small print must not drag the body
+ * scale down (tables also keep their own size through normalization). A
  * paragraph's text is credited to its first line's size; since paragraph
  * merging only happens within the font-size-change ratio, the estimate stays
  * close. Used as the denominator for reflow normalization. Returns null for an
@@ -542,9 +709,12 @@ export const REFLOW_TARGET_FONT_SIZE = 20;
  */
 export function dominantFontSize(paragraphs: ReflowParagraph[]): number | null {
   if (paragraphs.length === 0) return null;
+  // Code is small print like a table, and a code-heavy chapter must not drag
+  // the body scale down; it only decides the size when nothing else can.
+  const prose = paragraphs.filter((para) => !para.isTable && !para.code);
+  const sized = prose.length > 0 ? prose : paragraphs.filter((para) => !para.isTable);
   const lengthBySize = new Map<number, number>();
-  for (const para of paragraphs) {
-    if (para.isTable) continue;
+  for (const para of sized) {
     lengthBySize.set(para.fontSize, (lengthBySize.get(para.fontSize) ?? 0) + para.text.length);
   }
   if (lengthBySize.size === 0) return null;
@@ -572,7 +742,7 @@ export function getParagraphTextAlign(
   paragraph: ReflowParagraph,
   bodySize = REFLOW_TARGET_FONT_SIZE,
 ): 'left' | 'center' | 'right' | 'justify' {
-  if (paragraph.isTable) return 'left';
+  if (paragraph.isTable || paragraph.code) return 'left';
   if (paragraph.align) return paragraph.align;
   return paragraph.fontSize > bodySize * HEADING_SIZE_RATIO ? 'left' : 'justify';
 }

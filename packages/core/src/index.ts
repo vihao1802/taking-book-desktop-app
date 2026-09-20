@@ -75,6 +75,7 @@ export {
   extractLines,
   filterBoilerplateParagraphs,
   fontStyleFromName,
+  isMonospaceFont,
   normalizeReflowSizes,
   getParagraphTextAlign,
   paragraphsFromLines,

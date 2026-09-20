@@ -3,6 +3,7 @@ import {
   assignImagePositions,
   filterBoilerplateParagraphs,
   fontStyleFromName,
+  isMonospaceFont,
   isOk,
   normalizeReflowSizes,
   reflowPage,
@@ -52,7 +53,14 @@ function isTextFragment(item: unknown): item is TextFragment {
   );
 }
 
-function toReflowItem(item: TextFragment, fontStyle: { bold: boolean; italic: boolean }) {
+/** How a page font renders in reflow: weight, slant, and whether it is fixed-pitch (code). */
+interface ResolvedFontStyle {
+  bold: boolean;
+  italic: boolean;
+  monospace: boolean;
+}
+
+function toReflowItem(item: TextFragment, fontStyle: ResolvedFontStyle) {
   return {
     str: item.str,
     x: item.transform[4],
@@ -63,26 +71,34 @@ function toReflowItem(item: TextFragment, fontStyle: { bold: boolean; italic: bo
     fontSize: item.transform[0] || item.height || 10,
     bold: fontStyle.bold,
     italic: fontStyle.italic,
+    monospace: fontStyle.monospace,
   };
 }
 
-const EMPTY_FONT_STYLE = { bold: false, italic: false };
+const EMPTY_FONT_STYLE: ResolvedFontStyle = { bold: false, italic: false, monospace: false };
+
+/** The generic family pdf.js falls back to for a font ("monospace" follows the FixedPitch flag). */
+function fallbackFamilyOf(style: unknown): string | null {
+  if (typeof style !== 'object' || style === null || !('fontFamily' in style)) return null;
+  return typeof style.fontFamily === 'string' ? style.fontFamily : null;
+}
 
 /**
- * Resolves each font referenced on the page to its bold/italic flags. The font
- * objects only land in `page.commonObjs` once the page's operator list has been
- * fetched (which is cached per page), so callers must fetch it first; fonts
- * that fail to resolve silently render regular, matching the reflow engine's
- * accepted silent-miss for detection.
+ * Resolves each font referenced on the page to its bold/italic/monospace
+ * flags. The font objects only land in `page.commonObjs` once the page's
+ * operator list has been fetched (which is cached per page), so callers must
+ * fetch it first; fonts that fail to resolve silently render regular, matching
+ * the reflow engine's accepted silent-miss for detection.
  */
-function resolveFontStyles(
-  page: PDFPageProxy,
-  content: PageTextContent,
-): Map<string, { bold: boolean; italic: boolean }> {
-  const styles = new Map<string, { bold: boolean; italic: boolean }>();
-  for (const fontName of Object.keys(content.styles)) {
+function resolveFontStyles(page: PDFPageProxy, content: PageTextContent): Map<string, ResolvedFontStyle> {
+  const styles = new Map<string, ResolvedFontStyle>();
+  for (const [fontName, style] of Object.entries(content.styles)) {
     const fontObj = tryGetObject(page.commonObjs, fontName) as { name?: string } | undefined;
-    styles.set(fontName, fontStyleFromName(fontObj?.name ?? null));
+    const name = fontObj?.name ?? null;
+    styles.set(fontName, {
+      ...fontStyleFromName(name),
+      monospace: isMonospaceFont(name, fallbackFamilyOf(style)),
+    });
   }
   return styles;
 }

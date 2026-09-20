@@ -7,6 +7,7 @@ import {
   filterBoilerplateParagraphs,
   fontStyleFromName,
   getParagraphTextAlign,
+  isMonospaceFont,
   normalizeReflowSizes,
   paragraphsFromLines,
   reflowPage,
@@ -638,5 +639,107 @@ describe('assignImagePositions', () => {
     assignImagePositions(paragraphs, images);
     expect('beforeParagraphIndex' in images[0]).toBe(false);
     expect(paragraphs).toHaveLength(1);
+  });
+});
+
+describe('isMonospaceFont', () => {
+  it('recognizes common fixed-pitch font names, subset prefix included', () => {
+    expect(isMonospaceFont('ABCDEF+Consolas', null)).toBe(true);
+    expect(isMonospaceFont('CourierNewPSMT', null)).toBe(true);
+    expect(isMonospaceFont('UbuntuMono-Regular', null)).toBe(true);
+    expect(isMonospaceFont('SourceCodePro-Regular', null)).toBe(true);
+  });
+
+  it('trusts pdf.js falling back to a monospace family even when the name says nothing', () => {
+    expect(isMonospaceFont('XYZ+F1', 'monospace')).toBe(true);
+  });
+
+  it('treats proportional and unresolvable fonts as prose', () => {
+    expect(isMonospaceFont('Times-Roman', 'serif')).toBe(false);
+    expect(isMonospaceFont('MonotypeCorsiva', 'sans-serif')).toBe(false);
+    expect(isMonospaceFont(null, null)).toBe(false);
+  });
+});
+
+describe('code blocks', () => {
+  const mono = (str: string, x: number, y: number, opts: Partial<ReflowTextItem> = {}): ReflowTextItem =>
+    item(str, x, y, { monospace: true, ...opts });
+
+  it('keeps the spacing between fragments of a code line on the character grid', () => {
+    const [codeLine] = extractLines([mono('x', 0, 100), mono('=', 18, 100), mono('1', 36, 100)]);
+    expect(codeLine.text).toBe('x  =  1');
+    expect(codeLine.code).toEqual({ charWidth: 6 });
+  });
+
+  it('does not read a code line with wide gaps as a table row', () => {
+    const items = [0, 1, 2].flatMap((row) => [
+      mono('a', 0, 100 + row * 14),
+      mono('b', 60, 100 + row * 14),
+      mono('c', 120, 100 + row * 14),
+    ]);
+    expect(extractLines(items).every((l) => l.code && !l.isTable)).toBe(true);
+  });
+
+  it('is not code when any fragment on the line is proportional', () => {
+    const [mixed] = extractLines([mono('foo()', 0, 100), item('is called', 40, 100)]);
+    expect(mixed.code).toBeUndefined();
+  });
+
+  it('merges consecutive code lines into one paragraph, keeping breaks and indentation', () => {
+    const paragraphs = reflowPage(
+      [
+        mono('def f(x):', 0, 100),
+        mono('return x', 24, 114),
+        mono('if x:', 24, 128),
+        mono('pass', 48, 142),
+      ],
+      0,
+    );
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0].code).toBe(true);
+    expect(paragraphs[0].text).toBe('def f(x):\n    return x\n    if x:\n        pass');
+  });
+
+  it('keeps a blank line between two statements of one listing', () => {
+    const [paragraph] = reflowPage([mono('a = 1', 0, 100), mono('b = 2', 0, 128)], 0);
+    expect(paragraph.text).toBe('a = 1\n\nb = 2');
+  });
+
+  it('splits listings separated by prose', () => {
+    const paragraphs = reflowPage(
+      [mono('one()', 0, 100), item('Then run it.', 0, 140), mono('two()', 0, 180)],
+      0,
+    );
+    expect(paragraphs.map((p) => !!p.code)).toEqual([true, false, true]);
+  });
+
+  it('partitions the text exactly by its runs so highlight offsets stay valid', () => {
+    const [paragraph] = reflowPage(
+      [
+        mono('if', 0, 100, { bold: true }),
+        mono('x:', 18, 100),
+        mono('go()', 12, 114, { italic: true }),
+      ],
+      0,
+    );
+    expect(paragraph.runs.map((r) => r.text).join('')).toBe(paragraph.text);
+    expect(paragraph.text).toBe('if x:\n  go()');
+  });
+
+  it('never centers or right-aligns a code paragraph', () => {
+    const paragraphs = reflowPage(
+      [item('Body text that fills the width of the column', 0, 60), mono('  x', 150, 100)],
+      0,
+    );
+    const code = paragraphs.find((p) => p.code)!;
+    expect(code.align).toBeUndefined();
+    expect(getParagraphTextAlign(code)).toBe('left');
+  });
+
+  it('does not let a code-heavy document decide the body font size', () => {
+    const prose: ReflowParagraph = { text: 'x'.repeat(50), fontSize: 12, indent: false, pageIndex: 0, y: 0, runs: [] };
+    const code: ReflowParagraph = { ...prose, text: 'y'.repeat(500), fontSize: 9, code: true };
+    expect(dominantFontSize([prose, code])).toBe(12);
+    expect(dominantFontSize([code])).toBe(9);
   });
 });

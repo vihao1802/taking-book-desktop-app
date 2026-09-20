@@ -164,11 +164,11 @@ export function ReflowReader({
   // Body font size the zoom multiplier is relative to. Computed once per
   // document instead of per render (and without a spread that can blow the
   // argument limit on books with tens of thousands of paragraphs). Table rows
-  // keep their small original size, so they are excluded here.
+  // keep their small original size and code is small print, so both are excluded here.
   const baseSize = useMemo(() => {
     let max = 0;
     for (const para of paragraphs) {
-      if (para.isTable) continue;
+      if (para.isTable || para.code) continue;
       if (para.fontSize > max) max = para.fontSize;
     }
     return Math.max(max, 11);
@@ -771,6 +771,20 @@ const Paragraph = memo(function Paragraph({
         title={renderRange(0, paragraph.contents.pageStart)}
         page={renderRange(paragraph.contents.pageStart, paragraph.text.length)}
       />
+    );
+  }
+
+  if (paragraph.code) {
+    // Deliberately a <p>, not a <pre>: selection maps DOM paragraphs to
+    // paragraph indices by counting <p> elements, so every paragraph kind
+    // must render as one.
+    return (
+      <p
+        className="bg-muted text-foreground mb-[1em] max-w-full overflow-x-auto rounded-md px-[1em] py-[0.75em] font-mono leading-[1.5] whitespace-pre"
+        style={{ fontSize: paragraph.fontSize * zoom }}
+      >
+        {renderRange(0, paragraph.text.length)}
+      </p>
     );
   }
 
