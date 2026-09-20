@@ -775,11 +775,29 @@ export function getParagraphTextAlign(
 }
 
 /**
+ * The normalized copy last made of each input paragraph, with the scale it was
+ * made at. Extraction normalizes the growing paragraph list every few pages;
+ * handing back the same copy while the scale holds keeps the object identity
+ * the renderer's memoization relies on, so a flush does not re-render every
+ * paragraph read so far. Copies are never mutated, so sharing them is safe.
+ */
+const normalizedCopies = new WeakMap<ReflowParagraph, { scale: number; copy: ReflowParagraph }>();
+
+function normalizeParagraph(para: ReflowParagraph, scale: number): ReflowParagraph {
+  const known = normalizedCopies.get(para);
+  if (known && known.scale === scale) return known.copy;
+  const copy = para.isTable ? { ...para } : { ...para, fontSize: para.fontSize * scale };
+  normalizedCopies.set(para, { scale, copy });
+  return copy;
+}
+
+/**
  * Scales every paragraph's font size so the document's dominant size renders
  * at `targetSize` when zoom is 100%. Relative sizes are preserved, so headings
  * stay proportional to body text. Table paragraphs keep their original size so
- * dense tables never blow up to body size and break their layout. Returns new
- * paragraph objects; the input list and its text/runs are left untouched. An
+ * dense tables never blow up to body size and break their layout. Returns
+ * copies of the paragraphs (the same copy for the same input and scale, see
+ * `normalizedCopies`); the input list and its text/runs are left untouched. An
  * empty document passes through.
  */
 export function normalizeReflowSizes(
@@ -789,9 +807,7 @@ export function normalizeReflowSizes(
   const dominant = dominantFontSize(paragraphs);
   if (dominant === null) return paragraphs;
   const scale = targetSize / dominant;
-  return paragraphs.map((para) =>
-    para.isTable ? { ...para } : { ...para, fontSize: para.fontSize * scale },
-  );
+  return paragraphs.map((para) => normalizeParagraph(para, scale));
 }
 
 /**
@@ -800,20 +816,28 @@ export function normalizeReflowSizes(
  * with the co-located text flowing after it), or before the first paragraph of
  * the next page when nothing on its own page qualifies. Returns a new array;
  * the paragraph list and its indices are left untouched so reflow annotation
- * anchors stay stable.
+ * anchors stay stable. Paragraphs must be in page order, as extraction produces
+ * them: the search for each image then starts at its page instead of at the
+ * top of the book, which keeps figure-heavy books from going quadratic.
  */
 export function assignImagePositions(
   paragraphs: ReflowParagraph[],
   images: ReflowImage[],
 ): PositionedReflowImage[] {
   const sorted = [...images].sort((a, b) => a.pageIndex - b.pageIndex || a.y - b.y);
+  // Images are sorted by page, so the first paragraph of a page can only move
+  // forward from one image to the next.
+  let pageStart = 0;
   return sorted.map((image) => {
-    const index = paragraphs.findIndex(
-      (para) =>
-        para.pageIndex > image.pageIndex ||
-        (para.pageIndex === image.pageIndex && para.y >= image.y),
-    );
-    return { ...image, beforeParagraphIndex: index === -1 ? paragraphs.length : index };
+    while (pageStart < paragraphs.length && paragraphs[pageStart].pageIndex < image.pageIndex) pageStart++;
+    let index = pageStart;
+    while (
+      index < paragraphs.length &&
+      !(paragraphs[index].pageIndex > image.pageIndex || paragraphs[index].y >= image.y)
+    ) {
+      index++;
+    }
+    return { ...image, beforeParagraphIndex: index };
   });
 }
 

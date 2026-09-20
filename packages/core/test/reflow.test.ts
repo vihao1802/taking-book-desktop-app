@@ -458,6 +458,22 @@ describe('normalizeReflowSizes', () => {
   it('returns the empty list unchanged', () => {
     expect(normalizeReflowSizes([])).toEqual([]);
   });
+
+  it('hands back the same copy for the same paragraph while the scale holds', () => {
+    const first = para('body text here', 12);
+    const second = para('more body text', 12);
+    const early = normalizeReflowSizes([first]);
+    const later = normalizeReflowSizes([first, second]);
+    expect(later[0]).toBe(early[0]);
+  });
+
+  it('makes a fresh copy once the dominant size moves the scale', () => {
+    const first = para('short', 12);
+    const early = normalizeReflowSizes([first]);
+    const later = normalizeReflowSizes([first, para('a much longer body paragraph', 10)]);
+    expect(later[0]).not.toBe(early[0]);
+    expect(later[0].fontSize).toBeCloseTo(24);
+  });
 });
 
 describe('filterBoilerplateParagraphs', () => {
@@ -639,6 +655,35 @@ describe('assignImagePositions', () => {
     assignImagePositions(paragraphs, images);
     expect('beforeParagraphIndex' in images[0]).toBe(false);
     expect(paragraphs).toHaveLength(1);
+  });
+
+  it('anchors an image on a page with no text before the next page that has some', () => {
+    const paragraphs = [para('one', 0, 100), para('three', 2, 100)];
+    const positioned = assignImagePositions(paragraphs, [img(1, 50)]);
+    expect(positioned[0].beforeParagraphIndex).toBe(1);
+  });
+
+  it('agrees with a scan from the top of the book on a multi-page flow', () => {
+    const paragraphs: ReflowParagraph[] = [];
+    for (let page = 0; page < 20; page++) {
+      // Page 7 has no text, so its images must fall through to page 8.
+      if (page === 7) continue;
+      for (let line = 0; line < 5; line++) paragraphs.push(para(`p${page}-${line}`, page, 50 + line * 100));
+    }
+    const images: ReflowImage[] = [];
+    for (let page = 0; page < 22; page++) {
+      for (const y of [0, 75, 150, 499, 600]) images.push(img(page, y, `img-${page}-${y}`));
+    }
+
+    const expectedIndexOf = (image: ReflowImage): number => {
+      const found = paragraphs.findIndex(
+        (p) => p.pageIndex > image.pageIndex || (p.pageIndex === image.pageIndex && p.y >= image.y),
+      );
+      return found === -1 ? paragraphs.length : found;
+    };
+    const positioned = assignImagePositions(paragraphs, images);
+    expect(positioned).toHaveLength(images.length);
+    for (const image of positioned) expect(image.beforeParagraphIndex).toBe(expectedIndexOf(image));
   });
 });
 
