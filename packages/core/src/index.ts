@@ -38,13 +38,23 @@ export {
   getNotesSidebarWidth,
   getSetting,
   getSidebarWidth,
+  getTargetLanguage,
   getTheme,
   setNotesSidebarWidth,
   setSetting,
   setSidebarWidth,
+  setTargetLanguage,
   setTheme,
   settingsSchema,
 } from './settingsRepository';
+export {
+  DEFAULT_TARGET_LANGUAGE,
+  SUPPORTED_LANGUAGES,
+  getLanguageName,
+  isSupportedLanguage,
+  resolveTargetLanguage,
+  type SupportedLanguage,
+} from './translation/languages';
 export { createSha256Hasher, sha256Hex, type Sha256Hasher } from './sha256';
 export { normalizePosition, progressFraction } from './position';
 export { sortByRecentlyRead } from './recentlyRead';

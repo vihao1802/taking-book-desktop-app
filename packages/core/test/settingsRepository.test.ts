@@ -2,13 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   getNotesSidebarWidth,
   getSidebarWidth,
+  getTargetLanguage,
   getTheme,
   setNotesSidebarWidth,
   setSidebarWidth,
+  setTargetLanguage,
   setTheme,
   settingsSchema,
 } from '../src';
-import { isOk } from '../src';
+import { isErr, isOk } from '../src';
 import { createMemoryDriver } from './helpers';
 
 describe('settingsRepository', () => {
@@ -79,5 +81,66 @@ describe('settingsRepository', () => {
 
     const width = await getSidebarWidth(db);
     expect(isOk(width) && width.data === null).toBe(true);
+  });
+});
+
+describe('Target language setting', () => {
+  it('is null until a Target language is chosen', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+
+    const language = await getTargetLanguage(db);
+    expect(language).toEqual({ ok: true, data: null });
+  });
+
+  it('persists and reads back a chosen Target language', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+
+    const saved = await setTargetLanguage(db, 'ja');
+    expect(saved.ok).toBe(true);
+    expect(await getTargetLanguage(db)).toEqual({ ok: true, data: 'ja' });
+  });
+
+  it('overwrites an earlier choice', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+
+    await setTargetLanguage(db, 'ja');
+    await setTargetLanguage(db, 'zh-TW');
+    expect(await getTargetLanguage(db)).toEqual({ ok: true, data: 'zh-TW' });
+  });
+
+  it('rejects an unsupported code and keeps the earlier choice', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+    await setTargetLanguage(db, 'ja');
+
+    const saved = await setTargetLanguage(db, 'klingon');
+    expect(isErr(saved)).toBe(true);
+    expect(await getTargetLanguage(db)).toEqual({ ok: true, data: 'ja' });
+  });
+
+  it('treats an unsupported stored value as never chosen', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+    await db.run("INSERT INTO settings (key, value) VALUES ('translation.targetLanguage', 'klingon')");
+
+    expect(await getTargetLanguage(db)).toEqual({ ok: true, data: null });
+  });
+
+  it('is stored independently of the theme and sidebar widths', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+
+    await setTheme(db, 'dark');
+    await setSidebarWidth(db, 300);
+    await setNotesSidebarWidth(db, 420);
+    await setTargetLanguage(db, 'ko');
+
+    expect(await getTargetLanguage(db)).toEqual({ ok: true, data: 'ko' });
+    expect(await getTheme(db)).toEqual({ ok: true, data: 'dark' });
+    expect(await getSidebarWidth(db)).toEqual({ ok: true, data: 300 });
+    expect(await getNotesSidebarWidth(db)).toEqual({ ok: true, data: 420 });
   });
 });

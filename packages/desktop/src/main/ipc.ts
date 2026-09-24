@@ -12,6 +12,7 @@ import {
   getReadingMinutesByBook,
   getNotesSidebarWidth,
   getSidebarWidth,
+  getTargetLanguage,
   getTheme,
   isOk,
   listAnnotations,
@@ -19,6 +20,7 @@ import {
   listLibraryAnnotations,
   parseReflowCache,
   recordReadingSession,
+  resolveTargetLanguage,
   saveLastPosition,
   saveNoteDraft,
   saveNoteText,
@@ -35,6 +37,7 @@ import {
   setFileTitle,
   setNotesSidebarWidth,
   setSidebarWidth,
+  setTargetLanguage,
   setTheme,
   upsertFile,
 } from '@taking-book/core';
@@ -313,6 +316,18 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('settings:notesSidebarWidth:set', (_event, width: number) =>
     setNotesSidebarWidth(db, width),
   );
+
+  // Returns the language in effect, so Settings shows a defaulted choice too.
+  ipcMain.handle('settings:targetLanguage:get', async (): Promise<Result<string>> => {
+    const stored = await getTargetLanguage(db);
+    if (!isOk(stored)) return stored;
+    return { ok: true, data: resolveTargetLanguage(stored.data, app.getSystemLocale()) };
+  });
+
+  ipcMain.handle('settings:targetLanguage:set', (_event, code: unknown): Promise<Result<void>> => {
+    if (typeof code !== 'string') return Promise.resolve({ ok: false, error: 'Target language must be a string.' });
+    return setTargetLanguage(db, code);
+  });
 
   ipcMain.handle('window:fullscreen:get', (event): Result<boolean> => {
     const win = BrowserWindow.fromWebContents(event.sender);

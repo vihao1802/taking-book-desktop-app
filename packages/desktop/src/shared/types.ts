@@ -44,6 +44,10 @@ export interface ReaderApi {
   setSidebarWidth(width: number): Promise<Result<void>>;
   getNotesSidebarWidth(): Promise<Result<number | null>>;
   setNotesSidebarWidth(width: number): Promise<Result<void>>;
+  /** The Target language in effect: the reader's choice, else the default from the system language. */
+  getTargetLanguage(): Promise<Result<string>>;
+  /** Saves the reader's Target language; an unsupported code is rejected. */
+  setTargetLanguage(code: string): Promise<Result<void>>;
   getCloudAccount(): Promise<Result<CloudAccount | null>>;
   connectCloud(): Promise<Result<CloudAccount>>;
   disconnectCloud(): Promise<Result<void>>;

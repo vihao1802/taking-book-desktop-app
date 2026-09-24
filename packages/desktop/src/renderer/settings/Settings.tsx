@@ -3,6 +3,7 @@ import type { Theme } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from '../theme';
+import { TranslationSettings } from './TranslationSettings';
 
 const THEME_OPTIONS: Array<{ value: Theme; label: string; icon: typeof Sun; description: string }> = [
   { value: 'light', label: 'Light', icon: Sun, description: 'Bright pages, ideal in daylight.' },
@@ -49,6 +50,8 @@ export function Settings() {
           })}
         </CardContent>
       </Card>
+
+      <TranslationSettings />
 
       <Card>
         <CardHeader>

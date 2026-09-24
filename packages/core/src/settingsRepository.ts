@@ -2,6 +2,7 @@ import type { Theme } from './models';
 import type { Result } from './result';
 import { err, ok } from './result';
 import type { SqlDriver } from './sql';
+import { isSupportedLanguage } from './translation/languages';
 
 /** Returns the schema DDL for key/value app settings. */
 export function settingsSchema(): string {
@@ -107,6 +108,27 @@ export async function getNotesSidebarWidth(db: SqlDriver): Promise<Result<number
 /** Persists the Notes sidebar's width in pixels. */
 export function setNotesSidebarWidth(db: SqlDriver, width: number): Promise<Result<void>> {
   return setSetting(db, NOTES_SIDEBAR_WIDTH_KEY, String(width));
+}
+
+const TARGET_LANGUAGE_KEY = 'translation.targetLanguage';
+
+/**
+ * Reads the Target language the reader chose in Settings.
+ *
+ * @returns The language code, or null when none was chosen or the stored code
+ *   is no longer supported (so the caller falls back to the default).
+ */
+export async function getTargetLanguage(db: SqlDriver): Promise<Result<string | null>> {
+  const stored = await getSetting(db, TARGET_LANGUAGE_KEY);
+  if (!stored.ok) return stored;
+  if (stored.data === null) return ok(null);
+  return ok(isSupportedLanguage(stored.data) ? stored.data : null);
+}
+
+/** Persists the reader's Target language; an unsupported code is rejected and nothing is saved. */
+export async function setTargetLanguage(db: SqlDriver, code: string): Promise<Result<void>> {
+  if (!isSupportedLanguage(code)) return err(`Unsupported Target language "${code}".`);
+  return setSetting(db, TARGET_LANGUAGE_KEY, code);
 }
 
 function errorMessage(error: unknown): string {
