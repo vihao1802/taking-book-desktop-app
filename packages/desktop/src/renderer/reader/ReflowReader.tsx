@@ -27,6 +27,8 @@ import type { NoteDraftState } from './useNoteDraft';
 import { usePdfOutline } from './usePdfOutline';
 import { usePersistedSidebarWidth } from './usePersistedSidebarWidth';
 import { SelectionToolbar } from './SelectionToolbar';
+import { TranslationPopup } from './TranslationPopup';
+import { useTranslationPopup, type TranslationAnchor } from './useTranslationPopup';
 import { ReflowFigure } from './ReflowFigure';
 import {
   findRangeIgnoringWhitespace,
@@ -141,7 +143,8 @@ export function ReflowReader({
   const [scrollTop, setScrollTop] = useState(0);
   const { fullScreen, toggleFullScreen } = useFullScreen();
   const [overlayVisible, setOverlayVisible] = useState(false);
-  const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; x: number; y: number } | null>(null);
+  const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; anchor: TranslationAnchor; x: number; y: number } | null>(null);
+  const { popup: translationPopup, translate: startTranslation, close: closeTranslation } = useTranslationPopup();
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
   const [sidebarWidth, setSidebarWidth] = usePersistedSidebarWidth();
   const { nodes: outlineNodes, loading: outlineLoading } = usePdfOutline(pdf);
@@ -485,7 +488,7 @@ export function ReflowReader({
       setSelectionToolbar(null);
       return;
     }
-    setSelectionToolbar({ items, x: rect.left, y: rect.bottom + 8 });
+    setSelectionToolbar({ items, anchor: { left: rect.left, top: rect.top, bottom: rect.bottom }, x: rect.left, y: rect.bottom + 8 });
   }, []);
 
   const anchorFor = useCallback(
@@ -527,6 +530,14 @@ export function ReflowReader({
     window.getSelection()?.removeAllRanges();
     setSelectionToolbar(null);
   }, [selectionToolbar, anchorFor, onAddNote]);
+
+  // The selection stays so the reader can see what the Translation is of.
+  const translate = useCallback(() => {
+    if (!selectionToolbar) return;
+    const text = selectionToolbar.items.map((item) => item.quote).join(' ');
+    startTranslation(text, selectionToolbar.anchor);
+    setSelectionToolbar(null);
+  }, [selectionToolbar, startTranslation]);
 
   return (
     // While the Notes sidebar narrows the page, the strip beside it must match the paper.
@@ -573,8 +584,10 @@ export function ReflowReader({
           y={selectionToolbar.y}
           onHighlight={highlight}
           onAddNote={addNote}
+          onTranslate={translate}
         />
       )}
+      {translationPopup && <TranslationPopup popup={translationPopup} onClose={closeTranslation} />}
       {!error && (
         <ReaderBars
           search={search}

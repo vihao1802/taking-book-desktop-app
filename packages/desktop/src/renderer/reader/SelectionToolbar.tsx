@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Highlighter, MessageSquarePlus } from 'lucide-react';
+import { Highlighter, Languages, MessageSquarePlus } from 'lucide-react';
 import type { AnnotationColor } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -11,14 +11,15 @@ interface SelectionToolbarProps {
   y: number;
   onHighlight: (color: AnnotationColor) => void;
   onAddNote: () => void;
+  onTranslate: () => void;
 }
 
 /**
  * Floating toolbar shown over selected text: a Highlight button that opens the
- * color choice, and Add note. The colors sit behind one button so the toolbar
+ * color choice, Add note, and Translate. The colors sit behind one button so the toolbar
  * stays compact and has room for further selection actions.
  */
-export function SelectionToolbar({ x, y, onHighlight, onAddNote }: SelectionToolbarProps) {
+export function SelectionToolbar({ x, y, onHighlight, onAddNote, onTranslate }: SelectionToolbarProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const colors = useHighlightColorChoice(rootRef, { x, y });
 
@@ -51,6 +52,16 @@ export function SelectionToolbar({ x, y, onHighlight, onAddNote }: SelectionTool
           title="Add note"
         >
           <MessageSquarePlus className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 cursor-pointer rounded-md"
+          onClick={onTranslate}
+          aria-label="Translate"
+          title="Translate"
+        >
+          <Languages className="size-4" />
         </Button>
       </div>
       {colors.open && (

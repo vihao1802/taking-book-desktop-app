@@ -56,6 +56,17 @@ export {
   resolveTargetLanguage,
   type SupportedLanguage,
 } from './translation/languages';
+export {
+  MAX_TRANSLATION_LENGTH,
+  TRANSLATION_FAILED_MESSAGE,
+  translateText,
+  type EngineTranslation,
+  type TranslateTextOptions,
+  type Translation,
+  type TranslationEngine,
+  type TranslationEngineFailure,
+  type TranslationFailureKind,
+} from './translation/translate';
 export { createSha256Hasher, sha256Hex, type Sha256Hasher } from './sha256';
 export { normalizePosition, progressFraction } from './position';
 export { sortByRecentlyRead } from './recentlyRead';

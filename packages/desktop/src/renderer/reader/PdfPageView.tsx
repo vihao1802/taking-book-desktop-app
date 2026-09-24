@@ -4,6 +4,8 @@ import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import type { TextMatch } from '@taking-book/core';
 import type { Annotation, AnnotationColor } from '../../shared/types';
 import { SelectionToolbar } from './SelectionToolbar';
+import { TranslationPopup } from './TranslationPopup';
+import { useTranslationPopup, type TranslationAnchor } from './useTranslationPopup';
 import {
   computeHighlightRects,
   HIGHLIGHT_FILL,
@@ -80,7 +82,8 @@ export const PdfPageView = memo(function PdfPageView({
   const textLayerRef = useRef<HTMLDivElement>(null);
   const [textLayerReady, setTextLayerReady] = useState(false);
   const [highlightRects, setHighlightRects] = useState<Map<number, HighlightRect[]>>(new Map());
-  const [toolbar, setToolbar] = useState<{ selection: PageTextSelection; x: number; y: number } | null>(null);
+  const [toolbar, setToolbar] = useState<{ selection: PageTextSelection; anchor: TranslationAnchor; x: number; y: number } | null>(null);
+  const translation = useTranslationPopup();
 
   // Render the canvas for this page.
   useEffect(() => {
@@ -241,6 +244,7 @@ export const PdfPageView = memo(function PdfPageView({
     const quote = selection.toString() || pageText.slice(start, end);
     setToolbar({
       selection: { page: pageNumber, start, end, quote },
+      anchor: { left: rect.left, top: rect.top, bottom: rect.bottom },
       x: rect.left,
       y: rect.bottom + 8,
     });
@@ -280,6 +284,13 @@ export const PdfPageView = memo(function PdfPageView({
     setToolbar(null);
   };
 
+  // The selection stays so the reader can see what the Translation is of.
+  const translate = () => {
+    if (!toolbar) return;
+    translation.translate(toolbar.selection.quote, toolbar.anchor);
+    setToolbar(null);
+  };
+
   return (
     <div
       ref={pageRef}
@@ -315,8 +326,9 @@ export const PdfPageView = memo(function PdfPageView({
         ));
       })}
       {toolbar && (
-        <SelectionToolbar x={toolbar.x} y={toolbar.y} onHighlight={highlight} onAddNote={addNote} />
+        <SelectionToolbar x={toolbar.x} y={toolbar.y} onHighlight={highlight} onAddNote={addNote} onTranslate={translate} />
       )}
+      {translation.popup && <TranslationPopup popup={translation.popup} onClose={translation.close} />}
     </div>
   );
 });

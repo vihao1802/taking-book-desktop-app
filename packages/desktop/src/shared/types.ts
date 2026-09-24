@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme } from '@taking-book/core';
+import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -48,6 +48,8 @@ export interface ReaderApi {
   getTargetLanguage(): Promise<Result<string>>;
   /** Saves the reader's Target language; an unsupported code is rejected. */
   setTargetLanguage(code: string): Promise<Result<void>>;
+  /** Translates selected text into the Target language in effect; the error is worded for the reader. */
+  translate(text: string): Promise<Result<Translation>>;
   getCloudAccount(): Promise<Result<CloudAccount | null>>;
   connectCloud(): Promise<Result<CloudAccount>>;
   disconnectCloud(): Promise<Result<void>>;
@@ -58,4 +60,4 @@ export interface ReaderApi {
   onFullScreenChange(listener: (fullScreen: boolean) => void): () => void;
 }
 
-export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, ReadingStats, Result, SyncSummary, Theme };
+export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };

@@ -38,12 +38,15 @@ import {
   setSidebarWidth,
   setTargetLanguage,
   setTheme,
+  TRANSLATION_FAILED_MESSAGE,
+  translateText,
   upsertFile,
 } from '@taking-book/core';
-import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp } from '@taking-book/core';
+import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
 import { basename, extname, join } from 'node:path';
 import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
+import { googleTranslateEngine } from './googleTranslateEngine';
 import { sha256File } from './hash';
 import {
   createCloudProvider,
@@ -324,6 +327,18 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('settings:targetLanguage:set', (_event, code: unknown): Promise<Result<void>> => {
     if (typeof code !== 'string') return Promise.resolve({ ok: false, error: 'Target language must be a string.' });
     return setTargetLanguage(db, code);
+  });
+
+  // The renderer sends only the selected text; the Target language is resolved
+  // here so a compromised renderer cannot pick anything but a supported one.
+  ipcMain.handle('translate:text', async (_event, text: unknown): Promise<Result<Translation>> => {
+    if (typeof text !== 'string') return { ok: false, error: 'Only text can be translated.' };
+    const targetLanguage = await getEffectiveTargetLanguage(db, app.getSystemLocale());
+    if (!isOk(targetLanguage)) {
+      console.error(`translate: could not read the Target language: ${targetLanguage.error}`);
+      return { ok: false, error: TRANSLATION_FAILED_MESSAGE };
+    }
+    return translateText({ engine: googleTranslateEngine, text, targetLanguage: targetLanguage.data });
   });
 
   ipcMain.handle('window:fullscreen:get', (event): Result<boolean> => {

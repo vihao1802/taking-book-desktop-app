@@ -41,6 +41,7 @@ const api: ReaderApi = {
   setNotesSidebarWidth: (width) => ipcRenderer.invoke('settings:notesSidebarWidth:set', width),
   getTargetLanguage: () => ipcRenderer.invoke('settings:targetLanguage:get'),
   setTargetLanguage: (code) => ipcRenderer.invoke('settings:targetLanguage:set', code),
+  translate: (text) => ipcRenderer.invoke('translate:text', text),
   getCloudAccount: () => ipcRenderer.invoke('cloud:status'),
   connectCloud: () => ipcRenderer.invoke('cloud:connect'),
   disconnectCloud: () => ipcRenderer.invoke('cloud:disconnect'),
