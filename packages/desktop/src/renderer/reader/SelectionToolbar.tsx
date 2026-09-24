@@ -1,8 +1,10 @@
-import { MessageSquarePlus } from 'lucide-react';
+import { useRef } from 'react';
+import { Highlighter, MessageSquarePlus } from 'lucide-react';
 import type { AnnotationColor } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_FILL } from './highlights';
+import { useHighlightColorChoice } from './useHighlightColorChoice';
 
 interface SelectionToolbarProps {
   x: number;
@@ -11,36 +13,61 @@ interface SelectionToolbarProps {
   onAddNote: () => void;
 }
 
-/** Floating toolbar shown over selected text: pick a highlight color or add a note. */
+/**
+ * Floating toolbar shown over selected text: a Highlight button that opens the
+ * color choice, and Add note. The colors sit behind one button so the toolbar
+ * stays compact and has room for further selection actions.
+ */
 export function SelectionToolbar({ x, y, onHighlight, onAddNote }: SelectionToolbarProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const colors = useHighlightColorChoice(rootRef, { x, y });
+
   return (
     <div
-      className="bg-overlay text-foreground fixed z-50 flex items-center gap-1 rounded-lg px-2 py-1.5 shadow-lg backdrop-blur-md"
+      ref={rootRef}
+      className="bg-overlay text-foreground fixed z-50 flex flex-col items-start gap-1 rounded-lg px-2 py-1.5 shadow-lg backdrop-blur-md"
       style={{ left: x, top: y }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      {HIGHLIGHT_COLORS.map((color) => (
-        <button
-          key={color}
-          type="button"
-          aria-label={`Highlight in ${color}`}
-          title={color}
-          onClick={() => onHighlight(color)}
-          className="size-5 cursor-pointer rounded-sm border border-black/20 transition-transform hover:scale-110"
-          style={{ backgroundColor: HIGHLIGHT_FILL[color] }}
-        />
-      ))}
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn('size-7 cursor-pointer rounded-md')}
-        onClick={onAddNote}
-        aria-label="Add note"
-        title="Add note"
-      >
-        <MessageSquarePlus className="size-4" />
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('size-7 cursor-pointer rounded-md', colors.open && 'bg-accent text-accent-foreground')}
+          onClick={colors.toggle}
+          aria-label="Highlight"
+          aria-expanded={colors.open}
+          title="Highlight"
+        >
+          <Highlighter className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 cursor-pointer rounded-md"
+          onClick={onAddNote}
+          aria-label="Add note"
+          title="Add note"
+        >
+          <MessageSquarePlus className="size-4" />
+        </Button>
+      </div>
+      {colors.open && (
+        <div role="group" aria-label="Highlight colors" className="flex items-center gap-1 px-1 pb-0.5">
+          {HIGHLIGHT_COLORS.map((color) => (
+            <button
+              key={color}
+              type="button"
+              aria-label={`Highlight in ${color}`}
+              title={color}
+              onClick={() => onHighlight(color)}
+              className="size-5 cursor-pointer rounded-sm border border-black/20 transition-transform hover:scale-110"
+              style={{ backgroundColor: HIGHLIGHT_FILL[color] }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
