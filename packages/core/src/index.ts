@@ -35,6 +35,7 @@ export {
 export { findNearestNote, locateNote, type NoteLocation } from './noteJump';
 export { hasNoteText, isPageNote, listLibraryNotes, listNotes, type BookNotes, type ListLibraryNotesOptions, type ListNotesOptions } from './notes';
 export {
+  getEffectiveTargetLanguage,
   getNotesSidebarWidth,
   getSetting,
   getSidebarWidth,

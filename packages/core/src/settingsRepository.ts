@@ -2,7 +2,7 @@ import type { Theme } from './models';
 import type { Result } from './result';
 import { err, ok } from './result';
 import type { SqlDriver } from './sql';
-import { isSupportedLanguage } from './translation/languages';
+import { isSupportedLanguage, resolveTargetLanguage } from './translation/languages';
 
 /** Returns the schema DDL for key/value app settings. */
 export function settingsSchema(): string {
@@ -123,6 +123,21 @@ export async function getTargetLanguage(db: SqlDriver): Promise<Result<string | 
   if (!stored.ok) return stored;
   if (stored.data === null) return ok(null);
   return ok(isSupportedLanguage(stored.data) ? stored.data : null);
+}
+
+/**
+ * Reads the Target language in effect: the reader's choice, or the default
+ * derived from the system locale when they never chose one.
+ *
+ * @param systemLocale The OS locale reported by the platform, e.g. `pt-BR`.
+ */
+export async function getEffectiveTargetLanguage(
+  db: SqlDriver,
+  systemLocale: string,
+): Promise<Result<string>> {
+  const stored = await getTargetLanguage(db);
+  if (!stored.ok) return stored;
+  return ok(resolveTargetLanguage(stored.data, systemLocale));
 }
 
 /** Persists the reader's Target language; an unsupported code is rejected and nothing is saved. */

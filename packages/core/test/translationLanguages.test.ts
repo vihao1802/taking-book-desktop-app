@@ -66,6 +66,26 @@ describe('resolveTargetLanguage', () => {
     expect(resolveTargetLanguage(null, 'en-US')).toBe('en');
   });
 
+  it('defaults Traditional-script Chinese locales to Traditional Chinese', () => {
+    expect(resolveTargetLanguage(null, 'zh-HK')).toBe('zh-TW');
+    expect(resolveTargetLanguage(null, 'zh-MO')).toBe('zh-TW');
+    expect(resolveTargetLanguage(null, 'zh-Hant')).toBe('zh-TW');
+    expect(resolveTargetLanguage(null, 'zh-Hant-HK')).toBe('zh-TW');
+  });
+
+  it('defaults other Chinese locales to Simplified Chinese', () => {
+    expect(resolveTargetLanguage(null, 'zh')).toBe('zh-CN');
+    expect(resolveTargetLanguage(null, 'zh-SG')).toBe('zh-CN');
+    expect(resolveTargetLanguage(null, 'zh-Hans-CN')).toBe('zh-CN');
+  });
+
+  it('maps system language codes that differ from the service codes', () => {
+    expect(resolveTargetLanguage(null, 'nb-NO')).toBe('no');
+    expect(resolveTargetLanguage(null, 'nn')).toBe('no');
+    expect(resolveTargetLanguage(null, 'fil-PH')).toBe('tl');
+    expect(resolveTargetLanguage(null, 'iw-IL')).toBe('he');
+  });
+
   it('falls back to English when the system locale is not supported', () => {
     expect(resolveTargetLanguage(null, 'tlh-QO')).toBe('en');
     expect(resolveTargetLanguage(null, '')).toBe('en');

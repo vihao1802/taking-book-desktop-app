@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getEffectiveTargetLanguage,
   getNotesSidebarWidth,
   getSidebarWidth,
   getTargetLanguage,
@@ -127,6 +128,15 @@ describe('Target language setting', () => {
     await db.run("INSERT INTO settings (key, value) VALUES ('translation.targetLanguage', 'klingon')");
 
     expect(await getTargetLanguage(db)).toEqual({ ok: true, data: null });
+  });
+
+  it('resolves the effective Target language from the choice, else the system locale', async () => {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+
+    expect(await getEffectiveTargetLanguage(db, 'de-AT')).toEqual({ ok: true, data: 'de' });
+    await setTargetLanguage(db, 'ja');
+    expect(await getEffectiveTargetLanguage(db, 'de-AT')).toEqual({ ok: true, data: 'ja' });
   });
 
   it('is stored independently of the theme and sidebar widths', async () => {

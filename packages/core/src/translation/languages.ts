@@ -13,8 +13,7 @@ export const DEFAULT_TARGET_LANGUAGE = 'en';
  * Curated languages offered for translation. Codes are the ones the Google
  * Translate web endpoint accepts; regional variants that read differently
  * (Simplified vs Traditional Chinese) are separate entries. Order is the order
- * the Settings picker shows, and for a base language shared by several entries
- * the first one is what a bare system locale resolves to.
+ * the Settings picker shows.
  */
 export const SUPPORTED_LANGUAGES: readonly SupportedLanguage[] = [
   { code: 'af', name: 'Afrikaans' },
@@ -97,23 +96,40 @@ export function getLanguageName(code: string): string | null {
  * @param stored The reader's saved choice, or null when they never chose one.
  * @param systemLocale The OS locale, e.g. `pt-BR` or `zh_TW`.
  * @returns The stored choice when supported; otherwise the supported language
- *   matching the whole locale, then its base language, then English.
+ *   matching the whole locale, then its base language (Chinese picks Simplified
+ *   or Traditional from the script or region), then English.
  */
 export function resolveTargetLanguage(stored: string | null, systemLocale: string): string {
   if (stored !== null && isSupportedLanguage(stored)) return stored;
   return matchLocale(systemLocale) ?? DEFAULT_TARGET_LANGUAGE;
 }
 
+// System language codes the translation service spells differently.
+const BASE_LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
+  nb: 'no',
+  nn: 'no',
+  fil: 'tl',
+  iw: 'he',
+};
+
+// Chinese regions that read Traditional script when the locale names no script.
+const TRADITIONAL_CHINESE_REGIONS = new Set(['tw', 'hk', 'mo']);
+
 function matchLocale(locale: string): string | null {
   const wanted = locale.trim().replace(/_/g, '-').toLowerCase();
   if (wanted === '') return null;
   const exact = SUPPORTED_LANGUAGES.find((language) => language.code.toLowerCase() === wanted);
   if (exact) return exact.code;
-  const base = baseLanguage(wanted);
-  const sameBase = SUPPORTED_LANGUAGES.find((language) => baseLanguage(language.code) === base);
-  return sameBase?.code ?? null;
+  const [base, ...subtags] = wanted.split('-');
+  if (base === 'zh') return chineseVariant(subtags);
+  const code = BASE_LANGUAGE_ALIASES[base] ?? base;
+  return isSupportedLanguage(code) ? code : null;
 }
 
-function baseLanguage(code: string): string {
-  return code.toLowerCase().split('-')[0];
+// A bare `zh` has no supported entry, so the script (or, failing that, the
+// region) decides between Simplified and Traditional.
+function chineseVariant(subtags: string[]): string {
+  if (subtags.includes('hant')) return 'zh-TW';
+  if (subtags.includes('hans')) return 'zh-CN';
+  return subtags.some((subtag) => TRADITIONAL_CHINESE_REGIONS.has(subtag)) ? 'zh-TW' : 'zh-CN';
 }

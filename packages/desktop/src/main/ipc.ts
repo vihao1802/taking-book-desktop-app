@@ -7,12 +7,12 @@ import {
   deleteFile,
   deleteNote,
   getDailyReadingMinutes,
+  getEffectiveTargetLanguage,
   getFileZoom,
   getLastPosition,
   getReadingMinutesByBook,
   getNotesSidebarWidth,
   getSidebarWidth,
-  getTargetLanguage,
   getTheme,
   isOk,
   listAnnotations,
@@ -20,7 +20,6 @@ import {
   listLibraryAnnotations,
   parseReflowCache,
   recordReadingSession,
-  resolveTargetLanguage,
   saveLastPosition,
   saveNoteDraft,
   saveNoteText,
@@ -318,11 +317,9 @@ export function registerIpc(db: SqlDriver): void {
   );
 
   // Returns the language in effect, so Settings shows a defaulted choice too.
-  ipcMain.handle('settings:targetLanguage:get', async (): Promise<Result<string>> => {
-    const stored = await getTargetLanguage(db);
-    if (!isOk(stored)) return stored;
-    return { ok: true, data: resolveTargetLanguage(stored.data, app.getSystemLocale()) };
-  });
+  ipcMain.handle('settings:targetLanguage:get', () =>
+    getEffectiveTargetLanguage(db, app.getSystemLocale()),
+  );
 
   ipcMain.handle('settings:targetLanguage:set', (_event, code: unknown): Promise<Result<void>> => {
     if (typeof code !== 'string') return Promise.resolve({ ok: false, error: 'Target language must be a string.' });
