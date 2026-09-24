@@ -1,0 +1,36 @@
+# UI check
+
+Drive the real desktop app the way a reader would, and observe the result through DOM state and screenshots. The app runs from a throwaway profile under `/tmp/tb-ui-check` with a generated fixture PDF, so the user's library, Notes and cloud sync stay untouched: create Highlights, Notes and Settings freely there.
+
+The window stays hidden; nothing appears on the user's screen. Add `--visible` to `start.mjs` only when the user asks to watch.
+
+## Steps
+
+1. **Plan the checks.** Turn every acceptance criterion of the ticket (or every behaviour the diff changes) into an observable check: an action, then the DOM state or screenshot that proves it. Include both reader modes (page and reflow) and all three Themes when the change is visual. Done when each criterion maps to at least one check.
+2. **Start** from the repo root: `node scripts/ui-check/start.mjs`. It returns once the app has rendered. The library is empty; clicking **Add PDF** adds the fixture (the native dialog is stubbed) and opens it in page mode.
+3. **Run each check** with `node scripts/ui-check/cdp.mjs` (commands below). Act with real input (`click`, `dbl`, `drag`, `key`) so the app's own event handlers run; use `eval` to read state and to reach controls by label. Read every screenshot you take. Done when every planned check has passed or has a recorded failure.
+4. **Stop** with `node scripts/ui-check/stop.mjs`, even after a failure. It ends the whole process group and deletes the profile.
+5. **Report** a table of check → result per mode/Theme, plus anything not checked and why.
+
+## cdp.mjs commands
+
+| Command | Does |
+|---|---|
+| `eval '<js>'` | Runs JS in the window, prints the JSON result |
+| `main '<js>'` | Runs JS in the Electron main process (`process.mainModule.require('electron')`) |
+| `shot <file.png>` | Screenshots the window; save under `/tmp/tb-ui-check/` |
+| `center '<css>'` | Prints `x,y` of an element's center, for `click` |
+| `click x,y` / `dbl x,y` | Real mouse click / double-click (double-click selects a word) |
+| `drag x1,y1 x2,y2` | Press, move, release: selects a range |
+| `key <Key>` | Presses `Escape`, `Enter`, `ArrowDown`, a letter, … |
+
+Example: `node scripts/ui-check/cdp.mjs click $(node scripts/ui-check/cdp.mjs center '[aria-label=Highlight]')`
+
+## Gotchas
+
+- Reach controls through accessible names (`[aria-label=…]`) and visible text; they are stable across layout changes, pixel coordinates are not. Take coordinates from `center` or from a fresh screenshot.
+- Switch reader mode with the `Toggle reflow` button, then wait a few seconds for the reflow text.
+- Switch Theme through the app's Settings, since the profile is throwaway; setting `data-theme` on `<html>` also works for a quick visual pass.
+- Escape at the top layer closes the reader: count presses so a check does not leave the book.
+- Stop the app only with `stop.mjs`. A `pkill -f` on its flags also matches the shell running it.
+- Startup failures: read `/tmp/tb-ui-check/app.log`. `A UI check app is already running` means a previous run was not stopped; run `stop.mjs`.

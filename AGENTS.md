@@ -67,11 +67,12 @@ This file defines conventions any coding agent (or contributor) must follow when
 - Environment quirks:
   - Containers/VMs with no GPU: run the desktop app as `TB_DISABLE_GPU=1 npm start`.
   - Forge's system check trips on this shell's `npm_config_user_agent=npm/undefined`; `~/.skip-forge-system-check` is the workaround — do not delete it.
+- UI check: a change under `packages/desktop/src/renderer` is verified in the running app by following `docs/agents/ui-check.md` (Claude Code: the `ui-check` skill) before finishing the task and in every code review of it. It drives the real app hidden, from a throwaway profile, so it never touches the user's library or screen.
 - Smoke tests: end-to-end verification in this environment is done by temporarily instrumenting `packages/desktop/src/main.ts` with a `TB_SMOKE_EXIT_MS` hook that exercises IPC/core and then exits. The hook is removed before committing; never leave it in.
 
 ## Auto-Approved Commands
 
-- The permission rules in `opencode.json` auto-approve a fixed set of routine commands (cat, grep, ls, find, awk, sed, node/python one-liners, `npm run build|typecheck|lint|test`, `npx vitest`, `git status|log|diff|add|commit|show`, and `rm -f`/`rm -rf` under `/tmp`). You still may run them freely; they are not destructive and were repeatedly authorized in prior sessions.
+- The permission rules in `opencode.json` auto-approve a fixed set of routine commands (cat, grep, ls, find, awk, sed, node/python one-liners, `npm run build|typecheck|lint|test`, `npx vitest`, `git status|log|diff|add|commit|show`, `node scripts/ui-check/*`, and `rm -f`/`rm -rf` under `/tmp`). You still may run them freely; they are not destructive and were repeatedly authorized in prior sessions.
 - **Alert, don't ask:** before running any command covered by those auto-approve rules, prefix a one-line alert with `***` (e.g. `*** running npm run typecheck`) so the user can see it happening, then proceed without waiting for approval. Do not open a permission question for these.
 - Still ask for anything NOT in the allow list (e.g. `sudo`, `rm -rf` outside `/tmp`, `git push`, installing random binaries) — those keep prompting deliberately.
 
