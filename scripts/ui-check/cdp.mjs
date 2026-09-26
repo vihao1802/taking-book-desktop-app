@@ -7,6 +7,8 @@
 //   node scripts/ui-check/cdp.mjs dbl <x,y>          real double-click (selects a word)
 //   node scripts/ui-check/cdp.mjs drag <x1,y1> <x2,y2>  press, move, release (selects a range)
 //   node scripts/ui-check/cdp.mjs drop <x,y> <path...>  drop files/folders from the OS at viewport coordinates
+//   node scripts/ui-check/cdp.mjs hover-files <x,y[;x,y...]> <path...>  drag files over the window without dropping
+//   node scripts/ui-check/cdp.mjs drag-out           move a hover-files drag back out of the window, dropping nothing
 //   node scripts/ui-check/cdp.mjs key <Key>          press a key, e.g. Escape, Enter, ArrowDown, Shift+ArrowRight
 //   node scripts/ui-check/cdp.mjs center '<css>'     print "x,y" of an element's center, for click
 //   node scripts/ui-check/cdp.mjs word '<text>'      print "x,y" of the first on-screen occurrence of text, for dbl/drag
@@ -40,6 +42,16 @@ function parsePoint(text) {
 
 async function mouse(session, type, { x, y }, clickCount = 1) {
   await session.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount });
+}
+
+/** Drag data carrying files from the OS, as a file manager supplies it. */
+function fileDragData(paths) {
+  if (paths.length === 0) throw new Error('Needs at least one file or folder path');
+  const files = paths.map((path) => resolve(path));
+  // A mistyped path would drag nothing and read as "the page ignored it".
+  const missing = files.filter((file) => !existsSync(file));
+  if (missing.length > 0) throw new Error(`No such file or folder: ${missing.join(', ')}`);
+  return { items: [], files, dragOperationsMask: DRAG_OPERATION_COPY };
 }
 
 const commands = {
@@ -77,16 +89,26 @@ const commands = {
   // would from a file manager, so the page's drag handlers and Electron's
   // navigate-on-drop default both run for real.
   async drop(session, [point, ...paths]) {
-    if (paths.length === 0) throw new Error('drop needs at least one file or folder path');
     const at = parsePoint(point);
-    const files = paths.map((path) => resolve(path));
-    // A mistyped path would drop nothing and read as "the drop was ignored".
-    const missing = files.filter((file) => !existsSync(file));
-    if (missing.length > 0) throw new Error(`No such file or folder: ${missing.join(', ')}`);
-    const data = { items: [], files, dragOperationsMask: DRAG_OPERATION_COPY };
+    const data = fileDragData(paths);
     for (const type of ['dragEnter', 'dragOver', 'drop']) {
       await session.send('Input.dispatchDragEvent', { type, ...at, data });
     }
+  },
+  // Holds files over the window, moving across each point in turn, and leaves
+  // the drag in progress so a screenshot can catch what the page shows mid-drag.
+  async 'hover-files'(session, [pointList, ...paths]) {
+    const points = pointList.split(';').map(parsePoint);
+    const data = fileDragData(paths);
+    await session.send('Input.dispatchDragEvent', { type: 'dragEnter', ...points[0], data });
+    for (const at of points) await session.send('Input.dispatchDragEvent', { type: 'dragOver', ...at, data });
+  },
+  // Moves the drag past the window's top-left corner, as a reader dragging
+  // the files back out would; Chromium then fires dragleave for real.
+  // (dragCancel does not: it leaves the page believing the drag is still over it.)
+  async 'drag-out'(session) {
+    const data = { items: [], files: [], dragOperationsMask: DRAG_OPERATION_COPY };
+    await session.send('Input.dispatchDragEvent', { type: 'dragOver', x: -50, y: -50, data });
   },
   async key(session, [combination]) {
     const { key, modifiers } = parseKeyCombination(combination);

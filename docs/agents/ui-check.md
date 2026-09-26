@@ -24,6 +24,8 @@ The window opens pinned at the top-left of the primary display and off the taskb
 | `click x,y` / `dbl x,y` | Real mouse click / double-click (double-click selects a word) |
 | `drag x1,y1 x2,y2` | Press, move, release: selects a range |
 | `drop x,y <path…>` | Drops files or folders from the OS at a point, as a file manager would (enter, over, drop); relative paths resolve from the working directory |
+| `hover-files x,y[;x,y…] <path…>` | Drags files from the OS over the window through each point in turn, without dropping; the drag stays in progress so `shot` can catch what shows mid-drag |
+| `drag-out` | Moves a `hover-files` drag back out of the window, as a reader changing their mind would; nothing is dropped |
 | `key <Key>` | Presses `Escape`, `Enter`, `ArrowDown`, a letter, …; `Shift+ArrowRight` adds modifiers (`Shift`, `Control`, `Alt`, `Meta`) |
 
 Example: `node scripts/ui-check/cdp.mjs click $(node scripts/ui-check/cdp.mjs center '[aria-label=Highlight]')`
@@ -37,5 +39,6 @@ Example: `node scripts/ui-check/cdp.mjs click $(node scripts/ui-check/cdp.mjs ce
 - Network failures: the main process looks up the global `fetch` on every call, so `main` can swap it for a stub that rejects, returns a status, or never resolves (keep the original on `globalThis` to restore it). This leaves the machine's network alone.
 - Window edges: shrink the viewport with `main` and `BrowserWindow.getAllWindows()[0].setContentSize(w, h)` to put a selection near the bottom or right edge; restore the size afterwards.
 - `shot` hangs: the window stopped painting. Docked DevTools does this, which is why `start.mjs` closes it; if it happens anyway, restart with `stop.mjs` and `start.mjs`.
+- Drags: end a `hover-files` drag with `drag-out` or `drop` before the next one. CDP's `dragCancel` never fires `dragleave`, so the page would still believe files are over it.
 - Stop the app only with `stop.mjs`. A `pkill -f` on its flags also matches the shell running it.
 - Startup failures: read `/tmp/tb-ui-check/app.log`. `A UI check app is already running` means a previous run was not stopped; run `stop.mjs`.
