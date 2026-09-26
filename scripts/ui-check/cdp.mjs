@@ -6,7 +6,7 @@
 //   node scripts/ui-check/cdp.mjs click <x,y>        real mouse click at viewport coordinates
 //   node scripts/ui-check/cdp.mjs dbl <x,y>          real double-click (selects a word)
 //   node scripts/ui-check/cdp.mjs drag <x1,y1> <x2,y2>  press, move, release (selects a range)
-//   node scripts/ui-check/cdp.mjs key <Key>          press a key, e.g. Escape, Enter, ArrowDown
+//   node scripts/ui-check/cdp.mjs key <Key>          press a key, e.g. Escape, Enter, ArrowDown, Shift+ArrowRight
 //   node scripts/ui-check/cdp.mjs center '<css>'     print "x,y" of an element's center, for click
 //   node scripts/ui-check/cdp.mjs word '<text>'      print "x,y" of the first on-screen occurrence of text, for dbl/drag
 import { writeFileSync } from 'node:fs';
@@ -14,6 +14,19 @@ import { connect, evaluate, findTarget } from './cdp-client.mjs';
 
 // Windows virtual key codes; Chromium needs them for keys to reach keydown handlers.
 const KEY_CODES = { Escape: 27, Enter: 13, Tab: 9, Space: 32, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 };
+// CDP's modifier bit flags, for combinations such as Shift+ArrowRight.
+const MODIFIER_FLAGS = { Alt: 1, Control: 2, Meta: 4, Shift: 8 };
+
+function parseKeyCombination(text) {
+  const parts = text.split('+');
+  const key = parts.pop();
+  let modifiers = 0;
+  for (const name of parts) {
+    if (!(name in MODIFIER_FLAGS)) throw new Error(`Unknown modifier "${name}" in "${text}"`);
+    modifiers |= MODIFIER_FLAGS[name];
+  }
+  return { key, modifiers };
+}
 
 function parsePoint(text) {
   const [x, y] = text.split(',').map(Number);
@@ -56,10 +69,11 @@ const commands = {
     await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...end, button: 'left', buttons: 1 });
     await mouse(session, 'mouseReleased', end);
   },
-  async key(session, [key]) {
+  async key(session, [combination]) {
+    const { key, modifiers } = parseKeyCombination(combination);
     const code = KEY_CODES[key] ?? key.toUpperCase().charCodeAt(0);
     for (const type of ['keyDown', 'keyUp']) {
-      await session.send('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: code });
+      await session.send('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: code, modifiers });
     }
   },
   // Walks text nodes rather than elements because page mode's text layer and

@@ -23,7 +23,7 @@ The window opens pinned at the top-left of the primary display and off the taskb
 | `word '<text>'` | Prints `x,y` of the first on-screen occurrence of some text, for `dbl`/`drag` |
 | `click x,y` / `dbl x,y` | Real mouse click / double-click (double-click selects a word) |
 | `drag x1,y1 x2,y2` | Press, move, release: selects a range |
-| `key <Key>` | Presses `Escape`, `Enter`, `ArrowDown`, a letter, … |
+| `key <Key>` | Presses `Escape`, `Enter`, `ArrowDown`, a letter, …; `Shift+ArrowRight` adds modifiers (`Shift`, `Control`, `Alt`, `Meta`) |
 
 Example: `node scripts/ui-check/cdp.mjs click $(node scripts/ui-check/cdp.mjs center '[aria-label=Highlight]')`
 
