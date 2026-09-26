@@ -558,6 +558,7 @@ export function ReflowReader({
           className={`bg-reflow absolute inset-y-0 left-0 flex justify-center overflow-y-auto overflow-x-hidden px-4 py-10${positioned ? '' : ' invisible'}`}
           style={{ right: notesSidebar.pageInset }}
           ref={scrollRef}
+          data-reader-view
           onScroll={handleScroll}
           onClick={handleClick}
         >

@@ -4,6 +4,10 @@ import { getLanguageName } from '@taking-book/core';
 import type { Translation } from '../../shared/types';
 import type { TranslationPopupState } from './useTranslationPopup';
 import { useFloatingPosition } from './useFloatingPosition';
+import { createScrollDismissal, type PopupScroller } from './popup-scroll-dismissal';
+
+/** The reader's scroll containers (PdfPages and ReflowReader), whose scrolling closes the popup. */
+const READER_VIEW_SELECTOR = '[data-reader-view]';
 
 interface TranslationPopupProps {
   popup: TranslationPopupState;
@@ -13,13 +17,15 @@ interface TranslationPopupProps {
 /**
  * Floating popup showing the Translation of the selection, opened from the
  * Selection toolbar's Translate button. It opens where the toolbar was, stays
- * inside the window, and closes on Escape (before any other layer) or on a
- * press outside it. Nothing in it is saved.
+ * inside the window, and closes on Escape (before any other layer), on a
+ * press outside it, or when the reader view scrolls away from the selection.
+ * Nothing in it is saved.
  */
 export function TranslationPopup({ popup, onClose }: TranslationPopupProps): ReactElement {
   const rootRef = useRef<HTMLDivElement>(null);
   const position = useFloatingPosition(rootRef, popup.anchor);
   useDismissal(rootRef, onClose);
+  useScrollDismissal(rootRef, onClose);
 
   const { result } = popup;
   return (
@@ -95,4 +101,37 @@ function useDismissal(rootRef: RefObject<HTMLDivElement | null>, onClose: () => 
       document.removeEventListener('pointerdown', onPointerDown, true);
     };
   }, [rootRef]);
+}
+
+/**
+ * Closes the popup when the reader view scrolls (keyboard, wheel or scrollbar
+ * alike), since it would otherwise float over unrelated text. Scroll does not
+ * bubble, so it is caught in the capture phase from any scroller.
+ */
+function useScrollDismissal(rootRef: RefObject<HTMLDivElement | null>, onClose: () => void): void {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const dismissal = createScrollDismissal();
+    const onResize = (event: UIEvent) => dismissal.recordResize(event.timeStamp);
+    const onScroll = (event: Event) => {
+      const scroller = classifyScroller(event.target, rootRef.current);
+      if (dismissal.shouldClose({ time: event.timeStamp, scroller })) onCloseRef.current();
+    };
+    window.addEventListener('resize', onResize);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('scroll', onScroll, true);
+    };
+  }, [rootRef]);
+}
+
+// Nested scrollers in the reader view (a wide code block in reflow text) count
+// as the reader view: scrolling them moves text under the popup too.
+function classifyScroller(target: EventTarget | null, popup: HTMLElement | null): PopupScroller {
+  if (!(target instanceof Element)) return 'other';
+  if (popup?.contains(target)) return 'popup';
+  return target.closest(READER_VIEW_SELECTOR) ? 'reader-view' : 'other';
 }
