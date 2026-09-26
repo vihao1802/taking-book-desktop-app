@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import started from 'electron-squirrel-startup';
 import { config as loadEnv } from 'dotenv';
 import { buildApplicationMenu } from './main/appMenu';
+import { customSoundFilePath } from './main/customSounds';
 import { getDriver } from './main/db';
 import { registerIpc } from './main/ipc';
 import { guardAgainstNavigation } from './main/navigationGuard';
@@ -27,7 +28,7 @@ if (process.env.TB_DISABLE_GPU || process.platform === 'linux') {
 }
 
 // `appfile://` serves files to the renderer: PDFs the user opens (`doc/`)
-// and pdf.js standard font data (`fonts/`). It must be registered as
+// pdf.js standard font data (`fonts/`), and the reader's Custom sounds (`sound/`). It must be registered as
 // privileged before app ready so pdf.js can fetch() and range-read them.
 protocol.registerSchemesAsPrivileged([
   {
@@ -71,6 +72,10 @@ function registerFileProtocol(): void {
     }
     if (url.hostname === 'doc') {
       return net.fetch(pathToFileURL(rawPath).toString());
+    }
+    if (url.hostname === 'sound') {
+      const soundFile = customSoundFilePath(app.getPath('userData'), path.basename(rawPath));
+      return soundFile === null ? new Response('Not found', { status: 404 }) : net.fetch(pathToFileURL(soundFile).toString());
     }
     return new Response('Not found', { status: 404 });
   });

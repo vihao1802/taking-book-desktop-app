@@ -6,6 +6,8 @@ import {
   getSidebarWidth,
   getTargetLanguage,
   getTheme,
+  addCustomSound,
+  customSoundsSchema,
   setFocusPreferences,
   setNotesSidebarWidth,
   setSetting,
@@ -202,6 +204,35 @@ describe('focus preferences', () => {
     expect(isErr(await setFocusPreferences(db, { volume: 2 }))).toBe(true);
     expect(isErr(await setFocusPreferences(db, { minutes: 0 }))).toBe(true);
     expect(isErr(await setFocusPreferences(db, { minutes: 30, volume: Number.NaN }))).toBe(true);
+    expect(await getFocusPreferences(db)).toEqual({ ok: true, data: { soundId: null, volume: 0.3, minutes: 25 } });
+  });
+});
+
+describe('focus preferences with Custom sounds', () => {
+  const contentHash = 'c'.repeat(64);
+
+  async function dbWithCustomSound() {
+    const db = createMemoryDriver();
+    await db.exec(`${settingsSchema()} ${customSoundsSchema()}`);
+    await addCustomSound(db, { contentHash, name: 'Cafe' });
+    return db;
+  }
+
+  it('remembers a Custom sound that exists', async () => {
+    const db = await dbWithCustomSound();
+    expect(isOk(await setFocusPreferences(db, { soundId: `custom-${contentHash}` }))).toBe(true);
+    expect(await getFocusPreferences(db)).toEqual({ ok: true, data: { soundId: `custom-${contentHash}`, volume: 0.3, minutes: 25 } });
+  });
+
+  it('refuses to save a Custom sound that does not exist', async () => {
+    const db = await dbWithCustomSound();
+    expect(isErr(await setFocusPreferences(db, { soundId: `custom-${'d'.repeat(64)}` }))).toBe(true);
+  });
+
+  it('falls back to no sound once the remembered Custom sound is deleted', async () => {
+    const db = await dbWithCustomSound();
+    await setFocusPreferences(db, { soundId: `custom-${contentHash}` });
+    await db.run('DELETE FROM custom_sounds');
     expect(await getFocusPreferences(db)).toEqual({ ok: true, data: { soundId: null, volume: 0.3, minutes: 25 } });
   });
 });

@@ -204,6 +204,7 @@ export {
   MAX_CUSTOM_SOUND_NAME_LENGTH,
   createCustomSound,
   defaultCustomSoundName,
+  getCustomSoundHash,
   listAmbientSounds,
   parseCustomSoundName,
   resolveSoundChoice,
@@ -211,3 +212,17 @@ export {
   type CustomSound,
   type CustomSoundError,
 } from './custom-sounds';
+export {
+  addCustomSound,
+  customSoundsSchema,
+  deleteCustomSound,
+  listCustomSounds,
+  renameCustomSound,
+  type AddedCustomSound,
+} from './customSoundsRepository';
+export {
+  addCustomSounds,
+  type AddCustomSoundsSummary,
+  type CustomSoundFileSystem,
+  type RejectedCustomSound,
+} from './addCustomSounds';

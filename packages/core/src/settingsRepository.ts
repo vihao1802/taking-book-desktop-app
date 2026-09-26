@@ -1,3 +1,4 @@
+import { getCustomSoundHash } from './custom-sounds';
 import { getAmbientSound, resolveFocusPreferences, validateFocusMinutes, type FocusPreferences } from './focus';
 import type { Theme } from './models';
 import type { Result } from './result';
@@ -163,7 +164,21 @@ export async function getFocusPreferences(db: SqlDriver): Promise<Result<FocusPr
   if (!volume.ok) return volume;
   const minutes = await getSetting(db, FOCUS_MINUTES_KEY);
   if (!minutes.ok) return minutes;
-  return ok(resolveFocusPreferences({ soundId: soundId.data, volume: volume.data, minutes: minutes.data }));
+  const resolved = resolveFocusPreferences({ soundId: soundId.data, volume: volume.data, minutes: minutes.data });
+  // A stored Custom sound id is unknown to the bundled catalog, so it is checked against the reader's own sounds.
+  const rememberedCustom = soundId.data !== null && resolved.soundId === null ? await isCustomSoundStored(db, soundId.data) : ok(false);
+  if (!rememberedCustom.ok) return rememberedCustom;
+  return ok(rememberedCustom.data ? { ...resolved, soundId: soundId.data } : resolved);
+}
+
+async function isCustomSoundStored(db: SqlDriver, soundId: string): Promise<Result<boolean>> {
+  const contentHash = getCustomSoundHash(soundId);
+  if (contentHash === null) return ok(false);
+  try {
+    return ok((await db.get('SELECT 1 AS found FROM custom_sounds WHERE content_hash = ?', [contentHash])) !== undefined);
+  } catch (error) {
+    return err(`Failed to look up Custom sound: ${errorMessage(error)}`);
+  }
 }
 
 /**
@@ -172,7 +187,11 @@ export async function getFocusPreferences(db: SqlDriver): Promise<Result<FocusPr
  */
 export async function setFocusPreferences(db: SqlDriver, preferences: Partial<FocusPreferences>): Promise<Result<void>> {
   const { soundId, volume, minutes } = preferences;
-  if (soundId !== undefined && soundId !== null && getAmbientSound(soundId) === null) return err(`Unknown Ambient sound "${soundId}".`);
+  if (soundId !== undefined && soundId !== null && getAmbientSound(soundId) === null) {
+    const stored = await isCustomSoundStored(db, soundId);
+    if (!stored.ok) return stored;
+    if (!stored.data) return err(`Unknown Ambient sound "${soundId}".`);
+  }
   if (volume !== undefined && !(volume >= 0 && volume <= 1)) return err('Ambient sound volume must be from 0 to 1.');
   if (minutes !== undefined && !validateFocusMinutes(minutes).ok) return err('Focus timer length must be a whole number of minutes from 1 to 180.');
   const writes: Array<[string, string]> = [];

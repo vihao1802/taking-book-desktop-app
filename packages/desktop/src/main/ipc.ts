@@ -49,6 +49,7 @@ import { join } from 'node:path';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { googleTranslateEngine } from './googleTranslateEngine';
+import { registerCustomSoundsIpc } from './customSounds';
 import { createImportFileSystem } from './importFileSystem';
 import {
   createCloudProvider,
@@ -65,6 +66,7 @@ import {
  */
 export function registerIpc(db: SqlDriver): void {
   const userDataDir = app.getPath('userData');
+  registerCustomSoundsIpc(db);
   async function stamp(): Promise<SyncStamp> {
     return { updatedAt: Date.now(), updatedBy: await getDeviceId(db) };
   }

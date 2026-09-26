@@ -60,9 +60,18 @@ export function parseCustomSoundName(input: string): Result<string, CustomSoundE
   return name === '' || name.length > MAX_CUSTOM_SOUND_NAME_LENGTH ? err('invalid-name') : ok(name);
 }
 
+const CUSTOM_SOUND_ID_PREFIX = 'custom-';
+
+/** The content hash inside a Custom sound's Ambient sound id, or null when the id is not a Custom sound's. */
+export function getCustomSoundHash(soundId: string): string | null {
+  return soundId.startsWith(CUSTOM_SOUND_ID_PREFIX) && soundId.length > CUSTOM_SOUND_ID_PREFIX.length
+    ? soundId.slice(CUSTOM_SOUND_ID_PREFIX.length)
+    : null;
+}
+
 /** Turns a Custom sound into an Ambient sound, keyed by its content hash so the id stays stable across renames. */
 export function createCustomSound(sound: CustomSound): AmbientSound {
-  return { id: `custom-${sound.contentHash}`, kind: 'custom', name: sound.name };
+  return { id: `${CUSTOM_SOUND_ID_PREFIX}${sound.contentHash}`, kind: 'custom', name: sound.name };
 }
 
 /** Every Ambient sound the reader can choose: the bundled ones, then their Custom sounds. */

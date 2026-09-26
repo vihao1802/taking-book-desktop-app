@@ -4,6 +4,7 @@ import {
   MAX_CUSTOM_SOUND_BYTES,
   createCustomSound,
   defaultCustomSoundName,
+  getCustomSoundHash,
   listAmbientSounds,
   parseCustomSoundName,
   resolveSoundChoice,
@@ -96,5 +97,15 @@ describe('resolveSoundChoice', () => {
   it('falls back to none for null and unknown ids', () => {
     expect(resolveSoundChoice(null, [])).toBeNull();
     expect(resolveSoundChoice('nope', [])).toBeNull();
+  });
+});
+
+describe('getCustomSoundHash', () => {
+  it('reads the hash out of a Custom sound id', () => {
+    expect(getCustomSoundHash(`custom-${HASH}`)).toBe(HASH);
+  });
+
+  it.each(['rain', 'custom-', ''])('finds none in %j', (soundId) => {
+    expect(getCustomSoundHash(soundId)).toBeNull();
   });
 });

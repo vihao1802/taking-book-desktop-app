@@ -60,6 +60,10 @@ const api: ReaderApi = {
     ipcRenderer.on('files:import:progress', handler);
     return () => ipcRenderer.removeListener('files:import:progress', handler);
   },
+  listCustomSounds: () => ipcRenderer.invoke('sounds:custom:list'),
+  addCustomSounds: () => ipcRenderer.invoke('sounds:custom:add'),
+  renameCustomSound: (contentHash, name) => ipcRenderer.invoke('sounds:custom:rename', contentHash, name),
+  deleteCustomSound: (contentHash) => ipcRenderer.invoke('sounds:custom:delete', contentHash),
   onFullScreenChange: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, fullScreen: boolean): void =>
       listener(fullScreen);

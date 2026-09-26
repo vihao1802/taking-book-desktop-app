@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
+import type { AddCustomSoundsSummary, Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -61,6 +61,14 @@ export interface ReaderApi {
   getFocusPreferences(): Promise<Result<FocusPreferences>>;
   /** Saves the given Focus choices and leaves the others as they were; an invalid value is rejected. */
   setFocusPreferences(preferences: Partial<FocusPreferences>): Promise<Result<void>>;
+  /** Every Custom sound on this device, in the order they were added. */
+  listCustomSounds(): Promise<Result<CustomSound[]>>;
+  /** Asks the reader to pick audio files and adds them as Custom sounds; null when the picker was cancelled. */
+  addCustomSounds(): Promise<Result<AddCustomSoundsSummary | null>>;
+  /** Renames a Custom sound; the error is worded for the reader. */
+  renameCustomSound(contentHash: string, name: string): Promise<Result<void>>;
+  /** Removes a Custom sound and its stored audio copy. */
+  deleteCustomSound(contentHash: string): Promise<Result<void>>;
   /** Translates selected text into the Target language in effect; the error is worded for the reader. */
   translate(text: string): Promise<Result<Translation>>;
   getCloudAccount(): Promise<Result<CloudAccount | null>>;
