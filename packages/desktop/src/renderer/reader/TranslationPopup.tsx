@@ -5,6 +5,7 @@ import type { Translation } from '../../shared/types';
 import type { TranslationPopupState } from './useTranslationPopup';
 import { useFloatingPosition } from './useFloatingPosition';
 import { createScrollDismissal, type PopupScroller } from './popup-scroll-dismissal';
+import { shouldCloseOnSelectionChange, type SelectionEnds } from './popup-selection-dismissal';
 
 /** The reader's scroll containers (PdfPages and ReflowReader), whose scrolling closes the popup. */
 const READER_VIEW_SELECTOR = '[data-reader-view]';
@@ -18,13 +19,15 @@ interface TranslationPopupProps {
  * Floating popup showing the Translation of the selection, opened from the
  * Selection toolbar's Translate button. It opens where the toolbar was, stays
  * inside the window, and closes on Escape (before any other layer), on a
- * press outside it, or when the reader view scrolls away from the selection.
+ * press outside it, when the selection changes (keyboard included), or when
+ * the reader view scrolls away from the selection.
  * Nothing in it is saved.
  */
 export function TranslationPopup({ popup, onClose }: TranslationPopupProps): ReactElement {
   const rootRef = useRef<HTMLDivElement>(null);
   const position = useFloatingPosition(rootRef, popup.anchor);
   useDismissal(rootRef, onClose);
+  useSelectionDismissal(rootRef, onClose);
   useScrollDismissal(rootRef, onClose);
 
   const { result } = popup;
@@ -101,6 +104,42 @@ function useDismissal(rootRef: RefObject<HTMLDivElement | null>, onClose: () => 
       document.removeEventListener('pointerdown', onPointerDown, true);
     };
   }, [rootRef]);
+}
+
+/**
+ * Closes the popup when the selection it was opened for changes. A press
+ * outside already closes it, but a keyboard change (Shift+Arrow) fires no
+ * press, and a late Translation must not appear for a selection the reader
+ * has moved on from.
+ */
+function useSelectionDismissal(rootRef: RefObject<HTMLDivElement | null>, onClose: () => void): void {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const opened = readSelectionEnds();
+    const onSelectionChange = () => {
+      const current = readSelectionEnds();
+      const insidePopup = isInside(rootRef.current, current.anchorNode) && isInside(rootRef.current, current.focusNode);
+      if (shouldCloseOnSelectionChange({ opened, current, insidePopup })) onCloseRef.current();
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => document.removeEventListener('selectionchange', onSelectionChange);
+  }, [rootRef]);
+}
+
+function readSelectionEnds(): SelectionEnds<Node> {
+  const selection = window.getSelection();
+  return {
+    anchorNode: selection?.anchorNode ?? null,
+    anchorOffset: selection?.anchorOffset ?? 0,
+    focusNode: selection?.focusNode ?? null,
+    focusOffset: selection?.focusOffset ?? 0,
+  };
+}
+
+function isInside(popup: HTMLElement | null, node: Node | null): boolean {
+  return popup !== null && node !== null && popup.contains(node);
 }
 
 /**
