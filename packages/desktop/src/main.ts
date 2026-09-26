@@ -9,6 +9,7 @@ import { getDriver } from './main/db';
 import { registerIpc } from './main/ipc';
 import { guardAgainstNavigation } from './main/navigationGuard';
 import { startBackgroundSync } from './main/syncScheduler';
+import { toSystemLocaleArgument } from './shared/system-locale';
 
 if (started) {
   app.quit();
@@ -92,6 +93,7 @@ const createWindow = () => {
       // Electron's default today, set explicitly because a dropped file must
       // never replace the app; the navigation guard below is the backstop.
       navigateOnDragDrop: false,
+      additionalArguments: [toSystemLocaleArgument(app.getSystemLocale())],
     },
   });
 

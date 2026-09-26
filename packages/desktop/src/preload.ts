@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
+import { readSystemLocaleArgument } from './shared/system-locale';
 import type { ImportProgress, ReaderApi } from './shared/types';
 
 const api: ReaderApi = {
+  systemLocale: readSystemLocaleArgument(process.argv),
   openFile: () => ipcRenderer.invoke('files:open'),
   importPaths: (paths) => ipcRenderer.invoke('files:import', paths),
   // File.path is gone from Electron; webUtils only works in the preload, so it is wrapped here.

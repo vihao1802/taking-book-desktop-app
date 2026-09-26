@@ -80,6 +80,7 @@ export {
   type HomeArrangement,
 } from './homeArrangement';
 export { formatLastRead } from './lastRead';
+export { formatGreetingDateTime, formatLocalMinute, getGreeting, getTimeOfDay, msUntilNextMinute, type TimeOfDay } from './greeting';
 export {
   detectShortcutPlatform,
   formatShortcutLabel,

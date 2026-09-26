@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement, type RefObject } from 'react';
-import { Moon, Search, Sun, Sunrise } from 'lucide-react';
-import { arrangeHome } from '@taking-book/core';
+import { Moon, Search, Sun, Sunrise, type LucideIcon } from 'lucide-react';
+import {
+  arrangeHome,
+  formatGreetingDateTime,
+  formatLocalMinute,
+  getGreeting,
+  getTimeOfDay,
+  type TimeOfDay,
+} from '@taking-book/core';
 import type { BookFile } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useMinuteClock } from '@/lib/useMinuteClock';
 import { useSearchShortcut } from '@/lib/useSearchShortcut';
 import { cn } from '@/lib/utils';
 import { useAddPdf } from '../library/useAddPdf';
@@ -13,22 +21,12 @@ import { FeaturedBookCard } from './FeaturedBookCard';
 import { useHomeEntrance, type HomeEntrance } from './useHomeEntrance';
 import type { View } from '@/components/NavRail';
 
-function greetingForHour(hour: number): string {
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
-}
-
-function greetingIconForHour(hour: number): typeof Sun {
-  if (hour < 12) return Sunrise;
-  if (hour < 18) return Sun;
-  return Moon;
-}
-
-function TimeIcon(props: { className?: string }): ReactElement {
-  const Icon = greetingIconForHour(new Date().getHours());
-  return <Icon {...props} />;
-}
+const TIME_OF_DAY_ICONS: Record<TimeOfDay, LucideIcon> = {
+  morning: Sunrise,
+  afternoon: Sun,
+  evening: Moon,
+  night: Moon,
+};
 
 interface HomeProps {
   onOpen: (file: BookFile) => void;
@@ -74,11 +72,8 @@ function HomeHeader({
 }): ReactElement {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
-      <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
-        <TimeIcon className="text-primary size-6" />
-        {greetingForHour(new Date().getHours())}
-      </h1>
-      <div className="relative flex items-center">
+      <Greeting />
+      <div className="relative flex shrink-0 items-center">
         <Search className="text-muted-foreground pointer-events-none absolute left-3 size-4" />
         <Input
           ref={searchRef}
@@ -90,6 +85,36 @@ function HomeHeader({
         />
       </div>
     </header>
+  );
+}
+
+/**
+ * The Greeting: time-of-day wording and icon, then the date and time. It
+ * re-renders on every minute so both stay current while Home is open. On a
+ * narrow window the date and time wrap below the greeting first; only when the
+ * greeting itself no longer fits beside the search does the search wrap.
+ */
+function Greeting(): ReactElement {
+  const now = useMinuteClock();
+  const timeOfDay = getTimeOfDay(now.getHours());
+  const Icon = TIME_OF_DAY_ICONS[timeOfDay];
+  return (
+    // basis-0 lets the header measure this row by the greeting alone, so the date
+    // wraps before the search does. The separator sits in the gap left of the date
+    // and time; when they wrap it falls outside the box and is clipped, so no line
+    // opens with "·". Its empty alt text keeps screen readers from announcing it.
+    <div className="flex min-w-min flex-1 basis-0 flex-wrap items-center gap-x-4 gap-y-1 overflow-hidden">
+      <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight whitespace-nowrap">
+        <Icon className="text-primary size-6" />
+        {getGreeting(timeOfDay)}
+      </h1>
+      <time
+        dateTime={formatLocalMinute(now)}
+        className="text-muted-foreground relative before:absolute before:right-full before:mr-1.5 before:[content:'·'_/_'']"
+      >
+        {formatGreetingDateTime(now, window.api.systemLocale)}
+      </time>
+    </div>
   );
 }
 

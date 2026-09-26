@@ -2,6 +2,8 @@ import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, Cl
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
+  /** The OS regional-format locale (e.g. `en-GB`) for showing dates and times; null when unknown. */
+  systemLocale: string | null;
   /** Shows the Add PDF dialog and imports the chosen files; null when the dialog was cancelled. */
   openFile(): Promise<Result<ImportSummary | null>>;
   /** Imports Books from file and folder paths the reader dropped onto the window (Drop import). */
