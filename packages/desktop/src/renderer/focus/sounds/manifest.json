@@ -7,7 +7,7 @@
     "licence": "CC0 1.0",
     "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
     "downloadedOn": "2026-09-26",
-    "edits": "Source is Freesound's 128 kbps MP3 preview (originals need a login). 1.5 s equal-power crossfade of the tail into the head; Opus 64 kbps VBR."
+    "edits": "Source is Freesound's 128 kbps MP3 preview (originals need a login). 1.5 s equal-power crossfade of the tail into the head; Opus 64 kbps VBR, loudness-normalised to about -21 LUFS (the source was very quiet)."
   },
   {
     "file": "fire.opus",
@@ -17,7 +17,7 @@
     "licence": "CC0 1.0",
     "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
     "downloadedOn": "2026-09-26",
-    "edits": "Source is Freesound's 128 kbps MP3 preview (originals need a login). 1.5 s equal-power crossfade of the tail into the head; Opus 64 kbps VBR."
+    "edits": "Source is Freesound's 128 kbps MP3 preview (originals need a login). 1.5 s equal-power crossfade of the tail into the head; Opus 64 kbps VBR, loudness-normalised to about -21 LUFS (the source was very quiet)."
   },
   {
     "file": "forest.opus",
@@ -27,7 +27,7 @@
     "licence": "CC0 1.0",
     "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
     "downloadedOn": "2026-09-26",
-    "edits": "Source is Freesound's 128 kbps MP3 preview (originals need a login). 1.5 s equal-power crossfade of the tail into the head; Opus 64 kbps VBR."
+    "edits": "Source is Freesound's 128 kbps MP3 preview (originals need a login). 1.5 s equal-power crossfade of the tail into the head; Opus 64 kbps VBR, loudness-normalised to about -21 LUFS (the source was very quiet)."
   },
   {
     "file": "ocean.opus",
@@ -37,6 +37,6 @@
     "licence": "CC0 1.0",
     "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
     "downloadedOn": "2026-09-26",
-    "edits": "Source is Freesound's 128 kbps MP3 preview (originals need a login). 1.5 s equal-power crossfade of the tail into the head; Opus 64 kbps VBR."
+    "edits": "Source is Freesound's 128 kbps MP3 preview (originals need a login). 1.5 s equal-power crossfade of the tail into the head; Opus 64 kbps VBR, loudness-normalised to about -21 LUFS (the source was very quiet)."
   }
 ]
