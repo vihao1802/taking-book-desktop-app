@@ -3,6 +3,7 @@ import {
   deleteFile,
   filesSchema,
   getFileZoom,
+  getLiveFileByHash,
   getLastPosition,
   listFiles,
   saveLastPosition,
@@ -281,5 +282,22 @@ describe('filesRepository', () => {
     await db.exec(filesSchema());
     const result = await setFileTitle(db, 404, 'X');
     expect(result.ok).toBe(false);
+  });
+
+  it('finds a live file by hash and treats a deleted one as absent', async () => {
+    const db = createMemoryDriver();
+    await db.exec(filesSchema());
+    const created = await upsertFile(db, { filePath: '/l.pdf', hash: 'h-live', title: 'L' });
+    if (!isOk(created)) throw new Error(created.error);
+
+    const live = await getLiveFileByHash(db, 'h-live');
+    expect(isOk(live) && live.data?.id).toBe(created.data.id);
+
+    await deleteFile(db, created.data.id);
+    const deleted = await getLiveFileByHash(db, 'h-live');
+    expect(isOk(deleted) && deleted.data).toBeNull();
+
+    const unknown = await getLiveFileByHash(db, 'h-none');
+    expect(isOk(unknown) && unknown.data).toBeNull();
   });
 });

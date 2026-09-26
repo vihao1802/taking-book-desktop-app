@@ -1,14 +1,11 @@
 import { Loader2, Plus } from 'lucide-react';
 import type { BookFile } from '../../shared/types';
+import { useAddPdf } from '@/library/useAddPdf';
 import { useLibrary } from '@/library/useLibrary';
 
 export function AddPdfFab({ onOpen }: { onOpen: (file: BookFile) => void }) {
-  const { addFiles, busy } = useLibrary();
-
-  const handleAdd = async () => {
-    const added = await addFiles();
-    if (added.length === 1) onOpen(added[0]);
-  };
+  const { busy } = useLibrary();
+  const handleAdd = useAddPdf(onOpen);
 
   return (
     <button

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Annotation, BookFile } from '../shared/types';
 import { AddPdfFab } from './components/AddPdfFab';
+import { ImportNotice } from './components/ImportNotice';
 import { NavRail, type View } from './components/NavRail';
 import { Favorites } from './favorites/Favorites';
 import { Home } from './home/Home';
@@ -60,6 +61,7 @@ export function App() {
               <Settings />
             )}
             <AddPdfFab onOpen={setFile} />
+            <ImportNotice onOpen={setFile} />
           </main>
         </div>
       </LibraryProvider>

@@ -14,6 +14,7 @@ import {
   getNotesSidebarWidth,
   getSidebarWidth,
   getTheme,
+  importBooks,
   isOk,
   listAnnotations,
   listFiles,
@@ -40,14 +41,13 @@ import {
   setTheme,
   TRANSLATION_FAILED_MESSAGE,
   translateText,
-  upsertFile,
 } from '@taking-book/core';
-import type { AnnotationColor, BookFile, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
-import { basename, extname, join } from 'node:path';
-import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
+import { join } from 'node:path';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { googleTranslateEngine } from './googleTranslateEngine';
-import { sha256File } from './hash';
+import { createImportFileSystem } from './importFileSystem';
 import {
   createCloudProvider,
   getDeviceId,
@@ -77,7 +77,27 @@ export function registerIpc(db: SqlDriver): void {
     return { ok: true, data: createCloudProvider(db, userDataDir, clientId, clientSecret) };
   }
 
-  ipcMain.handle('files:open', async () => {
+  // Shared by every way of adding Books, so they all skip, dedupe and report alike.
+  async function importFromPaths(paths: string[]): Promise<Result<ImportSummary>> {
+    const blobDir = localBlobDir(userDataDir);
+    try {
+      await mkdir(blobDir, { recursive: true });
+    } catch (error) {
+      console.error(`Could not create the local book store ${blobDir}: ${errorMessage(error)}`);
+      return { ok: false, error: 'Books could not be added: the local book store could not be created.' };
+    }
+    const result = await importBooks(db, { paths, fileSystem: createImportFileSystem(blobDir), stamp: await stamp() });
+    if (!isOk(result)) {
+      console.error(`Importing ${paths.length} path(s) failed: ${result.error}`);
+      return result;
+    }
+    for (const skipped of result.data.skipped) {
+      if (skipped.detail) console.error(`Import skipped ${skipped.fileName}: ${skipped.detail}`);
+    }
+    return result;
+  }
+
+  ipcMain.handle('files:open', async (): Promise<Result<ImportSummary | null>> => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
     if (!win) return { ok: false, error: 'No window to host the file dialog' };
     const { canceled, filePaths } = await dialog.showOpenDialog(win, {
@@ -85,36 +105,7 @@ export function registerIpc(db: SqlDriver): void {
       filters: [{ name: 'Documents', extensions: ['pdf'] }],
     });
     if (canceled || filePaths.length === 0) return { ok: true, data: null };
-    for (const filePath of filePaths) {
-      if (extname(filePath).toLowerCase() !== '.pdf') {
-        return { ok: false, error: `Only PDF files can be added to the library (skipped: ${basename(filePath)}).` };
-      }
-    }
-
-    // Hash and copy in parallel — each import is I/O bound and independent.
-    const blobDir = localBlobDir(app.getPath('userData'));
-    await mkdir(blobDir, { recursive: true });
-    const staged = await Promise.all(
-      filePaths.map(async (filePath) => ({
-        filePath,
-        hash: await sha256File(filePath),
-      })),
-    );
-    const files: BookFile[] = [];
-    for (const item of staged) {
-      try {
-        await copyFile(item.filePath, join(blobDir, item.hash));
-      } catch (error) {
-        return {
-          ok: false,
-          error: `File could not be copied into the local store: ${errorMessage(error)}`,
-        };
-      }
-      const registered = await upsertFile(db, { filePath: join(blobDir, item.hash), hash: item.hash, title: basename(item.filePath).replace(/\.[^.]+$/, '') }, await stamp());
-      if (!isOk(registered)) return registered;
-      files.push(registered.data);
-    }
-    return { ok: true, data: { files } };
+    return importFromPaths(filePaths);
   });
 
   ipcMain.handle('files:delete', async (_event, id: number) => {

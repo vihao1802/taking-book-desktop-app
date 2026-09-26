@@ -19,6 +19,7 @@ import { positionLabel, readingProgressPercent } from '@/lib/progress';
 import { statusBadgeVariant, statusLabel } from '@/lib/status';
 import { useSearchShortcut } from '@/lib/useSearchShortcut';
 import { Progress } from '@/components/ui/progress';
+import { useAddPdf } from '../library/useAddPdf';
 import { useLibrary } from '../library/useLibrary';
 import type { View } from '@/components/NavRail';
 
@@ -48,7 +49,8 @@ export function Home({
   onOpen: (file: BookFile) => void;
   onNavigate: (view: View) => void;
 }) {
-  const { files, addFiles, busy } = useLibrary();
+  const { files, busy } = useLibrary();
+  const handleAdd = useAddPdf(onOpen);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   useSearchShortcut(searchRef);
@@ -88,11 +90,6 @@ export function Home({
   );
 
   const picks = useMemo(() => files.slice(0, 4), [files]);
-
-  const handleAdd = async () => {
-    const added = await addFiles();
-    if (added.length === 1) onOpen(added[0]);
-  };
 
   return (
     <div className="flex h-full">

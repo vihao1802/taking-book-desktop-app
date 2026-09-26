@@ -128,6 +128,20 @@ export async function upsertFile(
   }
 }
 
+/**
+ * Returns the live (not deleted) Book with the given content hash, or null when
+ * there is none. A tombstoned record is reported as null so callers can tell
+ * "already in the library" apart from "will be revived by upsertFile".
+ */
+export async function getLiveFileByHash(db: SqlDriver, hash: string): Promise<Result<BookFile | null>> {
+  try {
+    const row = await db.get('SELECT * FROM files WHERE hash = ? AND deleted_at IS NULL', [hash]);
+    return ok(row ? toBookFile(rowToRow(row)) : null);
+  } catch (error) {
+    return err(`Failed to look up file by hash ${hash}: ${errorMessage(error)}`);
+  }
+}
+
 /** Returns the resume position for a file, or null if it was never opened. */
 export async function getLastPosition(db: SqlDriver, id: number): Promise<Result<LastPosition | null>> {
   try {

@@ -78,11 +78,6 @@ export interface LastPosition {
   mode: ReadMode;
 }
 
-/** Payload returned when the user opens one or more files. */
-export interface OpenFileResult {
-  files: BookFile[];
-}
-
 /** Highlight marker colors offered to the reader. */
 export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink';
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { isOk } from '@taking-book/core';
+import { isOk, type ImportSummary } from '@taking-book/core';
 import type { BookFile, BookStatus, CloudAccount } from '../../shared/types';
 import {
   LibraryContext,
@@ -12,6 +12,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<BookFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importNotice, setImportNotice] = useState<ImportSummary | null>(null);
   const [account, setAccount] = useState<CloudAccount | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [sync, setSync] = useState<SyncState>({ syncing: false, last: null, error: null });
@@ -32,23 +33,24 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const addFiles = useCallback(async (): Promise<BookFile[]> => {
+  const addFiles = useCallback(async (): Promise<ImportSummary | null> => {
     setBusy(true);
     try {
       const result = await window.api.openFile();
       if (!isOk(result)) {
         setError(result.error);
-        return [];
+        return null;
       }
-      if (result.data) {
-        await refresh();
-        return result.data.files;
-      }
-      return [];
+      if (!result.data) return null;
+      await refresh();
+      setImportNotice(result.data);
+      return result.data;
     } finally {
       setBusy(false);
     }
   }, [refresh]);
+
+  const dismissImportNotice = useCallback(() => setImportNotice(null), []);
 
   const connectCloud = useCallback(async () => {
     setConnecting(true);
@@ -146,6 +148,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     connecting,
     sync,
     addFiles,
+    importNotice,
+    dismissImportNotice,
     setStatus,
     setTags,
     setTitle,

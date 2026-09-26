@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useAddPdf } from './useAddPdf';
 import { useLibrary } from './useLibrary';
 
 export function Library({
@@ -34,7 +35,6 @@ export function Library({
     account,
     connecting,
     sync,
-    addFiles,
     setStatus,
     setTags,
     setTitle,
@@ -73,10 +73,7 @@ export function Library({
     });
   }, [files, query, statusFilter, tagFilter, favoritesOnly]);
 
-  const handleOpen = async () => {
-    const files = await addFiles();
-    if (files.length === 1) onOpen(files[0]);
-  };
+  const handleOpen = useAddPdf(onOpen);
 
   const confirmRemove = async () => {
     if (!pendingRemove) return;

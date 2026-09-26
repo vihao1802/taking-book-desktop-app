@@ -1,8 +1,9 @@
-import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
+import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
-  openFile(): Promise<Result<OpenFileResult | null>>;
+  /** Shows the Add PDF dialog and imports the chosen files; null when the dialog was cancelled. */
+  openFile(): Promise<Result<ImportSummary | null>>;
   deleteFile(id: number): Promise<Result<void>>;
   /** Whether a book's stored file can still be read; the error says why not, in words fit to show the reader. */
   checkFileReadable(filePath: string): Promise<Result<void>>;
@@ -60,4 +61,4 @@ export interface ReaderApi {
   onFullScreenChange(listener: (fullScreen: boolean) => void): () => void;
 }
 
-export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, NoteDraft, OpenFileResult, PageNoteInput, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };
+export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportSummary, NoteDraft, PageNoteInput, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };
