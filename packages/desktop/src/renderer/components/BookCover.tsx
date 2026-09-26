@@ -109,9 +109,11 @@ export function BookCover({ file, className, fallback }: BookCoverProps) {
   }, [file, cover]);
 
   return (
+    // The edge is translucent, so the caller's placeholder background is clipped
+    // inside it; otherwise that color tints the edge instead of the shelf behind.
     <div
       className={cn(
-        'relative flex items-center justify-center overflow-hidden border-2 border-border',
+        'border-cover-edge shadow-cover relative flex items-center justify-center overflow-hidden border bg-clip-padding',
         className,
       )}
     >

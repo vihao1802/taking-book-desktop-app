@@ -102,7 +102,7 @@ export function Statistics({
           >
             <BookCover
               file={readAgain}
-              className="bg-ink text-card size-24 shrink-0 rounded-md shadow-sm transition-transform duration-200 group-hover:scale-[1.02]"
+              className="bg-ink text-card size-24 shrink-0 rounded-md transition-transform duration-200 group-hover:scale-[1.02]"
               fallback={<span className="text-lg font-semibold">{initials(readAgain.title)}</span>}
             />
             <div className="flex min-w-0 flex-1 flex-col gap-1">

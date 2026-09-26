@@ -43,6 +43,11 @@
   --dash-success: #1f9d61;
   --dash-success-fg: #ffffff;
 
+  /* Covers read as books on a shelf: a faint edge keeps a white first page
+     from merging into a white card, and a soft shadow lifts it off the page. */
+  --cover-edge: rgba(22, 22, 22, 0.1);
+  --cover-shadow: 0 1px 2px rgba(22, 22, 22, 0.08), 0 4px 12px rgba(22, 22, 22, 0.1);
+
   --background: var(--bg);
   --foreground: var(--fg);
   --card: var(--dash-panel);
@@ -98,6 +103,9 @@
   --dash-alert: #fb2c36;
   --dash-success: #2ebd78;
   --dash-success-fg: #0d2218;
+
+  --cover-edge: rgba(240, 236, 228, 0.12);
+  --cover-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.45);
 }
 
 [data-theme='sepia'] {
@@ -126,6 +134,9 @@
   --dash-alert: #c0392b;
   --dash-success: #7d9c45;
   --dash-success-fg: #f4ecd8;
+
+  --cover-edge: rgba(91, 70, 54, 0.14);
+  --cover-shadow: 0 1px 2px rgba(91, 70, 54, 0.12), 0 4px 12px rgba(91, 70, 54, 0.14);
 }
 
 /* A syntax-highlighted code span: keeps the PDF's hue and saturation but takes
@@ -171,6 +182,8 @@
   --color-track: var(--track);
   --color-avatar-a: var(--avatar-a);
   --color-avatar-b: var(--avatar-b);
+  --color-cover-edge: var(--cover-edge);
+  --shadow-cover: var(--cover-shadow);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
