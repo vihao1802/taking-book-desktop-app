@@ -1,12 +1,18 @@
+import type { ReactElement } from 'react';
 import { Loader2, Plus } from 'lucide-react';
 import type { BookFile } from '../../shared/types';
 import { useAddPdf } from '@/library/useAddPdf';
 import { useLibrary } from '@/library/useLibrary';
 
-export function AddPdfFab({ onOpen }: { onOpen: (file: BookFile) => void }) {
-  const { busy } = useLibrary();
+/**
+ * The floating Add PDF button. Hidden while the library is empty, where Home's
+ * invitation is the one Add PDF control.
+ */
+export function AddPdfFab({ onOpen }: { onOpen: (file: BookFile) => void }): ReactElement | null {
+  const { files, busy } = useLibrary();
   const handleAdd = useAddPdf(onOpen);
 
+  if (files.length === 0) return null;
   return (
     <button
       type="button"
