@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { Timer } from 'lucide-react';
 import { formatFocusTimeLeft, isFocusActive } from '@taking-book/core';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,7 @@ import { useFocus } from './useFocus';
  * Focus controls as the reader's Overlay. It is the only entry point outside
  * the reader, which hides the rail.
  */
-export function FocusIndicator() {
+export function FocusIndicator(): ReactElement | null {
   const { timer, sound, timeLeftMs } = useFocus();
   const [open, setOpen] = useState(false);
   const active = isFocusActive({ timer, sound });
