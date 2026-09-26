@@ -338,7 +338,13 @@ export function registerIpc(db: SqlDriver): void {
       console.error(`translate: could not read the Target language: ${targetLanguage.error}`);
       return { ok: false, error: TRANSLATION_FAILED_MESSAGE };
     }
-    return translateText({ engine: googleTranslateEngine, text, targetLanguage: targetLanguage.data });
+    return translateText({
+      engine: googleTranslateEngine,
+      text,
+      targetLanguage: targetLanguage.data,
+      onEngineFailure: ({ kind, detail }) =>
+        console.error(`translate: request to ${targetLanguage.data} failed (${kind}): ${detail}`),
+    });
   });
 
   ipcMain.handle('window:fullscreen:get', (event): Result<boolean> => {

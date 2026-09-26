@@ -59,6 +59,7 @@ export {
 export {
   MAX_TRANSLATION_LENGTH,
   TRANSLATION_FAILED_MESSAGE,
+  TRANSLATION_TIMEOUT_MS,
   translateText,
   type EngineTranslation,
   type TranslateTextOptions,

@@ -1,8 +1,6 @@
 import { translate } from 'google-translate-api-x';
+import { TRANSLATION_TIMEOUT_MS } from '@taking-book/core';
 import type { EngineTranslation, Result, TranslationEngine, TranslationEngineFailure, TranslationFailureKind } from '@taking-book/core';
-
-/** How long a translate request may take before the reader is told the service is unreachable. */
-const REQUEST_TIMEOUT_MS = 10_000;
 
 // Codes undici puts on a fetch failure's cause when the network, not the
 // service, is the problem.
@@ -21,21 +19,19 @@ const NETWORK_ERROR_CODES = new Set([
 /**
  * The desktop {@link TranslationEngine}: `google-translate-api-x` over the
  * unofficial Google Translate web endpoint (ADR-0004). Runs in the main
- * process because that endpoint sends no CORS headers. Failures are logged
- * with their cause and returned as a coarse kind; this never rejects.
+ * process because that endpoint sends no CORS headers. Failures come back as
+ * a coarse kind plus a detail for the caller to log; this never rejects.
  */
 export const googleTranslateEngine: TranslationEngine = {
   async translate(text, targetLanguage): Promise<Result<EngineTranslation, TranslationEngineFailure>> {
     try {
       const response = await translate(text, {
         to: targetLanguage,
-        requestOptions: { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+        requestOptions: { signal: AbortSignal.timeout(TRANSLATION_TIMEOUT_MS) },
       });
       return { ok: true, data: { text: response.text, sourceLanguage: detectedLanguage(response.from) } };
     } catch (error) {
-      const kind = classifyFailure(error);
-      console.error(`translate: request failed (${kind})`, error);
-      return { ok: false, error: { kind, detail: describeError(error) } };
+      return { ok: false, error: { kind: classifyFailure(error), detail: describeError(error) } };
     }
   },
 };
@@ -75,11 +71,22 @@ function responseStatus(error: Error): number | null {
 function isNetworkFailure(error: Error): boolean {
   if (!(error instanceof TypeError)) return false;
   if (error.message === 'fetch failed') return true;
-  const cause = error.cause;
-  const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : undefined;
-  return typeof code === 'string' && NETWORK_ERROR_CODES.has(code);
+  const code = causeCode(error);
+  return code !== null && NETWORK_ERROR_CODES.has(code);
 }
 
+// The socket error code (ENOTFOUND, say) that undici puts on a fetch failure's cause.
+function causeCode(error: Error): string | null {
+  const cause = error.cause;
+  if (typeof cause !== 'object' || cause === null || !('code' in cause)) return null;
+  return typeof cause.code === 'string' ? cause.code : null;
+}
+
+// The socket error code on the cause (ENOTFOUND, say) is what tells an
+// offline machine apart from a blocked host, so it is kept in the log line.
 function describeError(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  if (!(error instanceof Error)) return String(error);
+  const status = responseStatus(error);
+  const extra = [causeCode(error), status === null ? null : `HTTP ${status}`].filter(Boolean);
+  return `${error.name}: ${error.message}${extra.length > 0 ? ` (${extra.join(', ')})` : ''}`;
 }

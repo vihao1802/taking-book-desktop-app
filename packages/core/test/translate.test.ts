@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_TRANSLATION_LENGTH,
+  TRANSLATION_TIMEOUT_MS,
   translateText,
   type EngineTranslation,
   type Result,
@@ -114,5 +115,67 @@ describe('translateText', () => {
       if (!result.ok) messages.add(result.error);
     }
     expect(messages.size).toBe(3);
+  });
+
+  it('reports each engine failure with its kind and detail so the platform can log it', async () => {
+    const engine = fakeEngine({ ok: false, error: { kind: 'rate-limited', detail: 'HTTP 429' } });
+    const onEngineFailure = vi.fn();
+    await translateText({ engine, text: 'bonjour', targetLanguage: 'en', onEngineFailure });
+    expect(onEngineFailure).toHaveBeenCalledExactlyOnceWith({ kind: 'rate-limited', detail: 'HTTP 429' });
+  });
+
+  it('does not report a failure for a successful Translation or text rejected before the engine', async () => {
+    const onEngineFailure = vi.fn();
+    await translateText({ engine: bonjour, text: 'bonjour', targetLanguage: 'en', onEngineFailure });
+    await translateText({ engine: bonjour, text: '   ', targetLanguage: 'en', onEngineFailure });
+    expect(onEngineFailure).not.toHaveBeenCalled();
+  });
+
+  it('treats an engine that rejects despite its contract as an other failure, never showing the raw error', async () => {
+    const engine: TranslationEngine = { translate: () => Promise.reject(new Error('socket hang up at 10.0.0.1')) };
+    const onEngineFailure = vi.fn();
+    const result = await translateText({ engine, text: 'bonjour', targetLanguage: 'en', onEngineFailure });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/could not translate/i);
+    expect(result.error).not.toContain('socket');
+    expect(onEngineFailure).toHaveBeenCalledExactlyOnceWith({ kind: 'other', detail: expect.stringContaining('socket hang up') });
+  });
+
+  describe('when the engine hangs', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const hangingEngine: TranslationEngine = { translate: () => new Promise(() => {}) };
+
+    it('ends with the unreachable message once the timeout passes', async () => {
+      vi.useFakeTimers();
+      const onEngineFailure = vi.fn();
+      const pending = translateText({ engine: hangingEngine, text: 'bonjour', targetLanguage: 'en', onEngineFailure });
+      await vi.advanceTimersByTimeAsync(TRANSLATION_TIMEOUT_MS);
+      const result = await pending;
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toMatch(/check your connection/i);
+      expect(onEngineFailure).toHaveBeenCalledExactlyOnceWith({ kind: 'unreachable', detail: expect.stringMatching(/timed out/i) });
+    });
+
+    it('is still waiting just before the timeout', async () => {
+      vi.useFakeTimers();
+      let settled = false;
+      void translateText({ engine: hangingEngine, text: 'bonjour', targetLanguage: 'en', timeoutMs: 500 }).then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(499);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toBe(true);
+    });
+
+    it('clears its timer when the engine answers in time', async () => {
+      vi.useFakeTimers();
+      await translateText({ engine: bonjour, text: 'bonjour', targetLanguage: 'en' });
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 });
