@@ -1,14 +1,16 @@
-import { useMemo, useRef, useState, type ReactElement, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement, type RefObject } from 'react';
 import { Moon, Search, Sun, Sunrise } from 'lucide-react';
 import { arrangeHome } from '@taking-book/core';
 import type { BookFile } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSearchShortcut } from '@/lib/useSearchShortcut';
+import { cn } from '@/lib/utils';
 import { useAddPdf } from '../library/useAddPdf';
 import { useLibrary } from '../library/useLibrary';
 import { BookShelf } from './BookShelf';
 import { FeaturedBookCard } from './FeaturedBookCard';
+import { useHomeEntrance, type HomeEntrance } from './useHomeEntrance';
 import type { View } from '@/components/NavRail';
 
 function greetingForHour(hour: number): string {
@@ -44,6 +46,7 @@ export function Home({ onOpen, onNavigate }: HomeProps): ReactElement {
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   useSearchShortcut(searchRef);
+  const entrance = useHomeEntrance(loaded);
   const searching = query.trim().length > 0;
 
   return (
@@ -54,7 +57,7 @@ export function Home({ onOpen, onNavigate }: HomeProps): ReactElement {
       ) : files.length === 0 ? (
         <EmptyLibraryInvitation onOpen={onOpen} />
       ) : (
-        <Launchpad files={files} onOpen={onOpen} onNavigate={onNavigate} />
+        <Launchpad files={files} entrance={entrance} onOpen={onOpen} onNavigate={onNavigate} />
       )}
     </div>
   );
@@ -92,17 +95,23 @@ function HomeHeader({
 
 function Launchpad({
   files,
+  entrance,
   onOpen,
   onNavigate,
 }: {
   files: BookFile[];
+  entrance: HomeEntrance;
   onOpen: (file: BookFile) => void;
   onNavigate: (view: View) => void;
 }): ReactElement {
   const { busy } = useLibrary();
   const { featured, readingNow, recentlyAdded } = useMemo(() => arrangeHome(files), [files]);
+  const { endEntrance } = entrance;
+  useEffect(() => endEntrance, [endEntrance]);
   return (
-    <>
+    // Its three sections ease in one after another; index.css staggers exactly
+    // three children, so a new section needs a delay of its own there.
+    <div className={cn('flex flex-col gap-10', entrance.className)}>
       {featured && <FeaturedBookCard featured={featured} busy={busy} onOpen={onOpen} />}
       {readingNow.length > 0 && (
         <BookShelf title="Reading now" books={readingNow} detail="progress" onOpen={onOpen} />
@@ -124,7 +133,7 @@ function Launchpad({
           onOpen={onOpen}
         />
       )}
-    </>
+    </div>
   );
 }
 

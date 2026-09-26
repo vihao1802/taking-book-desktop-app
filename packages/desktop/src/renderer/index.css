@@ -300,6 +300,46 @@
   animation: tb-note-flash 1s ease-out;
 }
 
+/* ---------- Home entrance (first Home after launch only, see useHomeEntrance.ts) ---------- */
+
+:root {
+  --home-entrance-duration: 200ms;
+  --home-entrance-rise: 8px;
+  /* How far each section lags the one above, so the shelves follow the
+     Featured book instead of arriving with it. */
+  --home-entrance-stagger: 80ms;
+}
+
+@keyframes home-entrance-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--home-entrance-rise));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* `both` keeps a section hidden while it waits for its turn. */
+.home-entrance > * {
+  animation: home-entrance-in var(--home-entrance-duration) ease-out both;
+}
+
+.home-entrance > * + * {
+  animation-delay: var(--home-entrance-stagger);
+}
+
+.home-entrance > * + * + * {
+  animation-delay: calc(var(--home-entrance-stagger) * 2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-entrance > * {
+    animation: none;
+  }
+}
+
 /* ---------- Find-bar matches (CSS Custom Highlight API, see searchHighlights.ts) ---------- */
 
 ::highlight(tb-search) {
