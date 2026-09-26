@@ -20,7 +20,13 @@ export function readingProgressPercent(file: BookFile): number | null {
   return fraction == null ? null : Math.round(fraction * 100);
 }
 
-/** Human-readable resume hint ("Page N"), or null if the book was never read. */
-export function positionLabel(file: BookFile): string | null {
-  return file.lastPage == null ? null : `Page ${file.lastPage}`;
+/**
+ * Where the reader is in a Book ("Page 45 of 320 · 14%"), or just "Page 45"
+ * while the page count is unknown; null if the Book was never read.
+ */
+export function progressLine(file: BookFile): string | null {
+  if (file.lastPage == null) return null;
+  const percent = readingProgressPercent(file);
+  if (file.pageCount == null || percent == null) return `Page ${file.lastPage}`;
+  return `Page ${file.lastPage} of ${file.pageCount} · ${percent}%`;
 }

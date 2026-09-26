@@ -73,6 +73,14 @@ export { createSha256Hasher, sha256Hex, type Sha256Hasher } from './sha256';
 export { normalizePosition, progressFraction } from './position';
 export { sortByRecentlyRead } from './recentlyRead';
 export {
+  RECENTLY_ADDED_LIMIT,
+  arrangeHome,
+  isBeingRead,
+  type FeaturedBook,
+  type HomeArrangement,
+} from './homeArrangement';
+export { formatLastRead } from './lastRead';
+export {
   detectShortcutPlatform,
   formatShortcutLabel,
   resolveReaderShortcut,

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Menu, Moon, Search, Sun, Sunrise } from 'lucide-react';
-import { sortByRecentlyRead } from '@taking-book/core';
+import { useMemo, useRef, useState } from 'react';
+import { Menu, Moon, Search, Sun, Sunrise } from 'lucide-react';
+import { arrangeHome } from '@taking-book/core';
 import type { BookFile } from '../../shared/types';
 import { Badge } from '@/components/ui/badge';
 import { BookCover } from '@/components/BookCover';
@@ -15,11 +15,12 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { initials } from '@/lib/initials';
-import { positionLabel, readingProgressPercent } from '@/lib/progress';
+import { progressLine, readingProgressPercent } from '@/lib/progress';
 import { statusBadgeVariant, statusLabel } from '@/lib/status';
 import { useSearchShortcut } from '@/lib/useSearchShortcut';
 import { Progress } from '@/components/ui/progress';
 import { useAddPdf } from '../library/useAddPdf';
+import { FeaturedBookCard } from './FeaturedBookCard';
 import { useLibrary } from '../library/useLibrary';
 import type { View } from '@/components/NavRail';
 
@@ -55,29 +56,11 @@ export function Home({
   const searchRef = useRef<HTMLInputElement>(null);
   useSearchShortcut(searchRef);
 
-  // Most recently read first, so the card resumes what the user touched last
-  // and the arrows step back through older in-progress books.
+  const { featured, readingNow } = useMemo(() => arrangeHome(files), [files]);
   const inProgress = useMemo(
-    () => sortByRecentlyRead(files.filter((f) => f.status === 'reading')),
-    [files],
+    () => (featured?.kind === 'continue' ? [featured.book, ...readingNow] : []),
+    [featured, readingNow],
   );
-
-  const featuredCandidates = useMemo(
-    () => (inProgress.length > 0 ? inProgress : files.slice(0, 1)),
-    [inProgress, files],
-  );
-  const [featuredIndex, setFeaturedIndex] = useState(0);
-
-  useEffect(() => {
-    setFeaturedIndex(0);
-  }, [featuredCandidates.length]);
-
-  const featured =
-    featuredCandidates.length > 0 ? featuredCandidates[featuredIndex % featuredCandidates.length] : null;
-
-  const stepFeatured = (delta: number) => {
-    setFeaturedIndex((i) => (i + delta + featuredCandidates.length) % featuredCandidates.length);
-  };
 
   // A live query swaps the home cards for filtered results; an explicit empty
   // state tells the user the search matched nothing instead of leaving the
@@ -154,95 +137,20 @@ export function Home({
               )}
             </CardContent>
           </Card>
-        ) : (
-        <Card className="group transition-all hover:border-ink/25 hover:shadow-md">
-          <CardContent
-            className="flex cursor-pointer gap-6 p-6 flex-col md:flex-row"
-            onClick={() => featured && onOpen(featured)}
-          >
-            {featured ? (
-              <>
-                <BookCover
-                  key={featured.id}
-                  file={featured}
-                  className="bg-ink text-card h-67.5 w-45 shrink-0 rounded-md transition-transform duration-200 group-hover:scale-[1.02]"
-                  fallback={<span className="text-3xl font-semibold">{initials(featured.title)}</span>}
-                />
-                <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-                  <div className="flex w-full items-center justify-between gap-3">
-                    <p className="text-muted-foreground text-sm">Continue reading</p>
-                    {featuredCandidates.length > 1 && (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground size-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            stepFeatured(-1);
-                          }}
-                          aria-label="Previous in-progress book"
-                        >
-                          <ChevronLeft className="size-4" />
-                        </Button>
-                        <span className="text-muted-foreground text-xs tabular-nums">
-                          {featuredIndex + 1} / {featuredCandidates.length}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground size-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            stepFeatured(1);
-                          }}
-                          aria-label="Next in-progress book"
-                        >
-                          <ChevronRight className="size-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  <h2 className="text-3xl font-semibold leading-tight tracking-tight group-hover:underline">
-                    {featured.title}
-                  </h2>
-                  <div className="text-muted-foreground flex items-center gap-3 text-sm">
-                    <Badge variant={statusBadgeVariant(featured.status)}>
-                      {statusLabel(featured.status)}
-                    </Badge>
-                    {positionLabel(featured) && <span>{positionLabel(featured)}</span>}
-                  </div>
-                  <div className="w-full max-w-72">
-                    <Progress
-                      value={readingProgressPercent(featured) ?? 0}
-                      aria-label={`Reading progress for ${featured.title}`}
-                    />
-                  </div>
-                  <Button
-                    className="mt-auto"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpen(featured);
-                    }}
-                    disabled={busy}
-                  >
-                    Continue reading
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-1 flex-col items-start gap-4">
-                <p className="text-muted-foreground">
-                  Your library is empty. Add a PDF to start reading.
-                </p>
-                <Button onClick={handleAdd} disabled={busy}>
-                  {busy ? 'Adding…' : 'Add PDF'}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        )}
+        ) : featured ? (
+          <FeaturedBookCard featured={featured} busy={busy} onOpen={onOpen} />
+        ) : files.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-start gap-4 p-6">
+              <p className="text-muted-foreground">
+                Your library is empty. Add a PDF to start reading.
+              </p>
+              <Button onClick={handleAdd} disabled={busy}>
+                {busy ? 'Adding…' : 'Add PDF'}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {!searching && (
         <Card>
@@ -310,7 +218,7 @@ function HomeSidePanel({
                         {file.title}
                       </span>
                       <span className="text-muted-foreground shrink-0 text-xs">
-                        {positionLabel(file) ?? 'Just started'}
+                        {progressLine(file) ?? 'Just started'}
                       </span>
                     </div>
                     <Progress value={readingProgressPercent(file) ?? 0} aria-hidden="true" />
