@@ -1,25 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { TRANSLATION_FAILED_MESSAGE } from '@taking-book/core';
 import type { Result, Translation } from '../../shared/types';
-
-/** Where the selection that is being translated sits in the window. */
-export interface TranslationAnchor {
-  left: number;
-  /** Top edge of the selection; the popup flips above it when there is no room below. */
-  top: number;
-  /** Bottom edge of the selection; the popup opens below it by default. */
-  bottom: number;
-}
+import type { SelectionAnchor } from './floating-placement';
 
 /** What the Translation popup shows: `result` is null while the request is in flight. */
 export interface TranslationPopupState {
-  anchor: TranslationAnchor;
+  anchor: SelectionAnchor;
   result: Result<Translation> | null;
 }
 
 interface TranslationPopupControls {
   popup: TranslationPopupState | null;
-  translate: (text: string, anchor: TranslationAnchor) => void;
+  translate: (text: string, anchor: SelectionAnchor) => void;
   close: () => void;
 }
 
@@ -35,7 +27,7 @@ export function useTranslationPopup(): TranslationPopupControls {
   // A reader that closes before the answer arrives must not get a state update after unmount.
   useEffect(() => () => void (generationRef.current += 1), []);
 
-  const translate = useCallback((text: string, anchor: TranslationAnchor) => {
+  const translate = useCallback((text: string, anchor: SelectionAnchor) => {
     const generation = ++generationRef.current;
     setPopup({ anchor, result: null });
     void requestTranslation(text).then((result) => {

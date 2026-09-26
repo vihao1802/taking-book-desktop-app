@@ -1,13 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
+import { useEffect, useRef, type ReactElement, type RefObject } from 'react';
 import { Loader2 } from 'lucide-react';
 import { getLanguageName } from '@taking-book/core';
 import type { Translation } from '../../shared/types';
-import type { TranslationAnchor, TranslationPopupState } from './useTranslationPopup';
-
-/** Space between the selection and the popup, matching the Selection toolbar's offset. */
-const SELECTION_GAP_PX = 8;
-/** Space the popup keeps from the window edges. */
-const WINDOW_MARGIN_PX = 8;
+import type { TranslationPopupState } from './useTranslationPopup';
+import { useFloatingPosition } from './useFloatingPosition';
 
 interface TranslationPopupProps {
   popup: TranslationPopupState;
@@ -22,7 +18,7 @@ interface TranslationPopupProps {
  */
 export function TranslationPopup({ popup, onClose }: TranslationPopupProps): ReactElement {
   const rootRef = useRef<HTMLDivElement>(null);
-  const position = usePopupPosition(rootRef, popup);
+  const position = useFloatingPosition(rootRef, popup.anchor);
   useDismissal(rootRef, onClose);
 
   const { result } = popup;
@@ -72,59 +68,6 @@ function languageCaption({ sourceLanguage, targetLanguage }: Translation): strin
   const source = getLanguageName(sourceLanguage) ?? sourceLanguage;
   const target = getLanguageName(targetLanguage) ?? targetLanguage;
   return `${source} → ${target}`;
-}
-
-interface PopupPosition {
-  left: number;
-  top: number;
-  /** False until the popup's size is known; it stays hidden so it never flashes off-screen. */
-  measured: boolean;
-}
-
-/**
- * Places the popup below the selection, flipped above it when there is no room
- * below and shifted sideways to stay inside the window. Re-measured whenever
- * the content changes size (loading, then the Translation).
- */
-function usePopupPosition(
-  rootRef: RefObject<HTMLDivElement | null>,
-  popup: TranslationPopupState,
-): PopupPosition {
-  const { anchor } = popup;
-  const [position, setPosition] = useState<PopupPosition>({
-    left: anchor.left,
-    top: anchor.bottom + SELECTION_GAP_PX,
-    measured: false,
-  });
-
-  useLayoutEffect(() => {
-    const element = rootRef.current;
-    if (!element) return;
-    const place = () => {
-      const { width, height } = element.getBoundingClientRect();
-      setPosition({ ...fitInWindow(anchor, { width, height }), measured: true });
-    };
-    place();
-    const observer = new ResizeObserver(place);
-    observer.observe(element);
-    window.addEventListener('resize', place);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', place);
-    };
-  }, [rootRef, anchor]);
-
-  return position;
-}
-
-function fitInWindow(anchor: TranslationAnchor, size: { width: number; height: number }): { left: number; top: number } {
-  const maxLeft = window.innerWidth - size.width - WINDOW_MARGIN_PX;
-  const left = Math.max(WINDOW_MARGIN_PX, Math.min(anchor.left, maxLeft));
-  const below = anchor.bottom + SELECTION_GAP_PX;
-  const fitsBelow = below + size.height <= window.innerHeight - WINDOW_MARGIN_PX;
-  const above = anchor.top - SELECTION_GAP_PX - size.height;
-  const top = fitsBelow ? below : Math.max(WINDOW_MARGIN_PX, above);
-  return { left, top };
 }
 
 /**

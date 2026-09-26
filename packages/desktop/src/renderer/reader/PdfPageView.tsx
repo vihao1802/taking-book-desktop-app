@@ -5,7 +5,8 @@ import type { TextMatch } from '@taking-book/core';
 import type { Annotation, AnnotationColor } from '../../shared/types';
 import { SelectionToolbar } from './SelectionToolbar';
 import { TranslationPopup } from './TranslationPopup';
-import { useTranslationPopup, type TranslationAnchor } from './useTranslationPopup';
+import { useTranslationPopup } from './useTranslationPopup';
+import type { SelectionAnchor } from './floating-placement';
 import {
   computeHighlightRects,
   HIGHLIGHT_FILL,
@@ -82,7 +83,7 @@ export const PdfPageView = memo(function PdfPageView({
   const textLayerRef = useRef<HTMLDivElement>(null);
   const [textLayerReady, setTextLayerReady] = useState(false);
   const [highlightRects, setHighlightRects] = useState<Map<number, HighlightRect[]>>(new Map());
-  const [toolbar, setToolbar] = useState<{ selection: PageTextSelection; anchor: TranslationAnchor; x: number; y: number } | null>(null);
+  const [toolbar, setToolbar] = useState<{ selection: PageTextSelection; anchor: SelectionAnchor } | null>(null);
   const translation = useTranslationPopup();
 
   // Render the canvas for this page.
@@ -245,8 +246,6 @@ export const PdfPageView = memo(function PdfPageView({
     setToolbar({
       selection: { page: pageNumber, start, end, quote },
       anchor: { left: rect.left, top: rect.top, bottom: rect.bottom },
-      x: rect.left,
-      y: rect.bottom + 8,
     });
   };
 
@@ -326,7 +325,7 @@ export const PdfPageView = memo(function PdfPageView({
         ));
       })}
       {toolbar && (
-        <SelectionToolbar x={toolbar.x} y={toolbar.y} onHighlight={highlight} onAddNote={addNote} onTranslate={translate} />
+        <SelectionToolbar anchor={toolbar.anchor} onHighlight={highlight} onAddNote={addNote} onTranslate={translate} />
       )}
       {translation.popup && <TranslationPopup popup={translation.popup} onClose={translation.close} />}
     </div>

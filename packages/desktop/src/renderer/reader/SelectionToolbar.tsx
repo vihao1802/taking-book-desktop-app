@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_FILL } from './highlights';
 import { useHighlightColorChoice } from './useHighlightColorChoice';
+import { useFloatingPosition } from './useFloatingPosition';
+import type { SelectionAnchor } from './floating-placement';
 
 interface SelectionToolbarProps {
-  x: number;
-  y: number;
+  anchor: SelectionAnchor;
   onHighlight: (color: AnnotationColor) => void;
   onAddNote: () => void;
   onTranslate: () => void;
@@ -17,17 +18,20 @@ interface SelectionToolbarProps {
 /**
  * Floating toolbar shown over selected text: a Highlight button that opens the
  * color choice, Add note, and Translate. The colors sit behind one button so the toolbar
- * stays compact and has room for further selection actions.
+ * stays compact and has room for further selection actions. It opens below the
+ * selection and stays inside the window, flipping above the selection when
+ * there is no room below.
  */
-export function SelectionToolbar({ x, y, onHighlight, onAddNote, onTranslate }: SelectionToolbarProps) {
+export function SelectionToolbar({ anchor, onHighlight, onAddNote, onTranslate }: SelectionToolbarProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const colors = useHighlightColorChoice(rootRef, { x, y });
+  const colors = useHighlightColorChoice(rootRef, anchor);
+  const position = useFloatingPosition(rootRef, anchor);
 
   return (
     <div
       ref={rootRef}
       className="bg-overlay text-foreground fixed z-50 flex flex-col items-start gap-1 rounded-lg px-2 py-1.5 shadow-lg backdrop-blur-md"
-      style={{ left: x, top: y }}
+      style={{ left: position.left, top: position.top, visibility: position.measured ? 'visible' : 'hidden' }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

@@ -28,7 +28,8 @@ import { usePdfOutline } from './usePdfOutline';
 import { usePersistedSidebarWidth } from './usePersistedSidebarWidth';
 import { SelectionToolbar } from './SelectionToolbar';
 import { TranslationPopup } from './TranslationPopup';
-import { useTranslationPopup, type TranslationAnchor } from './useTranslationPopup';
+import { useTranslationPopup } from './useTranslationPopup';
+import type { SelectionAnchor } from './floating-placement';
 import { ReflowFigure } from './ReflowFigure';
 import {
   findRangeIgnoringWhitespace,
@@ -143,7 +144,7 @@ export function ReflowReader({
   const [scrollTop, setScrollTop] = useState(0);
   const { fullScreen, toggleFullScreen } = useFullScreen();
   const [overlayVisible, setOverlayVisible] = useState(false);
-  const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; anchor: TranslationAnchor; x: number; y: number } | null>(null);
+  const [selectionToolbar, setSelectionToolbar] = useState<{ items: ReflowSelection[]; anchor: SelectionAnchor } | null>(null);
   const { popup: translationPopup, translate: startTranslation, close: closeTranslation } = useTranslationPopup();
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
   const [sidebarWidth, setSidebarWidth] = usePersistedSidebarWidth();
@@ -488,7 +489,7 @@ export function ReflowReader({
       setSelectionToolbar(null);
       return;
     }
-    setSelectionToolbar({ items, anchor: { left: rect.left, top: rect.top, bottom: rect.bottom }, x: rect.left, y: rect.bottom + 8 });
+    setSelectionToolbar({ items, anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } });
   }, []);
 
   const anchorFor = useCallback(
@@ -580,8 +581,7 @@ export function ReflowReader({
       )}
       {selectionToolbar && (
         <SelectionToolbar
-          x={selectionToolbar.x}
-          y={selectionToolbar.y}
+          anchor={selectionToolbar.anchor}
           onHighlight={highlight}
           onAddNote={addNote}
           onTranslate={translate}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import type { SelectionAnchor } from './floating-placement';
 
 interface HighlightColorChoice {
   open: boolean;
@@ -11,11 +12,11 @@ interface HighlightColorChoice {
  * selection (a keyboard selection change keeps the toolbar mounted).
  *
  * @param rootRef - The toolbar element; presses inside it keep the choice open.
- * @param anchor - The toolbar position; a change means a new selection.
+ * @param anchor - The selection the toolbar belongs to; a change means a new selection.
  */
 export function useHighlightColorChoice(
   rootRef: RefObject<HTMLElement | null>,
-  anchor: { x: number; y: number },
+  anchor: SelectionAnchor,
 ): HighlightColorChoice {
   const [open, setOpen] = useState(false);
   const openRef = useRef(open);
@@ -23,7 +24,7 @@ export function useHighlightColorChoice(
 
   useEffect(() => {
     setOpen(false);
-  }, [anchor.x, anchor.y]);
+  }, [anchor.left, anchor.top, anchor.bottom]);
 
   // Registered on mount rather than on open: the page view's own capture-phase
   // Escape listener (which closes the whole toolbar) is added after the
