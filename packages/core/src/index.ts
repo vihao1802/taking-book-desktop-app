@@ -170,3 +170,20 @@ export {
 } from './sync/cloud';
 export { deriveCodeChallenge, generateCodeVerifier } from './sync/pkce';
 export { processPagesInOrder, type ProcessPagesOptions } from './pageProcessing';
+export {
+  DEFAULT_FOCUS_MINUTES,
+  FOCUS_MAX_MINUTES,
+  FOCUS_MIN_MINUTES,
+  FOCUS_PRESET_MINUTES,
+  INITIAL_FOCUS_STATE,
+  applyFocusAction,
+  formatFocusTimeLeft,
+  getFocusTimeLeftMs,
+  parseFocusMinutes,
+  type FocusAction,
+  type FocusEffect,
+  type FocusError,
+  type FocusState,
+  type FocusTimer,
+  type FocusTransition,
+} from './focus';

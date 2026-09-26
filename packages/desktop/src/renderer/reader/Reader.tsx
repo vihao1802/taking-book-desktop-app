@@ -217,11 +217,22 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
     );
   }, []);
 
+  // An open overlay menu (such as the Focus controls) is being read or used, so it holds the overlay up too.
+  const overlayMenuOpenRef = useRef(false);
+
   const startHideTimer = useCallback(() => {
     window.clearTimeout(hideTimerRef.current);
-    if (isEditingText()) return;
+    if (isEditingText() || overlayMenuOpenRef.current) return;
     hideTimerRef.current = window.setTimeout(() => setOverlayVisible(false), HIDE_DELAY_MS);
   }, [isEditingText]);
+
+  const holdOverlayForMenu = useCallback(
+    (open: boolean) => {
+      overlayMenuOpenRef.current = open;
+      startHideTimer();
+    },
+    [startHideTimer],
+  );
 
   const reveal = useCallback(() => {
     setOverlayVisible(true);
@@ -443,6 +454,7 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
           onSeek={(p) => pagesRef.current?.scrollToPage(p)}
           onOpenGoTo={openGoToPage}
           onInteract={reveal}
+          onMenuOpenChange={holdOverlayForMenu}
           sidebarTab={sidebarTab}
           onSelectSidebarTab={setSidebarTab}
           notesOpen={notesSidebar.open}

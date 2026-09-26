@@ -5,11 +5,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { FocusControls } from '@/focus/FocusControls';
 import { ZoomControl } from './ZoomControl';
 import type { SidebarTab } from './SidebarPanel';
 import { withShortcutHint } from './shortcutHint';
 
 /** Clamps a zoom multiplier (1 = 100%) into the supported range. */
+/** A top-bar menu that opens over the page. */
+type OverlayMenu = 'sidebar' | 'focus';
+
 export function clampZoom(value: number): number {
   return clampZoomPercent(value * 100) / 100;
 }
@@ -39,6 +43,8 @@ interface OverlayProps {
   onOpenGoTo?: () => void;
   /** Called when an interaction needs the parent to keep the overlay visible. */
   onInteract?: () => void;
+  /** Called when a top-bar menu opens or closes, so the parent keeps the overlay up while one is open. */
+  onMenuOpenChange?: (open: boolean) => void;
   /** Active sidebar tab; null means the sidebar is closed. */
   sidebarTab?: SidebarTab | null;
   onSelectSidebarTab?: (tab: SidebarTab | null) => void;
@@ -70,59 +76,68 @@ export function Overlay({
   onSeek,
   onOpenGoTo,
   onInteract,
+  onMenuOpenChange,
   sidebarTab = null,
   onSelectSidebarTab,
   sidebarThumbnailsEnabled = true,
   notesOpen = false,
   onToggleNotes,
 }: OverlayProps) {
-  const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
+  // At most one top-bar menu is open: the sidebar menu or the Focus controls.
+  const [openMenu, setOpenMenu] = useState<OverlayMenu | null>(null);
+  const sidebarMenuOpen = openMenu === 'sidebar';
+  const closeMenu = () => setOpenMenu(null);
 
-  // Escape closes the open sidebar menu before anything else. Capture phase
-  // plus preventDefault tells the reader-wide shortcut handler it was consumed.
+  // Escape closes the open menu before anything else. Capture phase plus
+  // preventDefault tells the reader-wide shortcut handler it was consumed.
   useEffect(() => {
-    if (!sidebarMenuOpen) return;
+    if (openMenu === null) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       event.preventDefault();
-      setSidebarMenuOpen(false);
+      setOpenMenu(null);
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [sidebarMenuOpen]);
+  }, [openMenu]);
 
-  // A hidden overlay must not leave the menu open: the backdrop stays
+  const menuOpen = openMenu !== null;
+  useEffect(() => {
+    onMenuOpenChange?.(menuOpen);
+  }, [menuOpen, onMenuOpenChange]);
+
+  // A hidden overlay must not leave a menu open: the backdrop stays
   // clickable while invisible and would swallow the next page click.
   useEffect(() => {
-    if (!visible) setSidebarMenuOpen(false);
+    if (!visible) setOpenMenu(null);
   }, [visible]);
 
-  const openSidebarMenu = () => {
-    setSidebarMenuOpen(true);
+  const showMenu = (menu: OverlayMenu) => {
+    setOpenMenu(menu);
     onInteract?.();
   };
 
   const chooseSidebarTab = (tab: SidebarTab) => {
     // Tapping the active entry closes the sidebar, mirroring the panel toggle.
     onSelectSidebarTab?.(tab === sidebarTab ? null : tab);
-    setSidebarMenuOpen(false);
+    closeMenu();
   };
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10" onPointerDown={(e) => e.stopPropagation()}>
-      {sidebarMenuOpen && (
+      {openMenu !== null && (
         <div
           className="pointer-events-auto absolute inset-0 z-10"
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => setSidebarMenuOpen(false)}
+          onClick={closeMenu}
           aria-hidden
         />
       )}
-      {/* While the sidebar menu is open the top bar sits above its own
+      {/* While a menu is open the top bar sits above its own
           click-away backdrop. The bar's backdrop-blur traps the dropdown's
           z-30 in a local stacking context, so without this the transparent
           backdrop (z-10) covers the menu and swallows every click on it. */}
-      <div className={cn('overlay overlay-top', !visible && 'overlay-hidden', sidebarMenuOpen && 'z-20')}>
+      <div className={cn('overlay overlay-top', !visible && 'overlay-hidden', openMenu !== null && 'z-20')}>
         <div className="bg-overlay text-foreground pointer-events-auto flex items-center gap-3.5 px-4 py-2.5 backdrop-blur-md">
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Back">
             <ArrowLeft className="size-5" />
@@ -132,7 +147,7 @@ export function Overlay({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => (sidebarMenuOpen ? setSidebarMenuOpen(false) : openSidebarMenu())}
+                onClick={() => (sidebarMenuOpen ? closeMenu() : showMenu('sidebar'))}
                 aria-label="Thumbnails and outlines"
                 aria-haspopup="menu"
                 aria-expanded={sidebarMenuOpen}
@@ -205,6 +220,10 @@ export function Overlay({
           >
             {mode === 'reflow' ? <FileText className="size-4" /> : <TextWrap className="size-4" />}
           </Button>
+          <FocusControls
+            open={openMenu === 'focus'}
+            onOpenChange={(open) => (open ? showMenu('focus') : closeMenu())}
+          />
           {onToggleNotes && (
             <Button
               variant="ghost"

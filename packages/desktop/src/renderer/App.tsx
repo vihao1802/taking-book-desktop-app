@@ -5,6 +5,7 @@ import { DropOverlay } from './components/DropOverlay';
 import { ImportNotice } from './components/ImportNotice';
 import { NavRail, type View } from './components/NavRail';
 import { Favorites } from './favorites/Favorites';
+import { FocusProvider } from './focus/FocusProvider';
 import { Home } from './home/Home';
 import { Library } from './library/Library';
 import { LibraryProvider } from './library/LibraryProvider';
@@ -34,39 +35,39 @@ export function App() {
     setNoteToOpen(null);
   };
 
-  if (file) {
-    return (
-      <ThemeProvider>
-        <Reader key={file.id} file={file} noteToOpen={noteToOpen} onClose={closeReader} />
-      </ThemeProvider>
-    );
-  }
-
+  // The providers sit above both branches: the Focus timer belongs to the app,
+  // so opening or leaving a Book must not remount it.
   return (
     <ThemeProvider>
-      <LibraryProvider>
-        <div className="bg-background flex h-full overflow-hidden">
-          <NavRail current={view} onNavigate={navigate} />
-          <main className="min-w-0 flex-1 overflow-y-auto">
-            {view === 'home' ? (
-              <Home onOpen={setFile} onNavigate={navigate} />
-            ) : view === 'library' ? (
-              <Library onOpen={setFile} />
-            ) : view === 'favorites' ? (
-              <Favorites onOpen={setFile} onNavigate={navigate} />
-            ) : view === 'notes' ? (
-              <NotesView onOpenNote={openBookAtNote} />
-            ) : view === 'statistics' ? (
-              <Statistics onOpen={setFile} />
-            ) : (
-              <Settings />
-            )}
-            <AddPdfFab onOpen={setFile} />
-            <ImportNotice onOpen={setFile} />
-            <DropOverlay />
-          </main>
-        </div>
-      </LibraryProvider>
+      <FocusProvider>
+        {file ? (
+          <Reader key={file.id} file={file} noteToOpen={noteToOpen} onClose={closeReader} />
+        ) : (
+          <LibraryProvider>
+            <div className="bg-background flex h-full overflow-hidden">
+              <NavRail current={view} onNavigate={navigate} />
+              <main className="min-w-0 flex-1 overflow-y-auto">
+                {view === 'home' ? (
+                  <Home onOpen={setFile} onNavigate={navigate} />
+                ) : view === 'library' ? (
+                  <Library onOpen={setFile} />
+                ) : view === 'favorites' ? (
+                  <Favorites onOpen={setFile} onNavigate={navigate} />
+                ) : view === 'notes' ? (
+                  <NotesView onOpenNote={openBookAtNote} />
+                ) : view === 'statistics' ? (
+                  <Statistics onOpen={setFile} />
+                ) : (
+                  <Settings />
+                )}
+                <AddPdfFab onOpen={setFile} />
+                <ImportNotice onOpen={setFile} />
+                <DropOverlay />
+              </main>
+            </div>
+          </LibraryProvider>
+        )}
+      </FocusProvider>
     </ThemeProvider>
   );
 }
