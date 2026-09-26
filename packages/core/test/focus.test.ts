@@ -117,7 +117,7 @@ describe('formatFocusTimeLeft', () => {
 });
 
 describe('Ambient sound', () => {
-  it('lists the noise colors and nature recordings in the sound catalog', () => {
+  it('lists the noise colors, nature recordings and instrumental styles in the sound catalog', () => {
     expect(AMBIENT_SOUNDS.map(({ id, kind, name }) => ({ id, kind, name }))).toEqual([
       { id: 'white-noise', kind: 'noise', name: 'White noise' },
       { id: 'pink-noise', kind: 'noise', name: 'Pink noise' },
@@ -126,9 +126,24 @@ describe('Ambient sound', () => {
       { id: 'fire', kind: 'nature', name: 'Fire' },
       { id: 'forest', kind: 'nature', name: 'Forest' },
       { id: 'ocean', kind: 'nature', name: 'Ocean' },
+      { id: 'lofi', kind: 'instrumental', name: 'Lo-fi' },
+      { id: 'piano', kind: 'instrumental', name: 'Piano' },
+      { id: 'calm-ambient', kind: 'instrumental', name: 'Calm ambient' },
     ]);
     expect(getAmbientSound('pink-noise')?.name).toBe('Pink noise');
     expect(getAmbientSound('cafe')).toBeNull();
+  });
+
+  it('gives each instrumental style 2 to 3 ordered tracks and no other sound any', () => {
+    for (const sound of AMBIENT_SOUNDS) {
+      if (sound.kind === 'instrumental') {
+        expect(sound.trackIds?.length).toBeGreaterThanOrEqual(2);
+        expect(sound.trackIds?.length).toBeLessThanOrEqual(3);
+      } else {
+        expect(sound.trackIds).toBeUndefined();
+      }
+    }
+    expect(getAmbientSound('lofi')?.trackIds).toEqual(['lofi-calm-currents', 'lofi-color-of-a-soul', 'lofi-break-from-reality']);
   });
 
   it('plays a chosen sound at the current volume when none is playing, with no Focus timer', () => {

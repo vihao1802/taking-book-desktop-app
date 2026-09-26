@@ -1,11 +1,11 @@
-import type { PlayingNoise } from './noise';
+import { stopSource, type PlayingSound } from './playing-sound';
 
 // Vite gives each bundled recording a URL that also works from the packaged app, and keeps them offline.
 const RECORDING_URLS = import.meta.glob<string>('./sounds/*.opus', { query: '?url', import: 'default', eager: true });
 
-/** The bundled recording URL for an Ambient sound id, or null when the sound is not a recording. */
-export function getRecordingUrl(soundId: string): string | null {
-  return RECORDING_URLS[`./sounds/${soundId}.opus`] ?? null;
+/** The bundled file URL for a recording or track id, or null when no such file is bundled. */
+export function getBundledSoundUrl(fileId: string): string | null {
+  return RECORDING_URLS[`./sounds/${fileId}.opus`] ?? null;
 }
 
 const decodedRecordings = new WeakMap<AudioContext, Map<string, Promise<AudioBuffer>>>();
@@ -21,7 +21,7 @@ async function decodeRecording(audio: AudioContext, soundId: string, url: string
  * the sound again starts at once; a failed load is not kept, so it can be retried.
  */
 export function loadRecording(audio: AudioContext, soundId: string): Promise<AudioBuffer> {
-  const url = getRecordingUrl(soundId);
+  const url = getBundledSoundUrl(soundId);
   if (url === null) return Promise.reject(new Error(`No recording for Ambient sound "${soundId}"`));
   const cache = decodedRecordings.get(audio) ?? new Map<string, Promise<AudioBuffer>>();
   decodedRecordings.set(audio, cache);
@@ -38,7 +38,7 @@ export function loadRecording(audio: AudioContext, soundId: string): Promise<Aud
  * envelope is raised. A buffer source loops sample-accurately, so there is no
  * gap the way an `<audio loop>` element would leave.
  */
-export function startRecording(audio: AudioContext, buffer: AudioBuffer, destination: AudioNode): PlayingNoise {
+export function startRecording(audio: AudioContext, buffer: AudioBuffer, destination: AudioNode): PlayingSound {
   const source = audio.createBufferSource();
   source.buffer = buffer;
   source.loop = true;
@@ -46,5 +46,5 @@ export function startRecording(audio: AudioContext, buffer: AudioBuffer, destina
   envelope.gain.value = 0;
   source.connect(envelope).connect(destination);
   source.start();
-  return { source, envelope };
+  return { envelope, stop: (atTime, onEnded) => stopSource(source, atTime, onEnded) };
 }

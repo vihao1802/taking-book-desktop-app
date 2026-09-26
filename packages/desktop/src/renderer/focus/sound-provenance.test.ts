@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { AMBIENT_SOUNDS } from '@taking-book/core';
@@ -61,5 +61,12 @@ describe('bundled Ambient sounds', () => {
     const files = readdirSync(SOUNDS_DIR);
     const missing = AMBIENT_SOUNDS.filter((sound) => sound.kind === 'nature' && !files.includes(`${sound.id}.opus`));
     expect(missing.map((sound) => sound.id)).toEqual([]);
+  });
+
+  it('has a bundled file listed in the manifest for every instrumental track id in the core catalog', () => {
+    const listed = new Set(manifest.map((entry) => entry.file));
+    const trackFiles = AMBIENT_SOUNDS.flatMap((sound) => sound.trackIds ?? []).map((trackId) => `${trackId}.opus`);
+    expect(trackFiles.length).toBeGreaterThan(0);
+    expect(trackFiles.filter((file) => !listed.has(file) || !existsSync(path.join(SOUNDS_DIR, file)))).toEqual([]);
   });
 });

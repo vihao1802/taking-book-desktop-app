@@ -1,3 +1,5 @@
+import { stopSource, type PlayingSound } from './playing-sound';
+
 export type NoiseColor = 'white' | 'pink' | 'brown';
 
 const NOISE_COLOR_BY_SOUND_ID: Record<string, NoiseColor> = {
@@ -51,18 +53,12 @@ function getWhiteNoiseBuffer(audio: AudioContext): AudioBuffer {
   return buffer;
 }
 
-/** A playing noise: stop the source to end it, ramp the envelope to fade it. */
-export interface PlayingNoise {
-  source: AudioBufferSourceNode;
-  envelope: GainNode;
-}
-
 /**
  * Starts a noise color playing into `destination`, silent until its envelope
  * is raised: looped white noise, shaped by a filter for pink and brown, then
  * softened at the top.
  */
-export function startNoise(audio: AudioContext, color: NoiseColor, destination: AudioNode): PlayingNoise {
+export function startNoise(audio: AudioContext, color: NoiseColor, destination: AudioNode): PlayingSound {
   const source = audio.createBufferSource();
   source.buffer = getWhiteNoiseBuffer(audio);
   source.loop = true;
@@ -77,5 +73,5 @@ export function startNoise(audio: AudioContext, color: NoiseColor, destination: 
   envelope.gain.value = 0;
   shaped.connect(soften).connect(level).connect(envelope).connect(destination);
   source.start();
-  return { source, envelope };
+  return { envelope, stop: (atTime, onEnded) => stopSource(source, atTime, onEnded) };
 }

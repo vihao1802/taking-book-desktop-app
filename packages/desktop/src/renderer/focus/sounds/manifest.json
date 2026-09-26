@@ -38,5 +38,85 @@
     "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
     "downloadedOn": "2026-09-26",
     "edits": "Source is Freesound's 128 kbps MP3 preview (originals need a login). 1.5 s equal-power crossfade of the tail into the head; Opus 64 kbps VBR, loudness-normalised to about -21 LUFS (the source was very quiet)."
+  },
+  {
+    "file": "lofi-calm-currents.opus",
+    "sourceUrl": "https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/calm-currents-lofi-relax-calm/",
+    "author": "HoliznaCC0",
+    "title": "Calm Currents",
+    "licence": "CC0 1.0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "downloadedOn": "2026-09-26",
+    "edits": "Source MP3 decoded and re-encoded as Opus 96 kbps VBR, loudness-normalised to -20 LUFS."
+  },
+  {
+    "file": "lofi-color-of-a-soul.opus",
+    "sourceUrl": "https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/color-of-a-soul-lofi-calm-nostalgic/",
+    "author": "HoliznaCC0",
+    "title": "Color of a Soul",
+    "licence": "CC0 1.0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "downloadedOn": "2026-09-26",
+    "edits": "Source MP3 decoded and re-encoded as Opus 96 kbps VBR, loudness-normalised to -20 LUFS."
+  },
+  {
+    "file": "lofi-break-from-reality.opus",
+    "sourceUrl": "https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/break-from-reality-lofi-peaceful-mp3/",
+    "author": "HoliznaCC0",
+    "title": "Break from Reality",
+    "licence": "CC0 1.0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "downloadedOn": "2026-09-26",
+    "edits": "Source MP3 decoded and re-encoded as Opus 96 kbps VBR, loudness-normalised to -20 LUFS."
+  },
+  {
+    "file": "piano-goldberg-aria.opus",
+    "sourceUrl": "https://archive.org/details/The_Open_Goldberg_Variations-11823",
+    "author": "Kimiko Ishizaka",
+    "title": "Open Goldberg Variations: Aria",
+    "licence": "CC0 1.0",
+    "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/",
+    "downloadedOn": "2026-09-26",
+    "edits": "Source is the Internet Archive item's Ogg Vorbis file Kimiko_Ishizaka_-_01_-_Aria.ogg, re-encoded as Opus 96 kbps VBR, loudness-normalised to -20 LUFS."
+  },
+  {
+    "file": "piano-goldberg-variatio-13.opus",
+    "sourceUrl": "https://archive.org/details/The_Open_Goldberg_Variations-11823",
+    "author": "Kimiko Ishizaka",
+    "title": "Open Goldberg Variations: Variatio 13",
+    "licence": "CC0 1.0",
+    "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/",
+    "downloadedOn": "2026-09-26",
+    "edits": "Source is the Internet Archive item's Ogg Vorbis file Kimiko_Ishizaka_-_14_-_Variatio_13_a_2_Clav.ogg, re-encoded as Opus 96 kbps VBR, loudness-normalised to -20 LUFS."
+  },
+  {
+    "file": "piano-goldberg-variatio-24.opus",
+    "sourceUrl": "https://archive.org/details/The_Open_Goldberg_Variations-11823",
+    "author": "Kimiko Ishizaka",
+    "title": "Open Goldberg Variations: Variatio 24",
+    "licence": "CC0 1.0",
+    "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/",
+    "downloadedOn": "2026-09-26",
+    "edits": "Source is the Internet Archive item's Ogg Vorbis file Kimiko_Ishizaka_-_25_-_Variatio_24_a_1_Clav_Canone_allOttava.ogg, re-encoded as Opus 96 kbps VBR, loudness-normalised to -20 LUFS."
+  },
+  {
+    "file": "ambient-synthwave.opus",
+    "sourceUrl": "https://opengameart.org/content/calm-ambient-2-synthwave-15k",
+    "author": "The Cynic Project",
+    "title": "Calm Ambient 2 (Synthwave 15k)",
+    "licence": "CC0 1.0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "downloadedOn": "2026-09-26",
+    "edits": "Source MP3 decoded and re-encoded as Opus 96 kbps VBR, loudness-normalised to -20 LUFS. The author asks for credit (The Cynic Project / cynicmusic.com); CC0 does not require it, but it is given here as a courtesy."
+  },
+  {
+    "file": "ambient-vaporware.opus",
+    "sourceUrl": "https://opengameart.org/content/calm-piano-1-vaporware",
+    "author": "The Cynic Project",
+    "title": "Calm Piano 1 (Vaporware)",
+    "licence": "CC0 1.0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "downloadedOn": "2026-09-26",
+    "edits": "Source MP3 decoded and re-encoded as Opus 96 kbps VBR, loudness-normalised to -20 LUFS. The author asks for credit (The Cynic Project / cynicmusic.com); CC0 does not require it, but it is given here as a courtesy."
   }
 ]

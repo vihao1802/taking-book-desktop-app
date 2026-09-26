@@ -1,8 +1,10 @@
 import { err, ok, type Result } from '@taking-book/core';
 import type { AmbientSoundPlayer } from './ambient-sound-player';
 import { getAudioContext, resumeAudioContext } from './audio-context';
-import { loadRecording, getRecordingUrl, startRecording } from './nature-recordings';
-import { getNoiseColor, startNoise, type PlayingNoise } from './noise';
+import { getPlaylistUrls, startPlaylist } from './instrumental-playlist';
+import { getBundledSoundUrl, loadRecording, startRecording } from './nature-recordings';
+import { getNoiseColor, startNoise } from './noise';
+import type { PlayingSound } from './playing-sound';
 
 // Short enough to feel live while dragging the slider, long enough to avoid zipper noise.
 const VOLUME_SMOOTHING_S = 0.03;
@@ -28,13 +30,13 @@ function tryRun(run: () => void): Result<void, unknown> {
   }
 }
 
-/** An Ambient sound player: generates the noise colors and loops the bundled nature recordings, both with Web Audio. */
+/** An Ambient sound player: generates the noise colors, loops the bundled nature recordings and plays the instrumental styles' tracks in turn, all through Web Audio. */
 export function createWebAudioSoundPlayer(): AmbientSoundPlayer {
   let output: GainNode | null = null;
-  let playing: PlayingNoise | null = null;
+  let playing: PlayingSound | null = null;
   let volume = 0;
   let paused = false;
-  let fading: PlayingNoise | null = null;
+  let fading: PlayingSound | null = null;
   // A recording takes a moment to decode, so a newer play or a stop can arrive first and must win.
   let latestRequest = 0;
 
@@ -48,38 +50,42 @@ export function createWebAudioSoundPlayer(): AmbientSoundPlayer {
 
   const stopPlaying = (fadeS: number = FADE_OUT_S): void => {
     if (playing === null) return;
-    const { source, envelope } = playing;
-    fading = fadeS > FADE_OUT_S ? playing : null;
+    const ending = playing;
+    const { envelope } = ending;
+    fading = fadeS > FADE_OUT_S ? ending : null;
     playing = null;
     const now = envelope.context.currentTime;
     envelope.gain.cancelScheduledValues(now);
     envelope.gain.setValueAtTime(envelope.gain.value, now);
     envelope.gain.linearRampToValueAtTime(0, now + fadeS);
-    source.onended = () => {
+    ending.stop(now + fadeS, () => {
       envelope.disconnect();
-      if (fading?.source === source) fading = null;
-    };
-    source.stop(now + fadeS);
+      if (fading === ending) fading = null;
+    });
   };
 
   // The shared output gain is about to jump back to full volume, so a slow fade-out still running would swell under the new sound.
   const cutOffFade = (): void => {
     if (fading === null) return;
-    const { source, envelope } = fading;
+    const { envelope } = fading;
+    fading.stop(0, () => undefined);
     fading = null;
-    source.stop();
     envelope.disconnect();
   };
 
-  const startSound = (soundId: string, recording: AudioBuffer | null): PlayingNoise => {
+  const startSound = async (soundId: string, recording: AudioBuffer | null): Promise<PlayingSound> => {
     cutOffFade();
-    const color = getNoiseColor(soundId);
-    if (recording === null && color === null) throw new Error(`No audio for Ambient sound "${soundId}"`);
     const audio = getAudioContext();
     const out = getOutput(audio);
     out.gain.cancelScheduledValues(audio.currentTime);
     out.gain.setValueAtTime(paused ? 0 : toGain(volume), audio.currentTime);
-    const sound = recording !== null ? startRecording(audio, recording, out) : startNoise(audio, color ?? 'white', out);
+    const color = getNoiseColor(soundId);
+    const playlist = getPlaylistUrls(soundId);
+    let sound: PlayingSound;
+    if (recording !== null) sound = startRecording(audio, recording, out);
+    else if (color !== null) sound = startNoise(audio, color, out);
+    else if (playlist !== null) sound = await startPlaylist(audio, playlist, out);
+    else throw new Error(`No audio for Ambient sound "${soundId}"`);
     sound.envelope.gain.setValueAtTime(0, audio.currentTime);
     sound.envelope.gain.linearRampToValueAtTime(1, audio.currentTime + FADE_IN_S);
     return sound;
@@ -90,14 +96,18 @@ export function createWebAudioSoundPlayer(): AmbientSoundPlayer {
       volume = nextVolume;
       paused = false;
       const request = ++latestRequest;
-      let started: PlayingNoise | null = null;
+      let started: PlayingSound | null = null;
       try {
         stopPlaying();
-        const recording = getRecordingUrl(soundId) === null ? null : await loadRecording(getAudioContext(), soundId);
+        const recording = getBundledSoundUrl(soundId) === null ? null : await loadRecording(getAudioContext(), soundId);
         if (request !== latestRequest) return ok(undefined);
-        started = startSound(soundId, recording);
-        playing = started;
         await resumeAudioContext(getAudioContext());
+        started = await startSound(soundId, recording);
+        if (request !== latestRequest) {
+          started.stop(0, () => started?.envelope.disconnect());
+          return ok(undefined);
+        }
+        playing = started;
         return ok(undefined);
       } catch (error) {
         // Only silence this call's own sound: a later play may have replaced it already.

@@ -29,6 +29,8 @@ export interface AmbientSound {
   id: string;
   kind: AmbientSoundKind;
   name: string;
+  /** For an instrumental style: its track ids, in the order they play before the style repeats. Absent for other kinds. */
+  trackIds?: string[];
 }
 
 /** Every Ambient sound, in the order the Focus controls list them. */
@@ -40,6 +42,14 @@ export const AMBIENT_SOUNDS: AmbientSound[] = [
   { id: 'fire', kind: 'nature', name: 'Fire' },
   { id: 'forest', kind: 'nature', name: 'Forest' },
   { id: 'ocean', kind: 'nature', name: 'Ocean' },
+  { id: 'lofi', kind: 'instrumental', name: 'Lo-fi', trackIds: ['lofi-calm-currents', 'lofi-color-of-a-soul', 'lofi-break-from-reality'] },
+  {
+    id: 'piano',
+    kind: 'instrumental',
+    name: 'Piano',
+    trackIds: ['piano-goldberg-aria', 'piano-goldberg-variatio-13', 'piano-goldberg-variatio-24'],
+  },
+  { id: 'calm-ambient', kind: 'instrumental', name: 'Calm ambient', trackIds: ['ambient-synthwave', 'ambient-vaporware'] },
 ];
 
 /**
