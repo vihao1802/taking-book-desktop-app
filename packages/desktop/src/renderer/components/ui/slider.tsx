@@ -9,8 +9,12 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  thumbLabel,
   ...props
-}: SliderPrimitive.SliderProps) {
+}: SliderPrimitive.SliderProps & {
+  /** The accessible name for the thumb, which is the element that carries the slider role. */
+  thumbLabel?: string;
+}) {
   return (
     <SliderPrimitive.Root
       data-slot="slider"
@@ -32,6 +36,7 @@ function Slider({
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         data-slot="slider-thumb"
+        aria-label={thumbLabel}
         className="bg-background border-primary focus-visible:ring-ring/50 block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
       />
     </SliderPrimitive.Root>

@@ -1,5 +1,5 @@
 /**
- * Focus timer rules, shared by both platforms. A pure state machine: the
+ * Focus timer and Ambient sound rules, shared by both platforms. A pure state machine: the
  * clock is passed in, and each transition returns the next state plus the
  * effects the platform must carry out. Nothing here runs timers or sound.
  */
@@ -15,8 +15,41 @@ export const FOCUS_MAX_MINUTES = 180;
 /** The length chosen when the reader has not picked one. */
 export const DEFAULT_FOCUS_MINUTES = 25;
 
-/** Why a Focus timer could not start. */
-export type FocusError = 'invalid-length';
+/**
+ * Why a focus action was rejected: a Focus timer length outside the rules, a
+ * sound id missing from the catalog, or a volume that is not a number.
+ */
+export type FocusError = 'invalid-length' | 'unknown-sound' | 'invalid-volume';
+
+export type AmbientSoundKind = 'noise' | 'nature' | 'instrumental';
+
+/** One Ambient sound the reader can choose. How to play it is up to each platform. */
+export interface AmbientSound {
+  /** Stable id, safe to store and to key platform audio by. */
+  id: string;
+  kind: AmbientSoundKind;
+  name: string;
+}
+
+/** Every Ambient sound, in the order the Focus controls list them. */
+export const AMBIENT_SOUNDS: AmbientSound[] = [
+  { id: 'white-noise', kind: 'noise', name: 'White noise' },
+  { id: 'pink-noise', kind: 'noise', name: 'Pink noise' },
+  { id: 'brown-noise', kind: 'noise', name: 'Brown noise' },
+];
+
+/**
+ * Looks up a sound in the catalog.
+ *
+ * @param id - A sound id, possibly stale or unknown.
+ * @returns The sound, or null when the catalog has no sound with that id.
+ */
+export function getAmbientSound(id: string): AmbientSound | null {
+  return AMBIENT_SOUNDS.find((sound) => sound.id === id) ?? null;
+}
+
+/** The volume, from 0 to 1, used before the reader sets one. */
+export const DEFAULT_AMBIENT_VOLUME = 0.3;
 
 /**
  * Validates a custom Focus timer length the reader typed.
@@ -45,8 +78,20 @@ export type FocusTimer =
   | { status: 'running'; endsAt: number }
   | { status: 'paused'; remainingMs: number };
 
+/**
+ * The Ambient sound: the last sound chosen (kept after stopping, so it can be
+ * shown as the reader's choice), the single volume every sound shares, and
+ * whether it is playing.
+ */
+export interface AmbientSoundState {
+  soundId: string | null;
+  volume: number;
+  status: 'playing' | 'stopped';
+}
+
 export interface FocusState {
   timer: FocusTimer;
+  sound: AmbientSoundState;
 }
 
 export type FocusAction =
@@ -54,17 +99,28 @@ export type FocusAction =
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'stop' }
-  | { type: 'tick' };
+  | { type: 'tick' }
+  | { type: 'choose-sound'; soundId: string }
+  | { type: 'stop-sound' }
+  | { type: 'set-volume'; volume: number };
 
 /** Work the platform carries out after a transition. */
-export type FocusEffect = { type: 'chime' } | { type: 'notify' };
+export type FocusEffect =
+  | { type: 'chime' }
+  | { type: 'notify' }
+  | { type: 'play-sound'; soundId: string; volume: number }
+  | { type: 'stop-sound' }
+  | { type: 'set-volume'; volume: number };
 
 export interface FocusTransition {
   state: FocusState;
   effects: FocusEffect[];
 }
 
-export const INITIAL_FOCUS_STATE: FocusState = { timer: { status: 'idle' } };
+export const INITIAL_FOCUS_STATE: FocusState = {
+  timer: { status: 'idle' },
+  sound: { soundId: null, volume: DEFAULT_AMBIENT_VOLUME, status: 'stopped' },
+};
 
 /**
  * Applies one action to the focus state.
@@ -73,8 +129,8 @@ export const INITIAL_FOCUS_STATE: FocusState = { timer: { status: 'idle' } };
  * @param action - What the reader (or the platform's periodic tick) did.
  * @param now - The current time in milliseconds; time is always measured
  *   against end times, so a late or throttled tick stays accurate.
- * @returns The next state and the effects to carry out, or `invalid-length`
- *   when a start asks for a length outside the Focus timer rules.
+ * @returns The next state and the effects to carry out, or a `FocusError`
+ *   when the action breaks the Focus timer or Ambient sound rules.
  */
 export function applyFocusAction(state: FocusState, action: FocusAction, now: number): Result<FocusTransition, FocusError> {
   switch (action.type) {
@@ -89,6 +145,12 @@ export function applyFocusAction(state: FocusState, action: FocusAction, now: nu
       return ok({ state: { ...state, timer: { status: 'idle' } }, effects: [] });
     case 'tick':
       return ok(tickTimer(state, now));
+    case 'choose-sound':
+      return chooseSound(state, action.soundId);
+    case 'stop-sound':
+      return ok(stopSound(state));
+    case 'set-volume':
+      return setVolume(state, action.volume);
   }
 }
 
@@ -114,6 +176,31 @@ function tickTimer(state: FocusState, now: number): FocusTransition {
   const { timer } = state;
   if (timer.status !== 'running' || now < timer.endsAt) return { state, effects: [] };
   return { state: { ...state, timer: { status: 'idle' } }, effects: [{ type: 'chime' }, { type: 'notify' }] };
+}
+
+// One sound plays at a time: playing a new one replaces the current one, at the shared volume.
+function chooseSound(state: FocusState, soundId: string): Result<FocusTransition, FocusError> {
+  if (getAmbientSound(soundId) === null) return err('unknown-sound');
+  const { sound } = state;
+  if (sound.status === 'playing' && sound.soundId === soundId) return ok({ state, effects: [] });
+  return ok({
+    state: { ...state, sound: { ...sound, soundId, status: 'playing' } },
+    effects: [{ type: 'play-sound', soundId, volume: sound.volume }],
+  });
+}
+
+function stopSound(state: FocusState): FocusTransition {
+  if (state.sound.status !== 'playing') return { state, effects: [] };
+  return { state: { ...state, sound: { ...state.sound, status: 'stopped' } }, effects: [{ type: 'stop-sound' }] };
+}
+
+function setVolume(state: FocusState, volume: number): Result<FocusTransition, FocusError> {
+  if (Number.isNaN(volume)) return err('invalid-volume');
+  const clamped = Math.min(1, Math.max(0, volume));
+  const next = { ...state, sound: { ...state.sound, volume: clamped } };
+  // A silent sound only needs the volume stored; the next play-sound carries it.
+  const effects: FocusEffect[] = state.sound.status === 'playing' ? [{ type: 'set-volume', volume: clamped }] : [];
+  return ok({ state: next, effects });
 }
 
 /**

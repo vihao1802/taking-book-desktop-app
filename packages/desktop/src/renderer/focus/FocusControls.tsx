@@ -27,7 +27,7 @@ export function FocusControls({ open, onOpenChange }: FocusControlsProps) {
         aria-label="Focus controls"
         aria-haspopup="dialog"
         aria-expanded={open}
-        title="Focus timer"
+        title="Focus controls"
         className={cn(open && 'bg-accent text-accent-foreground')}
       >
         <Timer className="size-4" />
@@ -41,7 +41,7 @@ export function FocusControls({ open, onOpenChange }: FocusControlsProps) {
         <div
           role="dialog"
           aria-label="Focus controls"
-          className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-1.5 w-64 rounded-md border p-3 shadow-md"
+          className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-1.5 w-72 rounded-md border p-3 shadow-md"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
         >

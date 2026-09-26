@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_FOCUS_STATE, applyFocusAction, formatFocusTimeLeft, getFocusTimeLeftMs, parseFocusMinutes, type FocusAction, type FocusState, type FocusTransition } from '../src';
+import { AMBIENT_SOUNDS, DEFAULT_AMBIENT_VOLUME, INITIAL_FOCUS_STATE, applyFocusAction, getAmbientSound, formatFocusTimeLeft, getFocusTimeLeftMs, parseFocusMinutes, type FocusAction, type FocusState, type FocusTransition } from '../src';
 
 const MINUTE = 60_000;
 
@@ -113,5 +113,80 @@ describe('formatFocusTimeLeft', () => {
     [180 * MINUTE, '3:00:00'],
   ])('shows %i ms left as "%s"', (ms, expected) => {
     expect(formatFocusTimeLeft(ms)).toBe(expected);
+  });
+});
+
+describe('Ambient sound', () => {
+  it('lists white, pink and brown noise in the sound catalog', () => {
+    expect(AMBIENT_SOUNDS.map(({ id, kind, name }) => ({ id, kind, name }))).toEqual([
+      { id: 'white-noise', kind: 'noise', name: 'White noise' },
+      { id: 'pink-noise', kind: 'noise', name: 'Pink noise' },
+      { id: 'brown-noise', kind: 'noise', name: 'Brown noise' },
+    ]);
+    expect(getAmbientSound('pink-noise')?.name).toBe('Pink noise');
+    expect(getAmbientSound('cafe')).toBeNull();
+  });
+
+  it('plays a chosen sound at the current volume when none is playing, with no Focus timer', () => {
+    const chosen = apply(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'white-noise' }, 0);
+
+    expect(chosen.effects).toEqual([{ type: 'play-sound', soundId: 'white-noise', volume: DEFAULT_AMBIENT_VOLUME }]);
+    expect(chosen.state.sound).toEqual({ soundId: 'white-noise', volume: DEFAULT_AMBIENT_VOLUME, status: 'playing' });
+    expect(chosen.state.timer).toEqual({ status: 'idle' });
+  });
+
+  it('replaces a playing sound with a newly chosen one, keeping the volume', () => {
+    const playing = apply(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'white-noise' }, 0);
+    const quieter = apply(playing.state, { type: 'set-volume', volume: 0.2 }, 0);
+
+    const replaced = apply(quieter.state, { type: 'choose-sound', soundId: 'brown-noise' }, 0);
+    expect(replaced.effects).toEqual([{ type: 'play-sound', soundId: 'brown-noise', volume: 0.2 }]);
+    expect(replaced.state.sound).toEqual({ soundId: 'brown-noise', volume: 0.2, status: 'playing' });
+  });
+
+  it('keeps playing without restarting when the playing sound is chosen again', () => {
+    const playing = apply(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'pink-noise' }, 0);
+    expect(apply(playing.state, { type: 'choose-sound', soundId: 'pink-noise' }, 0)).toEqual({ state: playing.state, effects: [] });
+  });
+
+  it('rejects choosing a sound that is not in the catalog', () => {
+    expect(applyFocusAction(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'cafe' }, 0)).toEqual({ ok: false, error: 'unknown-sound' });
+  });
+
+  it('stops a playing sound, remembering it and the volume for the next play', () => {
+    const playing = apply(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'pink-noise' }, 0);
+
+    const stopped = apply(playing.state, { type: 'stop-sound' }, 0);
+    expect(stopped.effects).toEqual([{ type: 'stop-sound' }]);
+    expect(stopped.state.sound).toEqual({ soundId: 'pink-noise', volume: DEFAULT_AMBIENT_VOLUME, status: 'stopped' });
+
+    expect(apply(stopped.state, { type: 'stop-sound' }, 0).effects).toEqual([]);
+    expect(apply(stopped.state, { type: 'choose-sound', soundId: 'pink-noise' }, 0).effects).toEqual([
+      { type: 'play-sound', soundId: 'pink-noise', volume: DEFAULT_AMBIENT_VOLUME },
+    ]);
+  });
+
+  it('changes the volume of a playing sound live, and only stores it while silent', () => {
+    const playing = apply(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'white-noise' }, 0);
+    const louder = apply(playing.state, { type: 'set-volume', volume: 0.9 }, 0);
+    expect(louder.effects).toEqual([{ type: 'set-volume', volume: 0.9 }]);
+    expect(louder.state.sound.volume).toBe(0.9);
+
+    const silent = apply(INITIAL_FOCUS_STATE, { type: 'set-volume', volume: 0.3 }, 0);
+    expect(silent.effects).toEqual([]);
+    expect(silent.state.sound.volume).toBe(0.3);
+  });
+
+  it('keeps the volume from 0 to 1 and rejects a volume that is not a number', () => {
+    expect(apply(INITIAL_FOCUS_STATE, { type: 'set-volume', volume: 1.5 }, 0).state.sound.volume).toBe(1);
+    expect(apply(INITIAL_FOCUS_STATE, { type: 'set-volume', volume: -0.2 }, 0).state.sound.volume).toBe(0);
+    expect(applyFocusAction(INITIAL_FOCUS_STATE, { type: 'set-volume', volume: Number.NaN }, 0)).toEqual({ ok: false, error: 'invalid-volume' });
+  });
+
+  it('keeps a playing sound playing when a Focus timer starts', () => {
+    const playing = apply(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'brown-noise' }, 0);
+    const started = apply(playing.state, { type: 'start', minutes: 1 }, 0);
+    expect(started.effects).toEqual([]);
+    expect(started.state.sound).toEqual(playing.state.sound);
   });
 });

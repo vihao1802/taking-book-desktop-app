@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import type { FocusError, FocusTimer, Result } from '@taking-book/core';
+import type { AmbientSoundState, FocusError, FocusTimer, Result } from '@taking-book/core';
 
 export interface FocusContextValue {
   timer: FocusTimer;
@@ -11,6 +11,14 @@ export interface FocusContextValue {
   resume: () => void;
   /** Stops the Focus timer by hand, silently. */
   stop: () => void;
+  sound: AmbientSoundState;
+  /** A short message about the last Ambient sound failure, cleared when a sound next plays; null when there is none. */
+  soundError: string | null;
+  /** Plays a sound from the catalog, replacing the one playing. */
+  chooseSound: (soundId: string) => void;
+  stopSound: () => void;
+  /** Sets the one volume, from 0 to 1, that every Ambient sound shares. */
+  setVolume: (volume: number) => void;
 }
 
 export const FocusContext = createContext<FocusContextValue | null>(null);

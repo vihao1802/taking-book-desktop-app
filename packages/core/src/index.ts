@@ -171,6 +171,8 @@ export {
 export { deriveCodeChallenge, generateCodeVerifier } from './sync/pkce';
 export { processPagesInOrder, type ProcessPagesOptions } from './pageProcessing';
 export {
+  AMBIENT_SOUNDS,
+  DEFAULT_AMBIENT_VOLUME,
   DEFAULT_FOCUS_MINUTES,
   FOCUS_MAX_MINUTES,
   FOCUS_MIN_MINUTES,
@@ -178,8 +180,12 @@ export {
   INITIAL_FOCUS_STATE,
   applyFocusAction,
   formatFocusTimeLeft,
+  getAmbientSound,
   getFocusTimeLeftMs,
   parseFocusMinutes,
+  type AmbientSound,
+  type AmbientSoundKind,
+  type AmbientSoundState,
   type FocusAction,
   type FocusEffect,
   type FocusError,

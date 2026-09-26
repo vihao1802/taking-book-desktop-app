@@ -1,15 +1,10 @@
+import { getAudioContext, resumeAudioContext } from './audio-context';
+
 // Two soft bell-like notes, synthesized so no sound file has to ship for it.
 const NOTES_HZ = [880, 1318.5];
 const NOTE_GAP_S = 0.18;
 const NOTE_LENGTH_S = 1.6;
 const PEAK_GAIN = 0.18;
-
-let context: AudioContext | null = null;
-
-function getAudioContext(): AudioContext {
-  context ??= new AudioContext();
-  return context;
-}
 
 function playNote(audio: AudioContext, frequencyHz: number, startAt: number): void {
   const oscillator = audio.createOscillator();
@@ -29,10 +24,7 @@ function playNote(audio: AudioContext, frequencyHz: number, startAt: number): vo
 export function playFocusChime(): void {
   try {
     const audio = getAudioContext();
-    // A context created while the window was idle may start suspended.
-    if (audio.state === 'suspended') {
-      audio.resume().catch((error: unknown) => console.error('[focus] Could not resume audio for the chime', error));
-    }
+    resumeAudioContext(audio).catch((error: unknown) => console.error('[focus] Could not resume audio for the chime', error));
     NOTES_HZ.forEach((frequencyHz, index) => playNote(audio, frequencyHz, audio.currentTime + index * NOTE_GAP_S));
   } catch (error) {
     console.error('[focus] Could not play the Focus timer chime', error);
