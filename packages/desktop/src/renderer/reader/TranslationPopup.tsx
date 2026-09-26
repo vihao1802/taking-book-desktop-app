@@ -4,8 +4,9 @@ import { getLanguageName } from '@taking-book/core';
 import type { Translation } from '../../shared/types';
 import type { TranslationPopupState } from './useTranslationPopup';
 import { useFloatingPosition } from './useFloatingPosition';
-import { createScrollDismissal, type PopupScroller } from './popup-scroll-dismissal';
-import { shouldCloseOnSelectionChange, type SelectionEnds } from './popup-selection-dismissal';
+import { attachPopupDismissal } from './popup-dismissal';
+import type { PopupScroller } from './popup-scroll-dismissal';
+import type { SelectionEnds } from './popup-selection-dismissal';
 
 /** The reader's scroll containers (PdfPages and ReflowReader), whose scrolling closes the popup. */
 const READER_VIEW_SELECTOR = '[data-reader-view]';
@@ -26,9 +27,7 @@ interface TranslationPopupProps {
 export function TranslationPopup({ popup, onClose }: TranslationPopupProps): ReactElement {
   const rootRef = useRef<HTMLDivElement>(null);
   const position = useFloatingPosition(rootRef, popup.anchor);
-  useDismissal(rootRef, onClose);
-  useSelectionDismissal(rootRef, onClose);
-  useScrollDismissal(rootRef, onClose);
+  usePopupDismissal(rootRef, onClose);
 
   const { result } = popup;
   return (
@@ -80,52 +79,25 @@ function languageCaption({ sourceLanguage, targetLanguage }: Translation): strin
 }
 
 /**
- * Closes the popup on Escape and on a press outside it. The Escape listener is
- * capture-phase and marks the event handled, so the Selection toolbar and the
- * reader's own Escape layers (which skip handled events) leave it alone.
+ * Closes the popup on Escape, on a press outside it, when its selection
+ * changes, or when the reader view scrolls (see `attachPopupDismissal`).
  */
-function useDismissal(rootRef: RefObject<HTMLDivElement | null>, onClose: () => void): void {
+function usePopupDismissal(rootRef: RefObject<HTMLDivElement | null>, onClose: () => void): void {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      event.preventDefault();
-      onCloseRef.current();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) onCloseRef.current();
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown, true);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-    };
-  }, [rootRef]);
-}
-
-/**
- * Closes the popup when the selection it was opened for changes. A press
- * outside already closes it, but a keyboard change (Shift+Arrow) fires no
- * press, and a late Translation must not appear for a selection the reader
- * has moved on from.
- */
-function useSelectionDismissal(rootRef: RefObject<HTMLDivElement | null>, onClose: () => void): void {
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  useEffect(() => {
-    const opened = readSelectionEnds();
-    const onSelectionChange = () => {
-      const current = readSelectionEnds();
-      const insidePopup = isInside(rootRef.current, current.anchorNode) && isInside(rootRef.current, current.focusNode);
-      if (shouldCloseOnSelectionChange({ opened, current, insidePopup })) onCloseRef.current();
-    };
-    document.addEventListener('selectionchange', onSelectionChange);
-    return () => document.removeEventListener('selectionchange', onSelectionChange);
-  }, [rootRef]);
+  useEffect(
+    () =>
+      attachPopupDismissal({
+        window,
+        document,
+        isInPopup: (target) => isInside(rootRef.current, target),
+        classifyScroller: (target) => classifyScroller(target, rootRef.current),
+        readSelection: readSelectionEnds,
+        onClose: () => onCloseRef.current(),
+      }),
+    [rootRef],
+  );
 }
 
 function readSelectionEnds(): SelectionEnds<Node> {
@@ -138,38 +110,13 @@ function readSelectionEnds(): SelectionEnds<Node> {
   };
 }
 
-function isInside(popup: HTMLElement | null, node: Node | null): boolean {
-  return popup !== null && node !== null && popup.contains(node);
-}
-
-/**
- * Closes the popup when the reader view scrolls (keyboard, wheel or scrollbar
- * alike), since it would otherwise float over unrelated text. Scroll does not
- * bubble, so it is caught in the capture phase from any scroller.
- */
-function useScrollDismissal(rootRef: RefObject<HTMLDivElement | null>, onClose: () => void): void {
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  useEffect(() => {
-    const dismissal = createScrollDismissal();
-    const onResize = (event: UIEvent) => dismissal.recordResize(event.timeStamp);
-    const onScroll = (event: Event) => {
-      const scroller = classifyScroller(event.target, rootRef.current);
-      if (dismissal.shouldClose({ time: event.timeStamp, scroller })) onCloseRef.current();
-    };
-    window.addEventListener('resize', onResize);
-    document.addEventListener('scroll', onScroll, true);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      document.removeEventListener('scroll', onScroll, true);
-    };
-  }, [rootRef]);
+function isInside(popup: HTMLElement | null, target: unknown): boolean {
+  return popup !== null && target instanceof Node && popup.contains(target);
 }
 
 // Nested scrollers in the reader view (a wide code block in reflow text) count
 // as the reader view: scrolling them moves text under the popup too.
-function classifyScroller(target: EventTarget | null, popup: HTMLElement | null): PopupScroller {
+function classifyScroller(target: unknown, popup: HTMLElement | null): PopupScroller {
   if (!(target instanceof Element)) return 'other';
   if (popup?.contains(target)) return 'popup';
   return target.closest(READER_VIEW_SELECTOR) ? 'reader-view' : 'other';
