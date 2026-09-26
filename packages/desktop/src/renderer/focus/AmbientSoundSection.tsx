@@ -8,6 +8,7 @@ const KIND_LABELS: Record<AmbientSoundKind, string> = {
   noise: 'Noise',
   nature: 'Nature',
   instrumental: 'Instrumental',
+  custom: 'Your sounds',
 };
 
 // Catalog order within each kind, kinds in the order they first appear.

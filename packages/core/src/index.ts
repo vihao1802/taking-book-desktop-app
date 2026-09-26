@@ -199,3 +199,15 @@ export {
   type FocusTransition,
   type StoredFocusPreferences,
 } from './focus';
+export {
+  MAX_CUSTOM_SOUND_BYTES,
+  MAX_CUSTOM_SOUND_NAME_LENGTH,
+  createCustomSound,
+  defaultCustomSoundName,
+  listAmbientSounds,
+  parseCustomSoundName,
+  resolveSoundChoice,
+  validateCustomSoundFile,
+  type CustomSound,
+  type CustomSoundError,
+} from './custom-sounds';

@@ -10,6 +10,19 @@ function apply(state: FocusState, action: FocusAction, now: number): FocusTransi
   return result.data;
 }
 
+describe('choosing a Custom sound', () => {
+  const custom = [{ id: 'custom-abc', kind: 'custom' as const, name: 'Cafe' }];
+
+  it('plays a Custom sound the catalog was given', () => {
+    const result = applyFocusAction(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'custom-abc' }, 0, custom);
+    expect(result.ok && result.data.effects).toEqual([{ type: 'play-sound', soundId: 'custom-abc', volume: DEFAULT_AMBIENT_VOLUME }]);
+  });
+
+  it('rejects a Custom sound the catalog was not given', () => {
+    expect(applyFocusAction(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'custom-abc' }, 0)).toEqual({ ok: false, error: 'unknown-sound' });
+  });
+});
+
 describe('parseFocusMinutes', () => {
   it.each([
     ['15', 15],

@@ -21,7 +21,7 @@ export const DEFAULT_FOCUS_MINUTES = 25;
  */
 export type FocusError = 'invalid-length' | 'unknown-sound' | 'invalid-volume';
 
-export type AmbientSoundKind = 'noise' | 'nature' | 'instrumental';
+export type AmbientSoundKind = 'noise' | 'nature' | 'instrumental' | 'custom';
 
 /** One Ambient sound the reader can choose. How to play it is up to each platform. */
 export interface AmbientSound {
@@ -179,10 +179,17 @@ export const INITIAL_FOCUS_STATE: FocusState = {
  * @param action - What the reader (or the platform's periodic tick) did.
  * @param now - The current time in milliseconds; time is always measured
  *   against end times, so a late or throttled tick stays accurate.
+ * @param extraSounds - Ambient sounds beyond the bundled catalog (the reader's
+ *   Custom sounds) that `choose-sound` may pick.
  * @returns The next state and the effects to carry out, or a `FocusError`
  *   when the action breaks the Focus timer or Ambient sound rules.
  */
-export function applyFocusAction(state: FocusState, action: FocusAction, now: number): Result<FocusTransition, FocusError> {
+export function applyFocusAction(
+  state: FocusState,
+  action: FocusAction,
+  now: number,
+  extraSounds: AmbientSound[] = [],
+): Result<FocusTransition, FocusError> {
   switch (action.type) {
     case 'start':
       return startTimer(state, action.minutes, now);
@@ -195,7 +202,7 @@ export function applyFocusAction(state: FocusState, action: FocusAction, now: nu
     case 'tick':
       return ok(tickTimer(state, now));
     case 'choose-sound':
-      return chooseSound(state, action.soundId);
+      return chooseSound(state, action.soundId, extraSounds);
     case 'stop-sound':
       return ok(stopSound(state));
     case 'set-volume':
@@ -253,8 +260,8 @@ function tickTimer(state: FocusState, now: number): FocusTransition {
 
 // One sound plays at a time: playing a new one replaces the current one, at the shared volume.
 // Choosing a sound is the reader's own action, so it plays at once even while the Focus timer is paused.
-function chooseSound(state: FocusState, soundId: string): Result<FocusTransition, FocusError> {
-  if (getAmbientSound(soundId) === null) return err('unknown-sound');
+function chooseSound(state: FocusState, soundId: string, extraSounds: AmbientSound[]): Result<FocusTransition, FocusError> {
+  if (getAmbientSound(soundId) === null && !extraSounds.some((extra) => extra.id === soundId)) return err('unknown-sound');
   const { sound } = state;
   if (sound.status === 'playing' && sound.soundId === soundId) return ok({ state, effects: [] });
   return ok({
