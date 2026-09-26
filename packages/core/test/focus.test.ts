@@ -117,11 +117,15 @@ describe('formatFocusTimeLeft', () => {
 });
 
 describe('Ambient sound', () => {
-  it('lists white, pink and brown noise in the sound catalog', () => {
+  it('lists the noise colors and nature recordings in the sound catalog', () => {
     expect(AMBIENT_SOUNDS.map(({ id, kind, name }) => ({ id, kind, name }))).toEqual([
       { id: 'white-noise', kind: 'noise', name: 'White noise' },
       { id: 'pink-noise', kind: 'noise', name: 'Pink noise' },
       { id: 'brown-noise', kind: 'noise', name: 'Brown noise' },
+      { id: 'rain', kind: 'nature', name: 'Rain' },
+      { id: 'fire', kind: 'nature', name: 'Fire' },
+      { id: 'forest', kind: 'nature', name: 'Forest' },
+      { id: 'ocean', kind: 'nature', name: 'Ocean' },
     ]);
     expect(getAmbientSound('pink-noise')?.name).toBe('Pink noise');
     expect(getAmbientSound('cafe')).toBeNull();

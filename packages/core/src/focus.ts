@@ -36,6 +36,10 @@ export const AMBIENT_SOUNDS: AmbientSound[] = [
   { id: 'white-noise', kind: 'noise', name: 'White noise' },
   { id: 'pink-noise', kind: 'noise', name: 'Pink noise' },
   { id: 'brown-noise', kind: 'noise', name: 'Brown noise' },
+  { id: 'rain', kind: 'nature', name: 'Rain' },
+  { id: 'fire', kind: 'nature', name: 'Fire' },
+  { id: 'forest', kind: 'nature', name: 'Forest' },
+  { id: 'ocean', kind: 'nature', name: 'Ocean' },
 ];
 
 /**

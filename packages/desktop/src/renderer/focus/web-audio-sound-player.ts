@@ -1,6 +1,7 @@
 import { err, ok, type Result } from '@taking-book/core';
 import type { AmbientSoundPlayer } from './ambient-sound-player';
 import { getAudioContext, resumeAudioContext } from './audio-context';
+import { loadRecording, getRecordingUrl, startRecording } from './nature-recordings';
 import { getNoiseColor, startNoise, type PlayingNoise } from './noise';
 
 // Short enough to feel live while dragging the slider, long enough to avoid zipper noise.
@@ -27,13 +28,15 @@ function tryRun(run: () => void): Result<void, unknown> {
   }
 }
 
-/** An Ambient sound player that generates the noise colors with Web Audio. */
+/** An Ambient sound player: generates the noise colors and loops the bundled nature recordings, both with Web Audio. */
 export function createWebAudioSoundPlayer(): AmbientSoundPlayer {
   let output: GainNode | null = null;
   let playing: PlayingNoise | null = null;
   let volume = 0;
   let paused = false;
   let fading: PlayingNoise | null = null;
+  // A recording takes a moment to decode, so a newer play or a stop can arrive first and must win.
+  let latestRequest = 0;
 
   const getOutput = (audio: AudioContext): GainNode => {
     if (output === null) {
@@ -68,28 +71,31 @@ export function createWebAudioSoundPlayer(): AmbientSoundPlayer {
     envelope.disconnect();
   };
 
-  const startSound = (soundId: string): PlayingNoise => {
+  const startSound = (soundId: string, recording: AudioBuffer | null): PlayingNoise => {
     cutOffFade();
     const color = getNoiseColor(soundId);
-    if (color === null) throw new Error(`No audio for Ambient sound "${soundId}"`);
+    if (recording === null && color === null) throw new Error(`No audio for Ambient sound "${soundId}"`);
     const audio = getAudioContext();
     const out = getOutput(audio);
     out.gain.cancelScheduledValues(audio.currentTime);
-    out.gain.setValueAtTime(toGain(volume), audio.currentTime);
-    paused = false;
-    const noise = startNoise(audio, color, out);
-    noise.envelope.gain.setValueAtTime(0, audio.currentTime);
-    noise.envelope.gain.linearRampToValueAtTime(1, audio.currentTime + FADE_IN_S);
-    return noise;
+    out.gain.setValueAtTime(paused ? 0 : toGain(volume), audio.currentTime);
+    const sound = recording !== null ? startRecording(audio, recording, out) : startNoise(audio, color ?? 'white', out);
+    sound.envelope.gain.setValueAtTime(0, audio.currentTime);
+    sound.envelope.gain.linearRampToValueAtTime(1, audio.currentTime + FADE_IN_S);
+    return sound;
   };
 
   return {
     play: async (soundId, nextVolume) => {
       volume = nextVolume;
+      paused = false;
+      const request = ++latestRequest;
       let started: PlayingNoise | null = null;
       try {
         stopPlaying();
-        started = startSound(soundId);
+        const recording = getRecordingUrl(soundId) === null ? null : await loadRecording(getAudioContext(), soundId);
+        if (request !== latestRequest) return ok(undefined);
+        started = startSound(soundId, recording);
         playing = started;
         await resumeAudioContext(getAudioContext());
         return ok(undefined);
@@ -99,7 +105,11 @@ export function createWebAudioSoundPlayer(): AmbientSoundPlayer {
         return err(error);
       }
     },
-    stop: () => tryRun(() => stopPlaying()),
+    stop: () =>
+      tryRun(() => {
+        latestRequest++;
+        stopPlaying();
+      }),
     pause: () =>
       tryRun(() => {
         paused = true;
@@ -112,7 +122,11 @@ export function createWebAudioSoundPlayer(): AmbientSoundPlayer {
         if (output === null) return;
         output.gain.setTargetAtTime(toGain(volume), output.context.currentTime, PAUSE_FADE_S / 3);
       }),
-    fadeOut: () => tryRun(() => stopPlaying(FOCUS_END_FADE_OUT_S)),
+    fadeOut: () =>
+      tryRun(() => {
+        latestRequest++;
+        stopPlaying(FOCUS_END_FADE_OUT_S);
+      }),
     setVolume: (nextVolume) =>
       tryRun(() => {
         volume = nextVolume;
