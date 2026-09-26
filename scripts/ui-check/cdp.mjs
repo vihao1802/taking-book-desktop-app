@@ -8,6 +8,7 @@
 //   node scripts/ui-check/cdp.mjs drag <x1,y1> <x2,y2>  press, move, release (selects a range)
 //   node scripts/ui-check/cdp.mjs key <Key>          press a key, e.g. Escape, Enter, ArrowDown
 //   node scripts/ui-check/cdp.mjs center '<css>'     print "x,y" of an element's center, for click
+//   node scripts/ui-check/cdp.mjs word '<text>'      print "x,y" of the first on-screen occurrence of text, for dbl/drag
 import { writeFileSync } from 'node:fs';
 import { connect, evaluate, findTarget } from './cdp-client.mjs';
 
@@ -60,6 +61,31 @@ const commands = {
     for (const type of ['keyDown', 'keyUp']) {
       await session.send('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: code });
     }
+  },
+  // Walks text nodes rather than elements because page mode's text layer and
+  // reflow's paragraphs split words across spans differently, and pixel
+  // positions read off a screenshot go stale as pages lay out.
+  async word(session, [text]) {
+    const point = await evaluate(
+      session,
+      `(() => {
+        const text = ${JSON.stringify(text)};
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const index = node.data.indexOf(text);
+          if (index < 0) continue;
+          const range = document.createRange();
+          range.setStart(node, index);
+          range.setEnd(node, index + text.length);
+          const r = range.getBoundingClientRect();
+          if (r.width === 0 || r.top < 0 || r.bottom > innerHeight) continue;
+          return Math.round(r.x + r.width / 2) + ',' + Math.round(r.y + r.height / 2);
+        }
+        return null;
+      })()`,
+    );
+    if (point === null) throw new Error(`No on-screen text matches ${JSON.stringify(text)}`);
+    console.log(point);
   },
   async center(session, [selector]) {
     const point = await evaluate(

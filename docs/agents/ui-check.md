@@ -2,7 +2,7 @@
 
 Drive the real desktop app the way a reader would, and observe the result through DOM state and screenshots. The app runs from a throwaway profile under `/tmp/tb-ui-check` with a generated fixture PDF, so the user's library, Notes and cloud sync stay untouched: create Highlights, Notes and Settings freely there.
 
-The window stays hidden; nothing appears on the user's screen. Add `--visible` to `start.mjs` only when the user asks to watch.
+The window opens pinned at the top-left of the primary display and off the taskbar, so it always appears in the same place. It cannot run hidden: a hidden window stops painting on this machine and every screenshot hangs. Do not try to hide it or move it off-screen.
 
 ## Steps
 
@@ -20,6 +20,7 @@ The window stays hidden; nothing appears on the user's screen. Add `--visible` t
 | `main '<js>'` | Runs JS in the Electron main process (`process.mainModule.require('electron')`) |
 | `shot <file.png>` | Screenshots the window; save under `/tmp/tb-ui-check/` |
 | `center '<css>'` | Prints `x,y` of an element's center, for `click` |
+| `word '<text>'` | Prints `x,y` of the first on-screen occurrence of some text, for `dbl`/`drag` |
 | `click x,y` / `dbl x,y` | Real mouse click / double-click (double-click selects a word) |
 | `drag x1,y1 x2,y2` | Press, move, release: selects a range |
 | `key <Key>` | Presses `Escape`, `Enter`, `ArrowDown`, a letter, … |
@@ -28,9 +29,12 @@ Example: `node scripts/ui-check/cdp.mjs click $(node scripts/ui-check/cdp.mjs ce
 
 ## Gotchas
 
-- Reach controls through accessible names (`[aria-label=…]`) and visible text; they are stable across layout changes, pixel coordinates are not. Take coordinates from `center` or from a fresh screenshot.
+- Reach controls through accessible names (`[aria-label=…]`) and visible text; they are stable across layout changes, pixel coordinates are not. Take coordinates from `center` for controls and `word` for book text, right before using them: pages keep laying out as they scroll into view, so positions read off a screenshot go stale, and page mode's text layer does not cover every line you can see.
 - Switch reader mode with the `Toggle reflow` button, then wait a few seconds for the reflow text.
 - Switch Theme through the app's Settings, since the profile is throwaway; setting `data-theme` on `<html>` also works for a quick visual pass.
-- Escape at the top layer closes the reader: count presses so a check does not leave the book.
+- Escape at the top layer closes the reader: count presses so a check does not leave the book. In a script that repeats a check, press Escape only when a popup or toolbar is actually open.
+- Network failures: the main process looks up the global `fetch` on every call, so `main` can swap it for a stub that rejects, returns a status, or never resolves (keep the original on `globalThis` to restore it). This leaves the machine's network alone.
+- Window edges: shrink the viewport with `main` and `BrowserWindow.getAllWindows()[0].setContentSize(w, h)` to put a selection near the bottom or right edge; restore the size afterwards.
+- `shot` hangs: the window stopped painting. Docked DevTools does this, which is why `start.mjs` closes it; if it happens anyway, restart with `stop.mjs` and `start.mjs`.
 - Stop the app only with `stop.mjs`. A `pkill -f` on its flags also matches the shell running it.
 - Startup failures: read `/tmp/tb-ui-check/app.log`. `A UI check app is already running` means a previous run was not stopped; run `stop.mjs`.

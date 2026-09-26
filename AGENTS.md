@@ -67,7 +67,7 @@ This file defines conventions any coding agent (or contributor) must follow when
 - Environment quirks:
   - Containers/VMs with no GPU: run the desktop app as `TB_DISABLE_GPU=1 npm start`.
   - Forge's system check trips on this shell's `npm_config_user_agent=npm/undefined`; `~/.skip-forge-system-check` is the workaround — do not delete it.
-- UI check: a change under `packages/desktop/src/renderer` is verified in the running app by following `docs/agents/ui-check.md` (Claude Code: the `ui-check` skill) before finishing the task and in every code review of it. It drives the real app hidden, from a throwaway profile, so it never touches the user's library or screen.
+- UI check: a change under `packages/desktop/src/renderer` is verified in the running app by following `docs/agents/ui-check.md` (Claude Code: the `ui-check` skill) before finishing the task and in every code review of it. It drives the real app from a throwaway profile, so it never touches the user's library, with the window pinned at the top-left of the screen.
 - Smoke tests: end-to-end verification in this environment is done by temporarily instrumenting `packages/desktop/src/main.ts` with a `TB_SMOKE_EXIT_MS` hook that exercises IPC/core and then exits. The hook is removed before committing; never leave it in.
 
 ## Auto-Approved Commands
