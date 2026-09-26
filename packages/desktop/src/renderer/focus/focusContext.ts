@@ -1,5 +1,6 @@
 import { createContext } from 'react';
-import type { AmbientSoundState, FocusError, FocusTimer, Result } from '@taking-book/core';
+import type { AmbientSoundState, CustomSound, FocusError, FocusTimer, Result } from '@taking-book/core';
+import type { CustomSoundsNotice } from './custom-sound-messages';
 
 export interface FocusContextValue {
   timer: FocusTimer;
@@ -21,6 +22,15 @@ export interface FocusContextValue {
   /** Plays a sound from the catalog, replacing the one playing. */
   chooseSound: (soundId: string) => void;
   stopSound: () => void;
+  /** The reader's Custom sounds, in the order they were added; they are listed after the bundled sounds. */
+  customSounds: CustomSound[];
+  /** What the last attempt to add Custom sounds did, for the reader; null when there is nothing to say. */
+  customSoundsNotice: CustomSoundsNotice | null;
+  /** Asks for audio files and adds them as Custom sounds. */
+  addCustomSounds: () => Promise<void>;
+  renameCustomSound: (contentHash: string, name: string) => Promise<Result<void>>;
+  /** Deletes a Custom sound; if it is the one playing or chosen, it stops and the choice is cleared. */
+  deleteCustomSound: (contentHash: string) => Promise<Result<void>>;
   /** Sets the one volume, from 0 to 1, that every Ambient sound shares. */
   setVolume: (volume: number) => void;
 }

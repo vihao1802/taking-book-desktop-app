@@ -3,8 +3,10 @@ import {
   DEFAULT_FOCUS_MINUTES,
   INITIAL_FOCUS_STATE,
   applyFocusAction,
+  createCustomSound,
   getFocusTimeLeftMs,
   ok,
+  type AmbientSound,
   type FocusAction,
   type FocusError,
   type FocusPreferences,
@@ -15,6 +17,7 @@ import { describeAmbientSoundFailure, logAmbientSoundFailure, type AmbientSoundF
 import { carryOutFocusEffect } from './carry-out-focus-effect';
 import { FocusContext, type FocusContextValue } from './focusContext';
 import { FocusNotice } from './FocusNotice';
+import { useCustomSounds } from './useCustomSounds';
 import { useFocusTicker } from './useFocusTicker';
 import { createWebAudioSoundPlayer } from './web-audio-sound-player';
 
@@ -45,11 +48,17 @@ export function FocusProvider({ children }: { children: ReactNode }) {
   // Once the reader changes something, a slower load of the saved choices must not overwrite it.
   const touchedRef = useRef({ sound: false, volume: false, length: false });
   const [player] = useState(createWebAudioSoundPlayer);
+  const customLibrary = useCustomSounds();
+  // Read by the reducer at dispatch time, so a Custom sound added a moment ago can be chosen at once.
+  const customAmbientSoundsRef = useRef<AmbientSound[]>([]);
+  useEffect(() => {
+    customAmbientSoundsRef.current = customLibrary.customSounds.map(createCustomSound);
+  }, [customLibrary.customSounds]);
 
   const dispatch = useMemo(() => {
     const run = (action: FocusAction): Result<void, FocusError> => {
       const now = Date.now();
-      const result = applyFocusAction(stateRef.current, action, now);
+      const result = applyFocusAction(stateRef.current, action, now, customAmbientSoundsRef.current);
       if (!result.ok) return result;
       const { state, effects } = result.data;
       stateRef.current = state;
@@ -131,13 +140,26 @@ export function FocusProvider({ children }: { children: ReactNode }) {
         remember({ soundId });
       },
       stopSound: () => dispatchLogged({ type: 'stop-sound' }),
+      customSounds: customLibrary.customSounds,
+      customSoundsNotice: customLibrary.notice,
+      addCustomSounds: customLibrary.add,
+      renameCustomSound: customLibrary.rename,
+      deleteCustomSound: async (contentHash) => {
+        const deleted = await customLibrary.remove(contentHash);
+        if (!deleted.ok) return deleted;
+        const soundId = createCustomSound({ contentHash, name: '' }).id;
+        const wasChosen = stateRef.current.sound.soundId === soundId;
+        dispatchLogged({ type: 'forget-sound', soundId });
+        if (wasChosen) remember({ soundId: null });
+        return deleted;
+      },
       setVolume: (volume) => {
         touchedRef.current.volume = true;
         dispatchLogged({ type: 'set-volume', volume });
         remember({ volume: stateRef.current.sound.volume });
       },
     }),
-    [timer, timeLeftMs, lengthMinutes, sound, soundError, dispatch, dispatchLogged, remember],
+    [timer, timeLeftMs, lengthMinutes, sound, soundError, customLibrary, dispatch, dispatchLogged, remember],
   );
 
   return (

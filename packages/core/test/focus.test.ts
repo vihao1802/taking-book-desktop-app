@@ -23,6 +23,28 @@ describe('choosing a Custom sound', () => {
   });
 });
 
+describe('forgetting a Custom sound', () => {
+  const custom = [{ id: 'custom-abc', kind: 'custom' as const, name: 'Cafe' }];
+
+  it('stops the sound if it is playing and clears the choice', () => {
+    const playing = applyFocusAction(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'custom-abc' }, 0, custom);
+    if (!playing.ok) throw new Error('setup failed');
+    const forgotten = apply(playing.data.state, { type: 'forget-sound', soundId: 'custom-abc' }, 0);
+    expect(forgotten.state.sound).toEqual({ soundId: null, volume: DEFAULT_AMBIENT_VOLUME, status: 'stopped' });
+    expect(forgotten.effects).toEqual([{ type: 'stop-sound' }]);
+  });
+
+  it('clears a remembered choice that is not playing, without any effect', () => {
+    const remembered = { ...INITIAL_FOCUS_STATE, sound: { ...INITIAL_FOCUS_STATE.sound, soundId: 'custom-abc' } };
+    expect(apply(remembered, { type: 'forget-sound', soundId: 'custom-abc' }, 0)).toEqual({ state: INITIAL_FOCUS_STATE, effects: [] });
+  });
+
+  it('leaves a different sound alone', () => {
+    const playing = apply(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'rain' }, 0);
+    expect(apply(playing.state, { type: 'forget-sound', soundId: 'custom-abc' }, 0)).toEqual({ state: playing.state, effects: [] });
+  });
+});
+
 describe('parseFocusMinutes', () => {
   it.each([
     ['15', 15],

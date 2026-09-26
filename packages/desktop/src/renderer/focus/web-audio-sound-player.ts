@@ -1,7 +1,8 @@
-import { err, ok, type Result } from '@taking-book/core';
+import { err, getCustomSoundHash, ok, type Result } from '@taking-book/core';
 import type { AmbientSoundPlayer } from './ambient-sound-player';
 import { getAudioContext, resumeAudioContext } from './audio-context';
 import { getPlaylistUrls, startPlaylist } from './instrumental-playlist';
+import { loadCustomSound } from './custom-sound-recordings';
 import { getBundledSoundUrl, loadRecording, startRecording } from './nature-recordings';
 import { getNoiseColor, startNoise } from './noise';
 import type { PlayingSound } from './playing-sound';
@@ -21,6 +22,13 @@ function toGain(volume: number): number {
   return volume * volume;
 }
 
+// Bundled recordings and the reader's Custom sounds both loop as a decoded buffer; noise and playlists need none.
+async function loadLoopedRecording(soundId: string): Promise<AudioBuffer | null> {
+  const customHash = getCustomSoundHash(soundId);
+  if (customHash !== null) return loadCustomSound(getAudioContext(), customHash);
+  return getBundledSoundUrl(soundId) === null ? null : loadRecording(getAudioContext(), soundId);
+}
+
 function tryRun(run: () => void): Result<void, unknown> {
   try {
     run();
@@ -30,7 +38,7 @@ function tryRun(run: () => void): Result<void, unknown> {
   }
 }
 
-/** An Ambient sound player: generates the noise colors, loops the bundled nature recordings and plays the instrumental styles' tracks in turn, all through Web Audio. */
+/** An Ambient sound player: generates the noise colors, loops the bundled nature recordings and the reader's Custom sounds, and plays the instrumental styles' tracks in turn, all through Web Audio. */
 export function createWebAudioSoundPlayer(): AmbientSoundPlayer {
   let output: GainNode | null = null;
   let playing: PlayingSound | null = null;
@@ -99,7 +107,7 @@ export function createWebAudioSoundPlayer(): AmbientSoundPlayer {
       let started: PlayingSound | null = null;
       try {
         stopPlaying();
-        const recording = getBundledSoundUrl(soundId) === null ? null : await loadRecording(getAudioContext(), soundId);
+        const recording = await loadLoopedRecording(soundId);
         if (request !== latestRequest) return ok(undefined);
         await resumeAudioContext(getAudioContext());
         started = await startSound(soundId, recording);

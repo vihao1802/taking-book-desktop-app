@@ -149,6 +149,7 @@ export type FocusAction =
   | { type: 'tick' }
   | { type: 'choose-sound'; soundId: string }
   | { type: 'stop-sound' }
+  | { type: 'forget-sound'; soundId: string }
   | { type: 'set-volume'; volume: number };
 
 /** Work the platform carries out after a transition. */
@@ -205,6 +206,8 @@ export function applyFocusAction(
       return chooseSound(state, action.soundId, extraSounds);
     case 'stop-sound':
       return ok(stopSound(state));
+    case 'forget-sound':
+      return ok(forgetSound(state, action.soundId));
     case 'set-volume':
       return setVolume(state, action.volume);
   }
@@ -273,6 +276,13 @@ function chooseSound(state: FocusState, soundId: string, extraSounds: AmbientSou
 function stopSound(state: FocusState): FocusTransition {
   if (state.sound.status === 'stopped') return { state, effects: [] };
   return { state: { ...state, sound: { ...state.sound, status: 'stopped' } }, effects: [{ type: 'stop-sound' }] };
+}
+
+// A deleted Custom sound must stop playing and stop being the reader's remembered choice.
+function forgetSound(state: FocusState, soundId: string): FocusTransition {
+  if (state.sound.soundId !== soundId) return { state, effects: [] };
+  const stopped = stopSound(state);
+  return { state: { ...stopped.state, sound: { ...stopped.state.sound, soundId: null } }, effects: stopped.effects };
 }
 
 function setVolume(state: FocusState, volume: number): Result<FocusTransition, FocusError> {

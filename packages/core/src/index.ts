@@ -226,3 +226,4 @@ export {
   type CustomSoundFileSystem,
   type RejectedCustomSound,
 } from './addCustomSounds';
+export { crossfadeLoop } from './loop-crossfade';

@@ -1,5 +1,6 @@
 import { Square, Volume2 } from 'lucide-react';
-import { AMBIENT_SOUNDS, type AmbientSound, type AmbientSoundKind } from '@taking-book/core';
+import { useMemo } from 'react';
+import { listAmbientSounds, type AmbientSound, type AmbientSoundKind } from '@taking-book/core';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useFocus } from './useFocus';
@@ -18,14 +19,13 @@ function groupSoundsByKind(sounds: AmbientSound[]): [AmbientSoundKind, AmbientSo
   return [...groups.entries()];
 }
 
-const SOUND_GROUPS = groupSoundsByKind(AMBIENT_SOUNDS);
-
 // The slider works in whole percent; the Ambient sound volume runs from 0 to 1.
 const VOLUME_SLIDER_MAX = 100;
 
 /** Chooses, stops and sets the volume of the Ambient sound. */
 export function AmbientSoundSection() {
-  const { sound, soundError, chooseSound, stopSound, setVolume } = useFocus();
+  const { sound, soundError, customSounds, chooseSound, stopSound, setVolume } = useFocus();
+  const soundGroups = useMemo(() => groupSoundsByKind(listAmbientSounds(customSounds)), [customSounds]);
   const playingId = sound.status !== 'stopped' ? sound.soundId : null;
 
   return (
@@ -37,7 +37,7 @@ export function AmbientSoundSection() {
           Stop
         </Button>
       </div>
-      {SOUND_GROUPS.map(([kind, sounds]) => (
+      {soundGroups.map(([kind, sounds]) => (
         <div key={kind} role="group" aria-label={KIND_LABELS[kind]} className="flex flex-col gap-1.5">
           <span className="text-muted-foreground text-xs">{KIND_LABELS[kind]}</span>
           <div className="grid grid-cols-3 gap-1.5">

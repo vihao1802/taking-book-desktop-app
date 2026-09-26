@@ -3,6 +3,7 @@ import type { Theme } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from '../theme';
+import { CustomSoundsSettings } from './CustomSoundsSettings';
 import { TranslationSettings } from './TranslationSettings';
 
 const THEME_OPTIONS: Array<{ value: Theme; label: string; icon: typeof Sun; description: string }> = [
@@ -52,6 +53,8 @@ export function Settings() {
       </Card>
 
       <TranslationSettings />
+
+      <CustomSoundsSettings />
 
       <Card>
         <CardHeader>
