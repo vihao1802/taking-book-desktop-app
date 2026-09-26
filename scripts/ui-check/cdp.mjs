@@ -6,16 +6,20 @@
 //   node scripts/ui-check/cdp.mjs click <x,y>        real mouse click at viewport coordinates
 //   node scripts/ui-check/cdp.mjs dbl <x,y>          real double-click (selects a word)
 //   node scripts/ui-check/cdp.mjs drag <x1,y1> <x2,y2>  press, move, release (selects a range)
+//   node scripts/ui-check/cdp.mjs drop <x,y> <path...>  drop files/folders from the OS at viewport coordinates
 //   node scripts/ui-check/cdp.mjs key <Key>          press a key, e.g. Escape, Enter, ArrowDown, Shift+ArrowRight
 //   node scripts/ui-check/cdp.mjs center '<css>'     print "x,y" of an element's center, for click
 //   node scripts/ui-check/cdp.mjs word '<text>'      print "x,y" of the first on-screen occurrence of text, for dbl/drag
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { connect, evaluate, findTarget } from './cdp-client.mjs';
 
 // Windows virtual key codes; Chromium needs them for keys to reach keydown handlers.
 const KEY_CODES = { Escape: 27, Enter: 13, Tab: 9, Space: 32, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 };
 // CDP's modifier bit flags, for combinations such as Shift+ArrowRight.
 const MODIFIER_FLAGS = { Alt: 1, Control: 2, Meta: 4, Shift: 8 };
+// CDP's drag operation bit for "copy", what a file manager offers for a file drag.
+const DRAG_OPERATION_COPY = 1;
 
 function parseKeyCombination(text) {
   const parts = text.split('+');
@@ -68,6 +72,21 @@ const commands = {
     await mouse(session, 'mousePressed', start);
     await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...end, button: 'left', buttons: 1 });
     await mouse(session, 'mouseReleased', end);
+  },
+  // Simulates an OS file drop: Chromium receives the absolute paths as it
+  // would from a file manager, so the page's drag handlers and Electron's
+  // navigate-on-drop default both run for real.
+  async drop(session, [point, ...paths]) {
+    if (paths.length === 0) throw new Error('drop needs at least one file or folder path');
+    const at = parsePoint(point);
+    const files = paths.map((path) => resolve(path));
+    // A mistyped path would drop nothing and read as "the drop was ignored".
+    const missing = files.filter((file) => !existsSync(file));
+    if (missing.length > 0) throw new Error(`No such file or folder: ${missing.join(', ')}`);
+    const data = { items: [], files, dragOperationsMask: DRAG_OPERATION_COPY };
+    for (const type of ['dragEnter', 'dragOver', 'drop']) {
+      await session.send('Input.dispatchDragEvent', { type, ...at, data });
+    }
   },
   async key(session, [combination]) {
     const { key, modifiers } = parseKeyCombination(combination);

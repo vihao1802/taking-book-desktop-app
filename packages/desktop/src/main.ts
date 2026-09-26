@@ -7,6 +7,7 @@ import { config as loadEnv } from 'dotenv';
 import { buildApplicationMenu } from './main/appMenu';
 import { getDriver } from './main/db';
 import { registerIpc } from './main/ipc';
+import { guardAgainstNavigation } from './main/navigationGuard';
 import { startBackgroundSync } from './main/syncScheduler';
 
 if (started) {
@@ -88,6 +89,9 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      // Electron's default today, set explicitly because a dropped file must
+      // never replace the app; the navigation guard below is the backstop.
+      navigateOnDragDrop: false,
     },
   });
 
@@ -98,6 +102,8 @@ const createWindow = () => {
   };
   mainWindow.on('enter-full-screen', () => notifyFullScreen(true));
   mainWindow.on('leave-full-screen', () => notifyFullScreen(false));
+
+  guardAgainstNavigation(mainWindow.webContents);
 
   // Open DevTools in development to debug white screen
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
