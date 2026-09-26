@@ -1,7 +1,8 @@
 import { useEffect, type RefObject } from 'react';
+import { isSearchShortcut } from './search-shortcut';
 
 /**
- * Focuses the given search input when the user presses `/` or Ctrl/Cmd+K.
+ * Focuses the given search input when the user presses `/` or Ctrl/Cmd+F.
  * Returns early when the focus is already inside a text entry field so that
  * typing a slash into an existing input is not hijacked.
  */
@@ -14,10 +15,7 @@ export function useSearchShortcut(inputRef: RefObject<HTMLInputElement | null>) 
         target?.tagName === 'TEXTAREA' ||
         target?.isContentEditable;
 
-      const isSlash = event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey;
-      const isSearchCommand = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
-
-      if (!isSlash && !isSearchCommand) return;
+      if (!isSearchShortcut(event)) return;
       if (typing) return;
 
       event.preventDefault();
