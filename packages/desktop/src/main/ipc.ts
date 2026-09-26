@@ -1,4 +1,4 @@
-import { BrowserWindow, app, dialog, ipcMain } from 'electron';
+import { BrowserWindow, app, dialog, ipcMain, type WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
 import {
   computeReadingStats,
@@ -42,7 +42,7 @@ import {
   TRANSLATION_FAILED_MESSAGE,
   translateText,
 } from '@taking-book/core';
-import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
+import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
 import { join } from 'node:path';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -78,7 +78,11 @@ export function registerIpc(db: SqlDriver): void {
   }
 
   // Shared by every way of adding Books, so they all skip, dedupe and report alike.
-  async function importFromPaths(paths: string[]): Promise<Result<ImportSummary>> {
+  // Progress goes to the window that asked, so its notice can count while the import runs.
+  async function importFromPaths(paths: string[], sender: WebContents): Promise<Result<ImportSummary>> {
+    const onProgress = (progress: ImportProgress): void => {
+      if (!sender.isDestroyed()) sender.send('files:import:progress', progress);
+    };
     const blobDir = localBlobDir(userDataDir);
     try {
       await mkdir(blobDir, { recursive: true });
@@ -86,7 +90,8 @@ export function registerIpc(db: SqlDriver): void {
       console.error(`Could not create the local book store ${blobDir}: ${errorMessage(error)}`);
       return { ok: false, error: 'Books could not be added: the local book store could not be created.' };
     }
-    const result = await importBooks(db, { paths, fileSystem: createImportFileSystem(blobDir), stamp: await stamp() });
+    const fileSystem = createImportFileSystem(blobDir);
+    const result = await importBooks(db, { paths, fileSystem, stamp: await stamp(), onProgress });
     if (!isOk(result)) {
       console.error(`Importing ${paths.length} path(s) failed: ${result.error}`);
       return result;
@@ -97,7 +102,7 @@ export function registerIpc(db: SqlDriver): void {
     return result;
   }
 
-  ipcMain.handle('files:open', async (): Promise<Result<ImportSummary | null>> => {
+  ipcMain.handle('files:open', async (event): Promise<Result<ImportSummary | null>> => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
     if (!win) return { ok: false, error: 'No window to host the file dialog' };
     const { canceled, filePaths } = await dialog.showOpenDialog(win, {
@@ -105,12 +110,12 @@ export function registerIpc(db: SqlDriver): void {
       filters: [{ name: 'Documents', extensions: ['pdf'] }],
     });
     if (canceled || filePaths.length === 0) return { ok: true, data: null };
-    return importFromPaths(filePaths);
+    return importFromPaths(filePaths, event.sender);
   });
 
-  ipcMain.handle('files:import', async (_event, paths: unknown): Promise<Result<ImportSummary>> => {
+  ipcMain.handle('files:import', async (event, paths: unknown): Promise<Result<ImportSummary>> => {
     if (!isStringArray(paths)) return { ok: false, error: 'Only file paths can be imported.' };
-    return importFromPaths(paths);
+    return importFromPaths(paths, event.sender);
   });
 
   ipcMain.handle('files:delete', async (_event, id: number) => {

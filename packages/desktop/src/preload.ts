@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { ReaderApi } from './shared/types';
+import type { ImportProgress, ReaderApi } from './shared/types';
 
 const api: ReaderApi = {
   openFile: () => ipcRenderer.invoke('files:open'),
@@ -51,6 +51,11 @@ const api: ReaderApi = {
   runSync: () => ipcRenderer.invoke('sync:run'),
   isFullScreen: () => ipcRenderer.invoke('window:fullscreen:get'),
   toggleFullScreen: () => ipcRenderer.invoke('window:fullscreen:toggle'),
+  onImportProgress: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: ImportProgress): void => listener(progress);
+    ipcRenderer.on('files:import:progress', handler);
+    return () => ipcRenderer.removeListener('files:import:progress', handler);
+  },
   onFullScreenChange: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, fullScreen: boolean): void =>
       listener(fullScreen);

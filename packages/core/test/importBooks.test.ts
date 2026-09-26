@@ -9,16 +9,27 @@ import {
   saveLastPosition,
   upsertFile,
 } from '../src';
-import type { ImportFileSystem, ImportSummary, SqlDriver } from '../src';
+import type { ImportFileSystem, ImportProgress, ImportSummary, SqlDriver } from '../src';
 import { createMemoryDriver } from './helpers';
 
 interface FakeEntry {
   kind: 'file' | 'directory';
   hash: string;
   copyFails?: boolean;
+  listFails?: boolean;
 }
 
-/** In-memory stand-in for the platform file system: records what was copied into the store. */
+/** Folders hold no bytes, so they need no hash. */
+const FOLDER: FakeEntry = { kind: 'directory', hash: '' };
+
+function parentOf(path: string): string {
+  return path.slice(0, path.lastIndexOf('/'));
+}
+
+/**
+ * In-memory stand-in for the platform file system: records what was copied
+ * into the store. A directory's children are the entries directly under its path.
+ */
 function createFakeFileSystem(entries: Record<string, FakeEntry>): ImportFileSystem & { stored: string[] } {
   const stored: string[] = [];
   function entry(path: string): FakeEntry {
@@ -30,6 +41,10 @@ function createFakeFileSystem(entries: Record<string, FakeEntry>): ImportFileSys
     stored,
     async stat(path) {
       return entry(path).kind;
+    },
+    async listDirectory(path) {
+      if (entry(path).listFails) throw new Error('EACCES: permission denied');
+      return Object.keys(entries).filter((child) => parentOf(child) === path);
     },
     async hashFile(path) {
       return entry(path).hash;
@@ -48,8 +63,13 @@ async function setUp(): Promise<SqlDriver> {
   return db;
 }
 
-async function runImport(db: SqlDriver, paths: string[], fileSystem: ImportFileSystem): Promise<ImportSummary> {
-  const result = await importBooks(db, { paths, fileSystem, stamp: { updatedAt: 100, updatedBy: 'device' } });
+async function runImport(
+  db: SqlDriver,
+  paths: string[],
+  fileSystem: ImportFileSystem,
+  onProgress?: (progress: ImportProgress) => void,
+): Promise<ImportSummary> {
+  const result = await importBooks(db, { paths, fileSystem, stamp: { updatedAt: 100, updatedBy: 'device' }, onProgress });
   if (!isOk(result)) throw new Error(result.error);
   return result.data;
 }
@@ -188,13 +208,126 @@ describe('importBooks', () => {
     ]);
   });
 
-  it('skips a directory as not a PDF', async () => {
+  it('adds the PDFs in a folder and in all of its subfolders', async () => {
     const db = await setUp();
-    const fileSystem = createFakeFileSystem({ '/folder.pdf': { kind: 'directory', hash: '' } });
+    const fileSystem = createFakeFileSystem({
+      '/books': FOLDER,
+      '/books/top.pdf': { kind: 'file', hash: 'ht' },
+      '/books/fiction': FOLDER,
+      '/books/fiction/novel.pdf': { kind: 'file', hash: 'hn' },
+      '/books/fiction/classics': FOLDER,
+      '/books/fiction/classics/old.pdf': { kind: 'file', hash: 'ho' },
+    });
+
+    const summary = await runImport(db, ['/books'], fileSystem);
+
+    expect(summary.added.map((b) => b.title).sort()).toEqual(['novel', 'old', 'top']);
+    expect(summary.skipped).toEqual([]);
+  });
+
+  it('adds the PDFs in a folder and skips the other files beside them', async () => {
+    const db = await setUp();
+    const fileSystem = createFakeFileSystem({
+      '/mixed': FOLDER,
+      '/mixed/paper.pdf': { kind: 'file', hash: 'hp' },
+      '/mixed/cover.jpg': { kind: 'file', hash: 'hj' },
+      '/mixed/readme.txt': { kind: 'file', hash: 'hr' },
+    });
+
+    const summary = await runImport(db, ['/mixed'], fileSystem);
+
+    expect(summary.added.map((b) => b.title)).toEqual(['paper']);
+    expect(summary.skipped).toEqual([
+      { fileName: 'cover.jpg', reason: 'not-pdf', detail: null },
+      { fileName: 'readme.txt', reason: 'not-pdf', detail: null },
+    ]);
+  });
+
+  it('adds nothing from an empty folder', async () => {
+    const db = await setUp();
+    const fileSystem = createFakeFileSystem({ '/empty': FOLDER, '/empty/nested': FOLDER });
+
+    const summary = await runImport(db, ['/empty'], fileSystem);
+
+    expect(summary).toEqual({ added: [], alreadyInLibrary: [], skipped: [] });
+  });
+
+  it('searches a folder whose name ends in .pdf instead of skipping it', async () => {
+    const db = await setUp();
+    const fileSystem = createFakeFileSystem({
+      '/folder.pdf': FOLDER,
+      '/folder.pdf/inside.pdf': { kind: 'file', hash: 'hi' },
+    });
 
     const summary = await runImport(db, ['/folder.pdf'], fileSystem);
 
-    expect(summary.skipped).toEqual([{ fileName: 'folder.pdf', reason: 'not-pdf', detail: null }]);
+    expect(summary.added.map((b) => b.title)).toEqual(['inside']);
+    expect(summary.skipped).toEqual([]);
+  });
+
+  it('counts a file dropped directly and also reached through its folder once', async () => {
+    const db = await setUp();
+    const fileSystem = createFakeFileSystem({
+      '/shelf': FOLDER,
+      '/shelf/one.pdf': { kind: 'file', hash: 'h1' },
+      '/shelf/two.pdf': { kind: 'file', hash: 'h2' },
+    });
+    const reports: ImportProgress[] = [];
+
+    const summary = await runImport(db, ['/shelf/one.pdf', '/shelf'], fileSystem, (p) => reports.push(p));
+
+    expect(summary.added.map((b) => b.title)).toEqual(['one', 'two']);
+    expect(summary.alreadyInLibrary).toEqual([]);
+    expect(fileSystem.stored).toEqual(['h1', 'h2']);
+    expect(reports.at(-1)).toEqual({ done: 2, total: 2 });
+  });
+
+  it('skips a folder that cannot be listed, by name, and still adds the others', async () => {
+    const db = await setUp();
+    const fileSystem = createFakeFileSystem({
+      '/locked': { ...FOLDER, listFails: true },
+      '/book.pdf': { kind: 'file', hash: 'hb' },
+    });
+
+    const summary = await runImport(db, ['/locked', '/book.pdf'], fileSystem);
+
+    expect(summary.added.map((b) => b.title)).toEqual(['book']);
+    expect(summary.skipped).toEqual([
+      { fileName: 'locked', reason: 'unreadable', detail: expect.stringContaining('EACCES') },
+    ]);
+  });
+
+  it('reports progress once the PDFs are found and after each one, counting only PDFs, up to the final count', async () => {
+    const db = await setUp();
+    await upsertFile(db, { filePath: '/store/hk', hash: 'hk', title: 'Known' });
+    const fileSystem = createFakeFileSystem({
+      '/drop': FOLDER,
+      '/drop/a.pdf': { kind: 'file', hash: 'ha' },
+      '/drop/known.pdf': { kind: 'file', hash: 'hk' },
+      '/drop/skip.txt': { kind: 'file', hash: 'hs' },
+      '/drop/sub': FOLDER,
+      '/drop/sub/b.pdf': { kind: 'file', hash: 'hb' },
+    });
+    const reports: ImportProgress[] = [];
+
+    await runImport(db, ['/drop'], fileSystem, (p) => reports.push(p));
+
+    expect(reports).toEqual([
+      { done: 0, total: 3 },
+      { done: 1, total: 3 },
+      { done: 2, total: 3 },
+      { done: 3, total: 3 },
+    ]);
+  });
+
+  it('reports no progress when there is no PDF to import', async () => {
+    const db = await setUp();
+    const fileSystem = createFakeFileSystem({ '/notes.txt': { kind: 'file', hash: 'ht' } });
+    const reports: ImportProgress[] = [];
+
+    await runImport(db, ['/notes.txt'], fileSystem, (p) => reports.push(p));
+
+    expect(reports).toEqual([]);
   });
 
   it('returns an error when the library cannot be written', async () => {

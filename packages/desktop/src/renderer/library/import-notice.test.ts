@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BookFile, ImportSummary, SkippedImport } from '@taking-book/core';
-import { bookToOpenAfterAddPdf, describeImport } from './import-notice';
+import { bookToOpenAfterAddPdf, describeImport, describeImportProgress } from './import-notice';
 
 function book(id: number): BookFile {
   return {
@@ -110,5 +110,20 @@ describe('bookToOpenAfterAddPdf', () => {
 
   it('stays on the view when several Books were added', () => {
     expect(bookToOpenAfterAddPdf(summary({ added: [book(1), book(2)] }))).toBeNull();
+  });
+});
+
+describe('describeImportProgress', () => {
+  it('counts the PDF being added, starting from the first', () => {
+    expect(describeImportProgress({ done: 0, total: 40 })).toBe('Adding 1 of 40…');
+    expect(describeImportProgress({ done: 11, total: 40 })).toBe('Adding 12 of 40…');
+  });
+
+  it('never counts past the total once the last PDF is done', () => {
+    expect(describeImportProgress({ done: 40, total: 40 })).toBe('Adding 40 of 40…');
+  });
+
+  it('shows no count for a single PDF, which is done too soon to need one', () => {
+    expect(describeImportProgress({ done: 0, total: 1 })).toBeNull();
   });
 });

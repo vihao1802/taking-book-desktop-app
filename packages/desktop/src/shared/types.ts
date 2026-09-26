@@ -1,11 +1,13 @@
-import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
+import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
   /** Shows the Add PDF dialog and imports the chosen files; null when the dialog was cancelled. */
   openFile(): Promise<Result<ImportSummary | null>>;
-  /** Imports Books from file paths the reader dropped onto the window (Drop import). */
+  /** Imports Books from file and folder paths the reader dropped onto the window (Drop import). */
   importPaths(paths: string[]): Promise<Result<ImportSummary>>;
+  /** Listens for how far a running import (Add PDF or Drop import) has got; returns the unsubscribe. */
+  onImportProgress(listener: (progress: ImportProgress) => void): () => void;
   /** The on-disk path of a dropped file; an empty string when it has none. */
   getPathForFile(file: File): string;
   deleteFile(id: number): Promise<Result<void>>;
@@ -65,4 +67,4 @@ export interface ReaderApi {
   onFullScreenChange(listener: (fullScreen: boolean) => void): () => void;
 }
 
-export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportSummary, NoteDraft, PageNoteInput, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };
+export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };

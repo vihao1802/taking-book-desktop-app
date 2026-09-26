@@ -1,18 +1,23 @@
 import { useEffect } from 'react';
-import { X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import type { BookFile } from '../../shared/types';
-import { describeImport } from '@/library/import-notice';
+import { describeImport, describeImportProgress } from '@/library/import-notice';
 import { useLibrary } from '@/library/useLibrary';
+import { cn } from '@/lib/utils';
 
 // Long enough to read a summary that names several files; the reader can close it sooner.
 const VISIBLE_MS = 10_000;
 
+const NOTICE_CLASS =
+  'bg-card text-card-foreground fixed bottom-6 left-1/2 z-20 flex max-w-xl -translate-x-1/2 items-center gap-3 rounded-lg border py-2 pr-2 pl-4 text-sm shadow-lg';
+
 /**
- * Reports what the latest import did (added, already in the library,
- * skipped), with an Open action when exactly one Book was involved.
+ * Counts a running import ("Adding 12 of 40…"), then reports what it did
+ * (added, already in the library, skipped), with an Open action when exactly
+ * one Book was involved.
  */
 export function ImportNotice({ onOpen }: { onOpen: (file: BookFile) => void }) {
-  const { importNotice, dismissImportNotice } = useLibrary();
+  const { importNotice, importProgress, dismissImportNotice } = useLibrary();
 
   useEffect(() => {
     if (!importNotice) return;
@@ -20,6 +25,15 @@ export function ImportNotice({ onOpen }: { onOpen: (file: BookFile) => void }) {
     return () => window.clearTimeout(timer);
   }, [importNotice, dismissImportNotice]);
 
+  const progressMessage = importProgress && describeImportProgress(importProgress);
+  if (progressMessage) {
+    return (
+      <div role="status" className={cn(NOTICE_CLASS, 'pr-4')}>
+        <Loader2 className="text-muted-foreground size-4 shrink-0 animate-spin" />
+        <span className="tabular-nums">{progressMessage}</span>
+      </div>
+    );
+  }
   if (!importNotice) return null;
   const { message, bookToOpen } = describeImport(importNotice);
   const openBook = (book: BookFile) => {
@@ -28,10 +42,7 @@ export function ImportNotice({ onOpen }: { onOpen: (file: BookFile) => void }) {
   };
 
   return (
-    <div
-      role="status"
-      className="bg-card text-card-foreground fixed bottom-6 left-1/2 z-20 flex max-w-xl -translate-x-1/2 items-center gap-3 rounded-lg border py-2 pr-2 pl-4 text-sm shadow-lg"
-    >
+    <div role="status" className={NOTICE_CLASS}>
       <span className="min-w-0 break-words">{message}</span>
       {bookToOpen && (
         <button

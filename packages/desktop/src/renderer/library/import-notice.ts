@@ -1,4 +1,4 @@
-import type { BookFile, ImportSummary } from '@taking-book/core';
+import type { BookFile, ImportProgress, ImportSummary } from '@taking-book/core';
 
 export interface ImportNoticeContent {
   message: string;
@@ -19,6 +19,16 @@ export function describeImport(summary: ImportSummary): ImportNoticeContent {
     message: describeCounts(summary).join(SEPARATOR),
     bookToOpen: involved.length === 1 ? involved[0] : null,
   };
+}
+
+/**
+ * The notice shown while an import runs, naming the PDF being added
+ * ("Adding 12 of 40…"); null for a single PDF, which finishes too soon for a
+ * count to be worth showing.
+ */
+export function describeImportProgress({ done, total }: ImportProgress): string | null {
+  if (total < 2) return null;
+  return `Adding ${Math.min(done + 1, total)} of ${total}…`;
 }
 
 function describeCounts(summary: ImportSummary): string[] {

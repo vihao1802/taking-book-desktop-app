@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { isOk, type ImportSummary, type Result } from '@taking-book/core';
+import { isOk, type ImportProgress, type ImportSummary, type Result } from '@taking-book/core';
 import type { BookFile, BookStatus, CloudAccount } from '../../shared/types';
 import {
   LibraryContext,
@@ -13,6 +13,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [importNotice, setImportNotice] = useState<ImportSummary | null>(null);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [account, setAccount] = useState<CloudAccount | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [sync, setSync] = useState<SyncState>({ syncing: false, last: null, error: null });
@@ -27,6 +28,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
+  useEffect(() => window.api.onImportProgress(setImportProgress), []);
+
   useEffect(() => {
     window.api.getCloudAccount().then((result) => {
       if (isOk(result)) setAccount(result.data);
@@ -37,6 +40,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const runImport = useCallback(
     async (importBooks: () => Promise<Result<ImportSummary | null>>): Promise<ImportSummary | null> => {
       setBusy(true);
+      // A new import replaces the previous outcome, so its count is not shown beside a stale summary.
+      setImportNotice(null);
       try {
         const result = await importBooks();
         if (!isOk(result)) {
@@ -48,6 +53,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         setImportNotice(result.data);
         return result.data;
       } finally {
+        setImportProgress(null);
         setBusy(false);
       }
     },
@@ -163,6 +169,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     addFiles,
     importPaths,
     importNotice,
+    importProgress,
     dismissImportNotice,
     setStatus,
     setTags,

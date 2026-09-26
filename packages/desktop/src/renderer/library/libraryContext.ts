@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import type { ImportSummary } from '@taking-book/core';
+import type { ImportProgress, ImportSummary } from '@taking-book/core';
 import type { BookFile, BookStatus, CloudAccount, SyncSummary } from '../../shared/types';
 
 export interface SyncState {
@@ -21,6 +21,8 @@ export interface LibraryContextValue {
   importPaths: (paths: string[]) => Promise<void>;
   /** The outcome of the latest import, shown in the import notice until dismissed. */
   importNotice: ImportSummary | null;
+  /** How far the running import has got, shown in the import notice until the outcome replaces it; null when none runs. */
+  importProgress: ImportProgress | null;
   dismissImportNotice: () => void;
   setStatus: (id: number, status: BookStatus) => Promise<void>;
   setTags: (id: number, tags: string[]) => Promise<void>;

@@ -13,6 +13,11 @@ import type { SyncStamp } from './sync/types';
 export interface ImportFileSystem {
   /** Whether the path is a regular file or a directory. */
   stat(path: string): Promise<'file' | 'directory'>;
+  /**
+   * Full paths of a directory's direct children. Should leave out links back
+   * into a directory, so a folder that links to its own parent cannot make the walk endless.
+   */
+  listDirectory(path: string): Promise<string[]>;
   /** SHA-256 of the file's bytes, as lowercase hex. */
   hashFile(path: string): Promise<string>;
   /** Copies the file into the local blob store under its hash and returns the stored copy's path. */
@@ -39,11 +44,22 @@ export interface ImportSummary {
   skipped: SkippedImport[];
 }
 
+/** How far an import has got: PDFs handled so far out of all the PDFs found. */
+export interface ImportProgress {
+  done: number;
+  total: number;
+}
+
 export interface ImportBooksOptions {
-  /** Absolute paths chosen by the reader, in the order they were chosen. */
+  /** Absolute paths of files or folders chosen by the reader, in the order they were chosen. */
   paths: string[];
   fileSystem: ImportFileSystem;
   stamp: SyncStamp;
+  /**
+   * Called once the PDFs are found (done 0) and after each one is handled, so
+   * a long import can show how far it has got. Not called when no PDF was found.
+   */
+  onProgress?: (progress: ImportProgress) => void;
 }
 
 type PathOutcome =
@@ -51,7 +67,11 @@ type PathOutcome =
   | { kind: 'skipped'; skipped: SkippedImport }
   | { kind: 'repeat' };
 
-type StatAndHash = { kind: 'directory' } | { kind: 'file'; hash: string };
+/** What walking the chosen paths found: the PDFs to import, and everything skipped on the way. */
+interface FoundPaths {
+  pdfPaths: string[];
+  skipped: SkippedImport[];
+}
 
 /** One import in progress: its options plus the content already handled, so a repeat is counted once. */
 interface ImportRun extends ImportBooksOptions {
@@ -59,35 +79,80 @@ interface ImportRun extends ImportBooksOptions {
 }
 
 /**
- * Imports Books from a list of file paths: keeps only PDFs (case-insensitive
- * extension), counts each file once (by path and by content), and registers
- * each file by content hash.
- * A file that cannot be read or copied is skipped and the rest continue; only
- * a library (database) failure aborts the whole import with an error.
+ * Imports Books from files and folders: searches folders and all their
+ * subfolders, keeps only PDFs (case-insensitive extension), counts each file
+ * once (by path and by content), and registers each file by content hash.
+ * The walk finishes before any PDF is imported, so progress reports a fixed
+ * total: `onProgress` gets done/total before the first PDF and after each one.
+ * A file or folder that cannot be read, or a file that cannot be copied, is
+ * skipped and the rest continue; only a library (database) failure aborts the
+ * whole import with an error.
  */
 export async function importBooks(db: SqlDriver, options: ImportBooksOptions): Promise<Result<ImportSummary>> {
-  const summary: ImportSummary = { added: [], alreadyInLibrary: [], skipped: [] };
+  const found = await findPdfs(options.paths, options.fileSystem);
+  const summary: ImportSummary = { added: [], alreadyInLibrary: [], skipped: found.skipped };
   const run: ImportRun = { ...options, seenHashes: new Set() };
-  for (const path of new Set(options.paths)) {
-    const outcome = await importPath(db, path, run);
+  const total = found.pdfPaths.length;
+  if (total > 0) options.onProgress?.({ done: 0, total });
+  for (const [index, path] of found.pdfPaths.entries()) {
+    const outcome = await importPdf(db, path, run);
     if (!isOk(outcome)) return outcome;
     if (outcome.data.kind === 'skipped') summary.skipped.push(outcome.data.skipped);
     else if (outcome.data.kind !== 'repeat') summary[outcome.data.kind].push(outcome.data.book);
+    options.onProgress?.({ done: index + 1, total });
   }
   return ok(summary);
 }
 
-async function importPath(db: SqlDriver, path: string, run: ImportRun): Promise<Result<PathOutcome>> {
+/** Walks the chosen paths into the PDFs they hold, visiting each path once however it was reached. */
+async function findPdfs(paths: string[], fileSystem: ImportFileSystem): Promise<FoundPaths> {
+  const found: FoundPaths = { pdfPaths: [], skipped: [] };
+  const walk: Walk = { fileSystem, found, visited: new Set() };
+  for (const path of paths) await walkPath(path, walk);
+  return found;
+}
+
+/** One walk over the chosen paths, and the paths it has visited so far. */
+interface Walk {
+  fileSystem: ImportFileSystem;
+  found: FoundPaths;
+  visited: Set<string>;
+}
+
+async function walkPath(path: string, walk: Walk): Promise<void> {
+  if (walk.visited.has(path)) return;
+  walk.visited.add(path);
+  const skipUnreadable = (action: string, error: unknown): void => {
+    const detail = `Could not ${action} ${path}: ${errorMessage(error)}`;
+    walk.found.skipped.push({ fileName: fileNameOf(path), reason: 'unreadable', detail });
+  };
+  let children: string[];
+  try {
+    if ((await walk.fileSystem.stat(path)) === 'file') return collectFile(path, walk.found);
+    children = await walk.fileSystem.listDirectory(path);
+  } catch (error) {
+    return skipUnreadable('read', error);
+  }
+  for (const child of children) await walkPath(child, walk);
+}
+
+function collectFile(path: string, found: FoundPaths): void {
   const fileName = fileNameOf(path);
-  const skip = (reason: SkipReason, detail: string | null = null): Result<PathOutcome> =>
-    ok({ kind: 'skipped', skipped: { fileName, reason, detail } });
-  if (!isPdfName(fileName)) return skip('not-pdf');
+  if (isPdfName(fileName)) found.pdfPaths.push(path);
+  else found.skipped.push({ fileName, reason: 'not-pdf', detail: null });
+}
 
-  const read = await statAndHash(path, run.fileSystem);
-  if (!isOk(read)) return skip('unreadable', `Could not read ${path}: ${read.error}`);
-  if (read.data.kind === 'directory') return skip('not-pdf');
+async function importPdf(db: SqlDriver, path: string, run: ImportRun): Promise<Result<PathOutcome>> {
+  const fileName = fileNameOf(path);
+  const skip = (detail: string): Result<PathOutcome> =>
+    ok({ kind: 'skipped', skipped: { fileName, reason: 'unreadable', detail } });
 
-  const { hash } = read.data;
+  let hash: string;
+  try {
+    hash = await run.fileSystem.hashFile(path);
+  } catch (error) {
+    return skip(`Could not read ${path}: ${errorMessage(error)}`);
+  }
   if (run.seenHashes.has(hash)) return ok({ kind: 'repeat' });
   run.seenHashes.add(hash);
   const live = await getLiveFileByHash(db, hash);
@@ -98,22 +163,12 @@ async function importPath(db: SqlDriver, path: string, run: ImportRun): Promise<
   try {
     storedPath = await run.fileSystem.copyToStore(path, hash);
   } catch (error) {
-    return skip('unreadable', `Could not copy ${path} into the local store: ${errorMessage(error)}`);
+    return skip(`Could not copy ${path} into the local store: ${errorMessage(error)}`);
   }
   const title = titleFromFileName(fileName);
   const registered = await upsertFile(db, { filePath: storedPath, hash, title }, run.stamp);
   if (!isOk(registered)) return err(registered.error);
   return ok({ kind: 'added', book: registered.data });
-}
-
-/** Hashes a file; a directory is reported as such, since it has no bytes to hash. */
-async function statAndHash(path: string, fileSystem: ImportFileSystem): Promise<Result<StatAndHash>> {
-  try {
-    if ((await fileSystem.stat(path)) === 'directory') return ok({ kind: 'directory' });
-    return ok({ kind: 'file', hash: await fileSystem.hashFile(path) });
-  } catch (error) {
-    return err(errorMessage(error));
-  }
 }
 
 /** Last segment of a POSIX or Windows path; core has no path module to lean on. */
