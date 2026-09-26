@@ -34,6 +34,15 @@ export function carryOutFocusEffect(effect: FocusEffect, handlers: FocusEffectHa
     case 'stop-sound':
       reportIfFailed(handlers.player.stop(), 'stop', handlers);
       return;
+    case 'pause-sound':
+      reportIfFailed(handlers.player.pause(), 'pause', handlers);
+      return;
+    case 'resume-sound':
+      reportIfFailed(handlers.player.resume(), 'resume', handlers);
+      return;
+    case 'fade-out-sound':
+      reportIfFailed(handlers.player.fadeOut(), 'fade-out', handlers);
+      return;
     case 'set-volume':
       reportIfFailed(handlers.player.setVolume(effect.volume), 'set-volume', handlers);
       return;

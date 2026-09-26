@@ -81,12 +81,12 @@ export type FocusTimer =
 /**
  * The Ambient sound: the last sound chosen (kept after stopping, so it can be
  * shown as the reader's choice), the single volume every sound shares, and
- * whether it is playing.
+ * whether it is playing, stopped, or held silent by a paused Focus timer.
  */
 export interface AmbientSoundState {
   soundId: string | null;
   volume: number;
-  status: 'playing' | 'stopped';
+  status: 'playing' | 'paused' | 'stopped';
 }
 
 export interface FocusState {
@@ -110,6 +110,9 @@ export type FocusEffect =
   | { type: 'notify' }
   | { type: 'play-sound'; soundId: string; volume: number }
   | { type: 'stop-sound' }
+  | { type: 'pause-sound' }
+  | { type: 'resume-sound' }
+  | { type: 'fade-out-sound' }
   | { type: 'set-volume'; volume: number };
 
 export interface FocusTransition {
@@ -141,8 +144,7 @@ export function applyFocusAction(state: FocusState, action: FocusAction, now: nu
     case 'resume':
       return ok(resumeTimer(state, now));
     case 'stop':
-      // A manual stop is silent: only a Focus timer that runs out is announced.
-      return ok({ state: { ...state, timer: { status: 'idle' } }, effects: [] });
+      return ok(stopTimer(state));
     case 'tick':
       return ok(tickTimer(state, now));
     case 'choose-sound':
@@ -160,25 +162,50 @@ function startTimer(state: FocusState, minutes: number, now: number): Result<Foc
   return ok({ state: { ...state, timer: { status: 'running', endsAt: now + length.data * 60_000 } }, effects: [] });
 }
 
+// A manual stop is silent (no chime or notice): only a Focus timer that runs out is announced.
+function stopTimer(state: FocusState): FocusTransition {
+  if (state.timer.status === 'idle') return { state, effects: [] };
+  return endFocusBlock(state, []);
+}
+
+// The Focus timer and Ambient sound end together: a playing sound fades out, a sound held silent by a pause just stops.
+function endFocusBlock(state: FocusState, effects: FocusEffect[]): FocusTransition {
+  const { sound } = state;
+  const timer: FocusTimer = { status: 'idle' };
+  if (sound.status === 'playing') {
+    return { state: { ...state, timer, sound: { ...sound, status: 'stopped' } }, effects: [...effects, { type: 'fade-out-sound' }] };
+  }
+  if (sound.status === 'paused') {
+    return { state: { ...state, timer, sound: { ...sound, status: 'stopped' } }, effects: [...effects, { type: 'stop-sound' }] };
+  }
+  return { state: { ...state, timer }, effects };
+}
+
 function pauseTimer(state: FocusState, now: number): FocusTransition {
-  const { timer } = state;
+  const { timer, sound } = state;
   if (timer.status !== 'running') return { state, effects: [] };
-  return { state: { ...state, timer: { status: 'paused', remainingMs: timeLeftUntil(timer.endsAt, now) } }, effects: [] };
+  const paused: FocusTimer = { status: 'paused', remainingMs: timeLeftUntil(timer.endsAt, now) };
+  if (sound.status !== 'playing') return { state: { ...state, timer: paused }, effects: [] };
+  return { state: { timer: paused, sound: { ...sound, status: 'paused' } }, effects: [{ type: 'pause-sound' }] };
 }
 
 function resumeTimer(state: FocusState, now: number): FocusTransition {
-  const { timer } = state;
+  const { timer, sound } = state;
   if (timer.status !== 'paused') return { state, effects: [] };
-  return { state: { ...state, timer: { status: 'running', endsAt: now + timer.remainingMs } }, effects: [] };
+  const running: FocusTimer = { status: 'running', endsAt: now + timer.remainingMs };
+  // Only a sound the pause held silent comes back: one the reader stopped meanwhile stays stopped.
+  if (sound.status !== 'paused') return { state: { ...state, timer: running }, effects: [] };
+  return { state: { timer: running, sound: { ...sound, status: 'playing' } }, effects: [{ type: 'resume-sound' }] };
 }
 
 function tickTimer(state: FocusState, now: number): FocusTransition {
   const { timer } = state;
   if (timer.status !== 'running' || now < timer.endsAt) return { state, effects: [] };
-  return { state: { ...state, timer: { status: 'idle' } }, effects: [{ type: 'chime' }, { type: 'notify' }] };
+  return endFocusBlock(state, [{ type: 'chime' }, { type: 'notify' }]);
 }
 
 // One sound plays at a time: playing a new one replaces the current one, at the shared volume.
+// Choosing a sound is the reader's own action, so it plays at once even while the Focus timer is paused.
 function chooseSound(state: FocusState, soundId: string): Result<FocusTransition, FocusError> {
   if (getAmbientSound(soundId) === null) return err('unknown-sound');
   const { sound } = state;
@@ -190,7 +217,7 @@ function chooseSound(state: FocusState, soundId: string): Result<FocusTransition
 }
 
 function stopSound(state: FocusState): FocusTransition {
-  if (state.sound.status !== 'playing') return { state, effects: [] };
+  if (state.sound.status === 'stopped') return { state, effects: [] };
   return { state: { ...state, sound: { ...state.sound, status: 'stopped' } }, effects: [{ type: 'stop-sound' }] };
 }
 
@@ -199,7 +226,7 @@ function setVolume(state: FocusState, volume: number): Result<FocusTransition, F
   const clamped = Math.min(1, Math.max(0, volume));
   const next = { ...state, sound: { ...state.sound, volume: clamped } };
   // A silent sound only needs the volume stored; the next play-sound carries it.
-  const effects: FocusEffect[] = state.sound.status === 'playing' ? [{ type: 'set-volume', volume: clamped }] : [];
+  const effects: FocusEffect[] = state.sound.status !== 'stopped' ? [{ type: 'set-volume', volume: clamped }] : [];
   return ok({ state: next, effects });
 }
 

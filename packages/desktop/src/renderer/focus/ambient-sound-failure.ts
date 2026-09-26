@@ -20,7 +20,12 @@ export function describeAmbientSoundFailure({ soundId, operation }: AmbientSound
     case 'play':
       return `Couldn't play ${name}.`;
     case 'stop':
+    case 'fade-out':
       return `Couldn't stop ${name}.`;
+    case 'pause':
+      return `Couldn't pause ${name}.`;
+    case 'resume':
+      return `Couldn't resume ${name}.`;
     case 'set-volume':
       return `Couldn't change the volume of ${name}.`;
   }

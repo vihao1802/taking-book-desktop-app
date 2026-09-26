@@ -25,7 +25,7 @@ const VOLUME_SLIDER_MAX = 100;
 /** Chooses, stops and sets the volume of the Ambient sound. */
 export function AmbientSoundSection() {
   const { sound, soundError, chooseSound, stopSound, setVolume } = useFocus();
-  const playingId = sound.status === 'playing' ? sound.soundId : null;
+  const playingId = sound.status !== 'stopped' ? sound.soundId : null;
 
   return (
     <section aria-label="Ambient sound" className="flex flex-col gap-3">

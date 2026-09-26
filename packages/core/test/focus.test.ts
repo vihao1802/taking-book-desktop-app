@@ -190,3 +190,63 @@ describe('Ambient sound', () => {
     expect(started.state.sound).toEqual(playing.state.sound);
   });
 });
+
+describe('Focus timer and Ambient sound together', () => {
+  const withSound = (now: number): FocusState => {
+    const started = apply(INITIAL_FOCUS_STATE, { type: 'start', minutes: 25 }, now);
+    return apply(started.state, { type: 'choose-sound', soundId: 'white-noise' }, now).state;
+  };
+
+  it('pauses a playing sound with the timer and resumes it with the timer', () => {
+    const paused = apply(withSound(0), { type: 'pause' }, MINUTE);
+    expect(paused.effects).toEqual([{ type: 'pause-sound' }]);
+    expect(paused.state.sound.status).toBe('paused');
+
+    const resumed = apply(paused.state, { type: 'resume' }, 2 * MINUTE);
+    expect(resumed.effects).toEqual([{ type: 'resume-sound' }]);
+    expect(resumed.state.sound.status).toBe('playing');
+  });
+
+  it('does not restart a sound the reader stopped while the timer was paused', () => {
+    const paused = apply(withSound(0), { type: 'pause' }, MINUTE);
+    const stopped = apply(paused.state, { type: 'stop-sound' }, MINUTE);
+    expect(stopped.effects).toEqual([{ type: 'stop-sound' }]);
+
+    const resumed = apply(stopped.state, { type: 'resume' }, 2 * MINUTE);
+    expect(resumed.effects).toEqual([]);
+    expect(resumed.state.sound.status).toBe('stopped');
+  });
+
+  it('fades a playing sound when the timer runs out, after the chime and notice', () => {
+    const ended = apply(withSound(0), { type: 'tick' }, 25 * MINUTE);
+    expect(ended.effects).toEqual([{ type: 'chime' }, { type: 'notify' }, { type: 'fade-out-sound' }]);
+    expect(ended.state.sound.status).toBe('stopped');
+  });
+
+  it('fades a playing sound on a manual stop, without a chime or notice', () => {
+    const stopped = apply(withSound(0), { type: 'stop' }, MINUTE);
+    expect(stopped.effects).toEqual([{ type: 'fade-out-sound' }]);
+    expect(stopped.state.timer).toEqual({ status: 'idle' });
+  });
+
+  it('silences a paused sound at once when the timer is stopped by hand', () => {
+    const paused = apply(withSound(0), { type: 'pause' }, MINUTE);
+    const stopped = apply(paused.state, { type: 'stop' }, MINUTE);
+    expect(stopped.effects).toEqual([{ type: 'stop-sound' }]);
+    expect(stopped.state.sound.status).toBe('stopped');
+  });
+
+  it('emits no sound effect when no sound plays', () => {
+    const started = apply(INITIAL_FOCUS_STATE, { type: 'start', minutes: 25 }, 0);
+    const paused = apply(started.state, { type: 'pause' }, MINUTE);
+    expect(paused.effects).toEqual([]);
+    expect(apply(paused.state, { type: 'resume' }, 2 * MINUTE).effects).toEqual([]);
+    expect(apply(started.state, { type: 'stop' }, MINUTE).effects).toEqual([]);
+    expect(apply(started.state, { type: 'tick' }, 25 * MINUTE).effects).toEqual([{ type: 'chime' }, { type: 'notify' }]);
+  });
+
+  it('leaves a sound playing when the timer is idle and stop is pressed', () => {
+    const playing = apply(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'pink-noise' }, 0);
+    expect(apply(playing.state, { type: 'stop' }, 0)).toEqual({ state: playing.state, effects: [] });
+  });
+});
