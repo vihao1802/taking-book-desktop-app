@@ -282,6 +282,18 @@ export function getFocusTimeLeftMs(timer: FocusTimer, now: number): number | nul
   }
 }
 
+/**
+ * Whether a Focus timer or an Ambient sound is active, which is when the
+ * navigation rail shows its Focus indicator. A paused timer or sound still
+ * counts, since the reader can resume it.
+ *
+ * @param state - The Focus timer and Ambient sound state.
+ * @returns True unless the timer is idle and no sound is playing or paused.
+ */
+export function isFocusActive(state: FocusState): boolean {
+  return state.timer.status !== 'idle' || state.sound.status !== 'stopped';
+}
+
 function timeLeftUntil(endsAt: number, now: number): number {
   return Math.max(0, endsAt - now);
 }

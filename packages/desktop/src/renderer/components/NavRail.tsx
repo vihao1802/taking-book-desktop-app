@@ -6,6 +6,7 @@ import {
   Settings,
   Star,
 } from 'lucide-react';
+import { FocusIndicator } from '@/focus/FocusIndicator';
 
 export type View = 'home' | 'library' | 'favorites' | 'notes' | 'statistics' | 'settings';
 
@@ -44,6 +45,7 @@ export function NavRail({
           ))}
         </ul>
       </div>
+      <FocusIndicator />
     </nav>
   );
 }

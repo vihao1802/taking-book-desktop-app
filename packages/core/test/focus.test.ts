@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AMBIENT_SOUNDS, DEFAULT_AMBIENT_VOLUME, INITIAL_FOCUS_STATE, applyFocusAction, getAmbientSound, formatFocusTimeLeft, getFocusTimeLeftMs, parseFocusMinutes, type FocusAction, type FocusState, type FocusTransition } from '../src';
+import { AMBIENT_SOUNDS, DEFAULT_AMBIENT_VOLUME, INITIAL_FOCUS_STATE, applyFocusAction, getAmbientSound, formatFocusTimeLeft, getFocusTimeLeftMs, isFocusActive, parseFocusMinutes, type FocusAction, type FocusState, type FocusTransition } from '../src';
 
 const MINUTE = 60_000;
 
@@ -248,5 +248,32 @@ describe('Focus timer and Ambient sound together', () => {
   it('leaves a sound playing when the timer is idle and stop is pressed', () => {
     const playing = apply(INITIAL_FOCUS_STATE, { type: 'choose-sound', soundId: 'pink-noise' }, 0);
     expect(apply(playing.state, { type: 'stop' }, 0)).toEqual({ state: playing.state, effects: [] });
+  });
+});
+
+describe('isFocusActive', () => {
+  const start = apply(INITIAL_FOCUS_STATE, { type: 'start', minutes: 25 }, 0).state;
+  const withSound = (status: 'playing' | 'paused' | 'stopped'): FocusState => ({
+    ...INITIAL_FOCUS_STATE,
+    sound: { soundId: 'white-noise', volume: DEFAULT_AMBIENT_VOLUME, status },
+  });
+
+  it('is false when the timer is idle and no sound plays', () => {
+    expect(isFocusActive(INITIAL_FOCUS_STATE)).toBe(false);
+    expect(isFocusActive(withSound('stopped'))).toBe(false);
+  });
+
+  it('is true for a running or paused timer alone', () => {
+    expect(isFocusActive(start)).toBe(true);
+    expect(isFocusActive(apply(start, { type: 'pause' }, 1_000).state)).toBe(true);
+  });
+
+  it('is true for a playing or paused sound alone', () => {
+    expect(isFocusActive(withSound('playing'))).toBe(true);
+    expect(isFocusActive(withSound('paused'))).toBe(true);
+  });
+
+  it('is true for a timer and a sound together', () => {
+    expect(isFocusActive({ ...start, sound: withSound('playing').sound })).toBe(true);
   });
 });

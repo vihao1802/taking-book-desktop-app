@@ -184,6 +184,7 @@ export {
   formatFocusTimeLeft,
   getAmbientSound,
   getFocusTimeLeftMs,
+  isFocusActive,
   parseFocusMinutes,
   resolveFocusPreferences,
   type AmbientSound,
