@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { isOk, type ImportSummary } from '@taking-book/core';
+import { isOk, type ImportSummary, type Result } from '@taking-book/core';
 import type { BookFile, BookStatus, CloudAccount } from '../../shared/types';
 import {
   LibraryContext,
@@ -33,22 +33,35 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const addFiles = useCallback(async (): Promise<ImportSummary | null> => {
-    setBusy(true);
-    try {
-      const result = await window.api.openFile();
-      if (!isOk(result)) {
-        setError(result.error);
-        return null;
+  // Every way of adding Books shows the spinner, refreshes the library and reports the outcome alike.
+  const runImport = useCallback(
+    async (importBooks: () => Promise<Result<ImportSummary | null>>): Promise<ImportSummary | null> => {
+      setBusy(true);
+      try {
+        const result = await importBooks();
+        if (!isOk(result)) {
+          setError(result.error);
+          return null;
+        }
+        if (!result.data) return null;
+        await refresh();
+        setImportNotice(result.data);
+        return result.data;
+      } finally {
+        setBusy(false);
       }
-      if (!result.data) return null;
-      await refresh();
-      setImportNotice(result.data);
-      return result.data;
-    } finally {
-      setBusy(false);
-    }
-  }, [refresh]);
+    },
+    [refresh],
+  );
+
+  const addFiles = useCallback(() => runImport(() => window.api.openFile()), [runImport]);
+
+  const importPaths = useCallback(
+    async (paths: string[]) => {
+      await runImport(() => window.api.importPaths(paths));
+    },
+    [runImport],
+  );
 
   const dismissImportNotice = useCallback(() => setImportNotice(null), []);
 
@@ -148,6 +161,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     connecting,
     sync,
     addFiles,
+    importPaths,
     importNotice,
     dismissImportNotice,
     setStatus,

@@ -17,6 +17,8 @@ export interface LibraryContextValue {
   sync: SyncState;
   /** Runs the Add PDF dialog and import; resolves to null when cancelled or failed (the error is set instead). */
   addFiles: () => Promise<ImportSummary | null>;
+  /** Imports dropped file paths (Drop import) and reports them in the import notice; never opens a Book. */
+  importPaths: (paths: string[]) => Promise<void>;
   /** The outcome of the latest import, shown in the import notice until dismissed. */
   importNotice: ImportSummary | null;
   dismissImportNotice: () => void;

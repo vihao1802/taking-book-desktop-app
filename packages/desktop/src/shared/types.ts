@@ -4,6 +4,10 @@ import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, Cl
 export interface ReaderApi {
   /** Shows the Add PDF dialog and imports the chosen files; null when the dialog was cancelled. */
   openFile(): Promise<Result<ImportSummary | null>>;
+  /** Imports Books from file paths the reader dropped onto the window (Drop import). */
+  importPaths(paths: string[]): Promise<Result<ImportSummary>>;
+  /** The on-disk path of a dropped file; an empty string when it has none. */
+  getPathForFile(file: File): string;
   deleteFile(id: number): Promise<Result<void>>;
   /** Whether a book's stored file can still be read; the error says why not, in words fit to show the reader. */
   checkFileReadable(filePath: string): Promise<Result<void>>;

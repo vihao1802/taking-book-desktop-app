@@ -1,8 +1,11 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { ReaderApi } from './shared/types';
 
 const api: ReaderApi = {
   openFile: () => ipcRenderer.invoke('files:open'),
+  importPaths: (paths) => ipcRenderer.invoke('files:import', paths),
+  // File.path is gone from Electron; webUtils only works in the preload, so it is wrapped here.
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   deleteFile: (id) => ipcRenderer.invoke('files:delete', id),
   checkFileReadable: (filePath) => ipcRenderer.invoke('files:check-readable', filePath),
   getLastPosition: (id) => ipcRenderer.invoke('files:last-position:get', id),

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Annotation, BookFile } from '../shared/types';
 import { AddPdfFab } from './components/AddPdfFab';
+import { DropOverlay } from './components/DropOverlay';
 import { ImportNotice } from './components/ImportNotice';
 import { NavRail, type View } from './components/NavRail';
 import { Favorites } from './favorites/Favorites';
@@ -62,6 +63,7 @@ export function App() {
             )}
             <AddPdfFab onOpen={setFile} />
             <ImportNotice onOpen={setFile} />
+            <DropOverlay />
           </main>
         </div>
       </LibraryProvider>

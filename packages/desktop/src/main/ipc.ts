@@ -108,6 +108,11 @@ export function registerIpc(db: SqlDriver): void {
     return importFromPaths(filePaths);
   });
 
+  ipcMain.handle('files:import', async (_event, paths: unknown): Promise<Result<ImportSummary>> => {
+    if (!isStringArray(paths)) return { ok: false, error: 'Only file paths can be imported.' };
+    return importFromPaths(paths);
+  });
+
   ipcMain.handle('files:delete', async (_event, id: number) => {
     const result = await deleteFile(db, id, await stamp());
     if (!isOk(result)) return result;
@@ -376,6 +381,10 @@ export function registerIpc(db: SqlDriver): void {
     if (!isOk(provider)) return provider;
     return runSync(db, userDataDir, provider.data);
   });
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
 function errorMessage(error: unknown): string {
