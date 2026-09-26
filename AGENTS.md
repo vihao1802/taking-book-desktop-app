@@ -63,7 +63,7 @@ This file defines conventions any coding agent (or contributor) must follow when
 - npm workspaces at the repo root. All commands run from the root; the desktop app is run from `packages/desktop`.
 - `@taking-book/core` is consumed by platforms as a **built** package (it must be `npm run build`-ed before platform typecheck/start). The desktop `start`/`package`/`make` scripts build core first automatically.
 - Verification commands (from repo root): `npm run build` → `npm run typecheck` → `npm run lint` → `npm test`. Run all of these before finishing a task.
-- Vitest lives in `/core`; platform packages have no test runner unless one is added explicitly.
+- Vitest runs in `/core` and `/desktop` (`npm test` from the root runs both); `/mobile` has no test runner unless one is added explicitly.
 - Environment quirks:
   - Containers/VMs with no GPU: run the desktop app as `TB_DISABLE_GPU=1 npm start`.
   - Forge's system check trips on this shell's `npm_config_user_agent=npm/undefined`; `~/.skip-forge-system-check` is the workaround — do not delete it.
