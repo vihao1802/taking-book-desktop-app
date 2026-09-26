@@ -223,6 +223,7 @@ export {
 export {
   addCustomSounds,
   type AddCustomSoundsSummary,
+  type AddedCustomSoundFile,
   type CustomSoundFileSystem,
   type RejectedCustomSound,
 } from './addCustomSounds';

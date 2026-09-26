@@ -22,9 +22,14 @@ export interface RejectedCustomSound {
   detail?: string;
 }
 
+/** A newly added Custom sound with the name of the file it came from, so a later problem can name that file. */
+export interface AddedCustomSoundFile extends CustomSound {
+  fileName: string;
+}
+
 /** What adding a batch of files did: the new sounds, how many were already there, and the files that were refused. */
 export interface AddCustomSoundsSummary {
-  added: CustomSound[];
+  added: AddedCustomSoundFile[];
   alreadyAdded: number;
   rejected: RejectedCustomSound[];
 }
@@ -52,7 +57,7 @@ export async function addCustomSounds(
   const summary: AddCustomSoundsSummary = { added: [], alreadyAdded: 0, rejected: [] };
   for (const path of options.paths) {
     const fileName = path.split(/[\\/]/).pop() ?? path;
-    const outcome = await addOne(db, path, options.fileSystem);
+    const outcome = await addOne(db, { path, fileName }, options.fileSystem);
     if (!outcome.ok) return outcome;
     if (outcome.data.kind === 'rejected') summary.rejected.push({ fileName, reason: outcome.data.reason, detail: outcome.data.detail });
     else if (outcome.data.kind === 'already-added') summary.alreadyAdded += 1;
@@ -61,9 +66,10 @@ export async function addCustomSounds(
   return ok(summary);
 }
 
-type AddOutcome = { kind: 'added'; sound: CustomSound } | { kind: 'already-added' } | { kind: 'rejected'; reason: string; detail?: string };
+type AddOutcome = { kind: 'added'; sound: AddedCustomSoundFile } | { kind: 'already-added' } | { kind: 'rejected'; reason: string; detail?: string };
 
-async function addOne(db: SqlDriver, path: string, fileSystem: CustomSoundFileSystem): Promise<Result<AddOutcome>> {
+async function addOne(db: SqlDriver, file: { path: string; fileName: string }, fileSystem: CustomSoundFileSystem): Promise<Result<AddOutcome>> {
+  const { path, fileName } = file;
   let contentHash: string;
   try {
     const size = validateCustomSoundFile({ sizeBytes: await fileSystem.sizeOf(path) });
@@ -82,7 +88,7 @@ async function addOne(db: SqlDriver, path: string, fileSystem: CustomSoundFileSy
     await deleteCustomSound(db, contentHash);
     return ok({ kind: 'rejected', reason: UNREADABLE_REASON, detail: errorMessage(error) });
   }
-  return ok({ kind: 'added', sound: added.data.sound });
+  return ok({ kind: 'added', sound: { ...added.data.sound, fileName } });
 }
 
 function errorMessage(error: unknown): string {

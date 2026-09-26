@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { err, ok, type CustomSound, type Result } from '@taking-book/core';
+import { err, ok, type AddedCustomSoundFile, type CustomSound, type Result } from '@taking-book/core';
 import { getAudioContext } from './audio-context';
 import { loadCustomSound, releaseCustomSound } from './custom-sound-recordings';
 import { describeAddedCustomSounds, type CustomSoundsNotice } from './custom-sound-messages';
@@ -30,14 +30,14 @@ export function useCustomSounds(): CustomSoundLibrary {
   }, [refresh]);
 
   // Only the renderer can tell whether a file decodes, so a file that turns out not to be audio is taken out again.
-  const removeUnplayable = useCallback(async (added: CustomSound[]): Promise<string[]> => {
+  const removeUnplayable = useCallback(async (added: AddedCustomSoundFile[]): Promise<string[]> => {
     const unplayable: string[] = [];
     for (const sound of added) {
       try {
         await loadCustomSound(getAudioContext(), sound.contentHash);
       } catch (error) {
         console.error(`[focus] Custom sound ${sound.name} could not be decoded`, error);
-        unplayable.push(sound.name);
+        unplayable.push(sound.fileName);
         await window.api.deleteCustomSound(sound.contentHash);
       }
     }

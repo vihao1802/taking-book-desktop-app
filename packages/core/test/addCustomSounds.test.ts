@@ -39,7 +39,7 @@ describe('addCustomSounds', () => {
     const db = await createDatabase();
     const fileSystem = createFakeFileSystem({ '/m/Rainy Cafe.mp3': { sizeBytes: 100, hash: HASH_A } });
     const result = await addCustomSounds(db, { paths: ['/m/Rainy Cafe.mp3'], fileSystem });
-    expect(result).toEqual({ ok: true, data: { added: [{ contentHash: HASH_A, name: 'Rainy Cafe' }], alreadyAdded: 0, rejected: [] } });
+    expect(result).toEqual({ ok: true, data: { added: [{ contentHash: HASH_A, name: 'Rainy Cafe', fileName: 'Rainy Cafe.mp3' }], alreadyAdded: 0, rejected: [] } });
     expect(fileSystem.stored).toEqual([HASH_A]);
   });
 
@@ -63,7 +63,7 @@ describe('addCustomSounds', () => {
     expect(result).toEqual({
       ok: true,
       data: {
-        added: [{ contentHash: HASH_B, name: 'ok' }],
+        added: [{ contentHash: HASH_B, name: 'ok', fileName: 'ok.ogg' }],
         alreadyAdded: 0,
         rejected: [
           { fileName: 'empty.mp3', reason: 'The file is empty.', detail: undefined },

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeAddedCustomSounds, UNPLAYABLE_REASON } from './custom-sound-messages';
 
-const sound = (name: string) => ({ contentHash: name.repeat(64).slice(0, 64), name });
+const sound = (name: string) => ({ contentHash: name.repeat(64).slice(0, 64), name, fileName: `${name}.mp3` });
 
 describe('describeAddedCustomSounds', () => {
   it('says nothing when the picker was cancelled', () => {
