@@ -1,103 +1,59 @@
 # Taking Book
 
-A distraction-free, cross-platform document reader: shared core logic + Electron
-desktop app + React Native mobile app, backed by SQLite and cloud-drive sync.
+A distraction-free, local-first document reader with optional Google Drive sync.
 
-## Packages
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph desktop["packages/desktop (Electron)"]
+    renderer["Renderer<br/>React UI"]
+    preload["Preload<br/>IPC bridge"]
+    main["Main process<br/>SQLite driver, sync scheduler,<br/>Drive client"]
+    renderer --> preload --> main
+  end
+
+  subgraph mobile["packages/mobile (planned)"]
+    rn["React Native UI"]
+  end
+
+  core["packages/core<br/>models, repositories, position tracking,<br/>reflow, sync merge"]
+  db[("SQLite")]
+  drive[("Google Drive<br/>Taking Book/ folder")]
+
+  renderer --> core
+  main --> core
+  rn -.-> core
+  main --> db
+  main --> drive
+```
+
+`core` is platform-agnostic: SQLite and Drive access are injected by the
+platform packages, and platforms never import from each other.
 
 | Package | Description | Status |
 | --- | --- | --- |
-| `packages/core` | Platform-agnostic logic: models, SQLite repositories, position tracking, hashing, text reflow, sync merge | Phase 1 + 4 complete |
-| `packages/desktop` | Electron desktop app (library + reader + reflow prototype + theme + sync) | Phase 1–4 complete |
-| `packages/mobile` | React Native mobile app | Phase 5, not started |
+| `packages/core` | Shared logic (see [AGENTS.md](./AGENTS.md)) | Active |
+| `packages/desktop` | Electron app: library, reader, sync | Active |
+| `packages/mobile` | React Native app | Planned |
 
-## Conventions
-
-See [AGENTS.md](./AGENTS.md) — the monorepo coding rules (structure, TS strictness,
-Result-style data access, testing).
-
-Keyboard shortcuts for the reader and library: [docs/shortcuts.md](./docs/shortcuts.md).
-
-## Scripts
+## Quick start
 
 ```bash
-npm install   # install all workspaces
-npm run build # build @taking-book/core (must run before typecheck/desktop)
-npm test      # run core unit tests
-npm run typecheck
-npm run lint
-```
+npm install
+npm run build   # builds @taking-book/core; required before typecheck/start
+npm test
 
-Run the desktop app:
-
-```bash
 cd packages/desktop
-TB_DISABLE_GPU=1 npm start   # TB_DISABLE_GPU for VMs/containers
+TB_DISABLE_GPU=1 npm start   # TB_DISABLE_GPU only for VMs/containers
 ```
 
-## Phases
+Verification: `npm run build && npm run typecheck && npm run lint && npm test`.
 
-1. **Phase 1 — Reader core (done):** chrome-less Electron PDF reader, themes,
-   last-read-position memory, content-hash file identity.
-2. **Phase 2 — Library (done):** grid view, status/tags, search.
-3. **Phase 3 — Mobile reflow (prototype done):** core reflow engine (PDF text
-   items → flowing paragraphs) + desktop prototype reader with page/reflow toggle.
-4. **Phase 4 — Sync (done):** Google Drive OAuth cloud sync. Core implements
-   last-write-wins merge with per-record clocks, tombstones, and a
-   content-addressed blob store; the desktop app syncs a manifest + blobs into a
-   `Taking Book/` Drive folder. Connect via the in-app "Connect Google Drive"
-   flow (loopback OAuth); tokens are stored encrypted via Electron `safeStorage`
-   and auto-refreshed on expiry.
+## Docs
 
-   To use your own Google Cloud OAuth client, copy
-   `packages/desktop/.env.example` to `packages/desktop/.env` and fill in your
-   `TB_GDRIVE_CLIENT_ID` / `TB_GDRIVE_CLIENT_SECRET` (or set them as env vars;
-   the token endpoint rejects requests without a client secret). The `.env`
-   file is gitignored; the Forge build bundles it into packaged apps'
-   `resources/` when present, so packaged builds resolve credentials without
-   committing them.
-5. **Phase 5 — React Native port** of the reader using `packages/core`.
-
-## Releases
-
-End users download the app from the **GitHub Releases** page of this repo. A
-tagged release triggers a GitHub Actions workflow
-(`.github/workflows/release.yml`) that builds a `.deb` (Linux) and a `.exe`
-(Windows) and attaches them to the release.
-
-### Cutting a release
-
-Follow [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`
-(e.g. `1.2.3`). Each released change bumps the version accordingly:
-
-- **PATCH** — bug fixes and backwards-compatible small changes (e.g. `1.2.3` → `1.2.4`).
-- **MINOR** — new backwards-compatible features (e.g. `1.2.3` → `1.3.0`).
-- **MAJOR** — breaking changes (e.g. `1.2.3` → `2.0.0`).
-
-Steps:
-
-1. Bump the version in `packages/desktop/package.json` and commit.
-2. Push a tag named `v<version>` (matching the `package.json` version), e.g.:
-
-   ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
-
-   The workflow builds both platforms and publishes the release notes
-   automatically from the commits since the last tag.
-3. Verify the release at `https://github.com/vihao1802/taking-book-desktop-app/releases`.
-
-Notes:
-
-- **Google OAuth credentials** are injected from the `TB_GDRIVE_CLIENT_ID` /
-  `TB_GDRIVE_CLIENT_SECRET` repository secrets at build time. They must be
-  set in the repo's *Settings → Secrets*; the publisher's (verified) client is
-  used for end users. Without them the app builds but cloud sync is disabled.
-- **Windows build** (Squirrel `.exe`) is unsigned — SmartScreen will warn users
-  "Unknown publisher". Signing needs a code-signing certificate; see
-  `.github/workflows/release.yml` if that becomes necessary.
-- **macOS**: a `.dmg`/`.app` must be built and notarized on a Mac (GitHub
-  `macos-latest` runners) and requires an Apple Developer account. Not wired
-  up yet — Linux and Windows are the current release targets.
-- Install the Linux package with `sudo apt install ./taking-book-desktop-app_*.deb`.
+- [AGENTS.md](./AGENTS.md) — coding rules
+- [CONTEXT.md](./CONTEXT.md) — domain glossary
+- [docs/shortcuts.md](./docs/shortcuts.md) — keyboard shortcuts
+- [docs/google-drive-setup.md](./docs/google-drive-setup.md) — cloud sync setup
+- [docs/releasing.md](./docs/releasing.md) — cutting a release
