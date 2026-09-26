@@ -36,9 +36,11 @@ interface HomeProps {
 /**
  * Home: one centered column of the header, then either search results or the
  * launchpad (Featured book and shelves), or an invitation when the library is empty.
+ * Below the header it stays blank until the library has loaded, so a full
+ * library never flashes the empty-library invitation at launch.
  */
 export function Home({ onOpen, onNavigate }: HomeProps): ReactElement {
-  const { files } = useLibrary();
+  const { files, loaded } = useLibrary();
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   useSearchShortcut(searchRef);
@@ -47,7 +49,7 @@ export function Home({ onOpen, onNavigate }: HomeProps): ReactElement {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 p-8">
       <HomeHeader query={query} onQueryChange={setQuery} searchRef={searchRef} />
-      {searching ? (
+      {!loaded ? null : searching ? (
         <SearchResults files={files} query={query} onOpen={onOpen} />
       ) : files.length === 0 ? (
         <EmptyLibraryInvitation onOpen={onOpen} />

@@ -10,6 +10,7 @@ import {
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<BookFile[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [importNotice, setImportNotice] = useState<ImportSummary | null>(null);
@@ -22,6 +23,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     const result = await window.api.listFiles();
     if (isOk(result)) setFiles(result.data);
     else setError(result.error);
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -161,6 +163,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   const value: LibraryContextValue = {
     files,
+    loaded,
     error,
     busy,
     account,

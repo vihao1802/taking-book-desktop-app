@@ -10,6 +10,8 @@ export interface SyncState {
 
 export interface LibraryContextValue {
   files: BookFile[];
+  /** False until the first library load settles, so an empty `files` is not yet a truly empty library. */
+  loaded: boolean;
   error: string | null;
   busy: boolean;
   account: CloudAccount | null;
