@@ -1,3 +1,4 @@
+import { getAmbientSound, resolveFocusPreferences, validateFocusMinutes, type FocusPreferences } from './focus';
 import type { Theme } from './models';
 import type { Result } from './result';
 import { err, ok } from './result';
@@ -144,6 +145,45 @@ export async function getEffectiveTargetLanguage(
 export async function setTargetLanguage(db: SqlDriver, code: string): Promise<Result<void>> {
   if (!isSupportedLanguage(code)) return err(`Unsupported Target language "${code}".`);
   return setSetting(db, TARGET_LANGUAGE_KEY, code);
+}
+
+const FOCUS_SOUND_KEY = 'focus.soundId';
+const FOCUS_VOLUME_KEY = 'focus.volume';
+const FOCUS_MINUTES_KEY = 'focus.minutes';
+
+/**
+ * Reads the Focus controls' remembered choices. Values that are missing,
+ * unknown or out of range fall back to their defaults (no sound, default
+ * volume, 25 minutes). These are local only and never synced.
+ */
+export async function getFocusPreferences(db: SqlDriver): Promise<Result<FocusPreferences>> {
+  const soundId = await getSetting(db, FOCUS_SOUND_KEY);
+  if (!soundId.ok) return soundId;
+  const volume = await getSetting(db, FOCUS_VOLUME_KEY);
+  if (!volume.ok) return volume;
+  const minutes = await getSetting(db, FOCUS_MINUTES_KEY);
+  if (!minutes.ok) return minutes;
+  return ok(resolveFocusPreferences({ soundId: soundId.data, volume: volume.data, minutes: minutes.data }));
+}
+
+/**
+ * Saves the given Focus choices, leaving the others as they were. Any invalid
+ * value rejects the whole call and nothing is saved.
+ */
+export async function setFocusPreferences(db: SqlDriver, preferences: Partial<FocusPreferences>): Promise<Result<void>> {
+  const { soundId, volume, minutes } = preferences;
+  if (soundId !== undefined && soundId !== null && getAmbientSound(soundId) === null) return err(`Unknown Ambient sound "${soundId}".`);
+  if (volume !== undefined && !(volume >= 0 && volume <= 1)) return err('Ambient sound volume must be from 0 to 1.');
+  if (minutes !== undefined && !validateFocusMinutes(minutes).ok) return err('Focus timer length must be a whole number of minutes from 1 to 180.');
+  const writes: Array<[string, string]> = [];
+  if (soundId !== undefined) writes.push([FOCUS_SOUND_KEY, soundId ?? '']);
+  if (volume !== undefined) writes.push([FOCUS_VOLUME_KEY, String(volume)]);
+  if (minutes !== undefined) writes.push([FOCUS_MINUTES_KEY, String(minutes)]);
+  for (const [key, value] of writes) {
+    const saved = await setSetting(db, key, value);
+    if (!saved.ok) return saved;
+  }
+  return ok(undefined);
 }
 
 function errorMessage(error: unknown): string {

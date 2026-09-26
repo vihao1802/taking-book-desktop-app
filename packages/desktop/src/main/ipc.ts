@@ -8,6 +8,7 @@ import {
   deleteNote,
   getDailyReadingMinutes,
   getEffectiveTargetLanguage,
+  getFocusPreferences,
   getFileZoom,
   getLastPosition,
   getReadingMinutesByBook,
@@ -37,12 +38,13 @@ import {
   setFileTitle,
   setNotesSidebarWidth,
   setSidebarWidth,
+  setFocusPreferences,
   setTargetLanguage,
   setTheme,
   TRANSLATION_FAILED_MESSAGE,
   translateText,
 } from '@taking-book/core';
-import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
+import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, FocusPreferences, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
 import { join } from 'node:path';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -328,6 +330,19 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('settings:targetLanguage:set', (_event, code: unknown): Promise<Result<void>> => {
     if (typeof code !== 'string') return Promise.resolve({ ok: false, error: 'Target language must be a string.' });
     return setTargetLanguage(db, code);
+  });
+
+  ipcMain.handle('settings:focus:get', () => getFocusPreferences(db));
+
+  ipcMain.handle('settings:focus:set', (_event, preferences: unknown): Promise<Result<void>> => {
+    if (typeof preferences !== 'object' || preferences === null) return Promise.resolve({ ok: false, error: 'Focus preferences must be an object.' });
+    const { soundId, volume, minutes } = preferences as Record<string, unknown>;
+    const wellTyped =
+      (soundId === undefined || soundId === null || typeof soundId === 'string') &&
+      (volume === undefined || typeof volume === 'number') &&
+      (minutes === undefined || typeof minutes === 'number');
+    if (!wellTyped) return Promise.resolve({ ok: false, error: 'Focus preferences have the wrong types.' });
+    return setFocusPreferences(db, { soundId, volume, minutes } as Partial<FocusPreferences>);
   });
 
   // The renderer sends only the selected text; the Target language is resolved

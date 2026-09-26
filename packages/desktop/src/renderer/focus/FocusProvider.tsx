@@ -1,11 +1,13 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  DEFAULT_FOCUS_MINUTES,
   INITIAL_FOCUS_STATE,
   applyFocusAction,
   getFocusTimeLeftMs,
   ok,
   type FocusAction,
   type FocusError,
+  type FocusPreferences,
   type FocusState,
   type Result,
 } from '@taking-book/core';
@@ -39,6 +41,9 @@ export function FocusProvider({ children }: { children: ReactNode }) {
   const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
   const [noticeId, setNoticeId] = useState<number | null>(null);
   const [soundError, setSoundError] = useState<string | null>(null);
+  const [lengthMinutes, setLengthMinutes] = useState(DEFAULT_FOCUS_MINUTES);
+  // Once the reader changes something, a slower load of the saved choices must not overwrite it.
+  const touchedRef = useRef({ sound: false, volume: false, length: false });
   const [player] = useState(createWebAudioSoundPlayer);
 
   const dispatch = useMemo(() => {
@@ -68,7 +73,35 @@ export function FocusProvider({ children }: { children: ReactNode }) {
     return run;
   }, [player]);
 
+  useEffect(() => {
+    let cancelled = false;
+    window.api.getFocusPreferences().then((res) => {
+      if (cancelled) return;
+      if (!res.ok) {
+        console.error('[focus] Failed to load saved Focus choices', res.error);
+        return;
+      }
+      const touched = touchedRef.current;
+      const { soundId, volume, minutes } = res.data;
+      // Only selected, never played: nothing starts by itself.
+      const { sound: current } = stateRef.current;
+      if (!touched.sound && current.status === 'stopped') stateRef.current = { ...stateRef.current, sound: { ...stateRef.current.sound, soundId } };
+      if (!touched.volume) stateRef.current = { ...stateRef.current, sound: { ...stateRef.current.sound, volume } };
+      setSound(stateRef.current.sound);
+      if (!touched.length) setLengthMinutes(minutes);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const dispatchLogged = useCallback((action: FocusAction) => logRejected(action, dispatch(action)), [dispatch]);
+
+  const remember = useCallback((preferences: Partial<FocusPreferences>): void => {
+    window.api.setFocusPreferences(preferences).then((res) => {
+      if (!res.ok) console.error('[focus] Failed to save Focus choices', res.error);
+    });
+  }, []);
   const dismissNotice = useCallback(() => setNoticeId(null), []);
 
   const tick = useCallback(() => dispatchLogged({ type: 'tick' }), [dispatchLogged]);
@@ -80,6 +113,12 @@ export function FocusProvider({ children }: { children: ReactNode }) {
       timeLeftMs,
       // start hands its Result back: an invalid custom length is the reader's to fix, not a bug to log.
       start: (minutes) => dispatch({ type: 'start', minutes }),
+      lengthMinutes,
+      chooseLength: (minutes) => {
+        touchedRef.current.length = true;
+        setLengthMinutes(minutes);
+        remember({ minutes });
+      },
       pause: () => dispatchLogged({ type: 'pause' }),
       resume: () => dispatchLogged({ type: 'resume' }),
       stop: () => dispatchLogged({ type: 'stop' }),
@@ -87,12 +126,18 @@ export function FocusProvider({ children }: { children: ReactNode }) {
       soundError,
       chooseSound: (soundId) => {
         setSoundError(null);
+        touchedRef.current.sound = true;
         dispatchLogged({ type: 'choose-sound', soundId });
+        remember({ soundId });
       },
       stopSound: () => dispatchLogged({ type: 'stop-sound' }),
-      setVolume: (volume) => dispatchLogged({ type: 'set-volume', volume }),
+      setVolume: (volume) => {
+        touchedRef.current.volume = true;
+        dispatchLogged({ type: 'set-volume', volume });
+        remember({ volume: stateRef.current.sound.volume });
+      },
     }),
-    [timer, timeLeftMs, sound, soundError, dispatch, dispatchLogged],
+    [timer, timeLeftMs, lengthMinutes, sound, soundError, dispatch, dispatchLogged, remember],
   );
 
   return (

@@ -44,8 +44,10 @@ export function AmbientSoundSection() {
               <Button
                 key={id}
                 size="sm"
-                variant={playingId === id ? 'default' : 'outline'}
+                // A remembered sound that is not playing is still shown as the reader's choice.
+                variant={playingId === id ? 'default' : sound.soundId === id ? 'secondary' : 'outline'}
                 aria-pressed={playingId === id}
+                aria-current={sound.soundId === id ? 'true' : undefined}
                 onClick={() => chooseSound(id)}
                 className="text-xs"
               >

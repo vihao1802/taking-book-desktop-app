@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   getEffectiveTargetLanguage,
+  getFocusPreferences,
   getNotesSidebarWidth,
   getSidebarWidth,
   getTargetLanguage,
   getTheme,
+  setFocusPreferences,
   setNotesSidebarWidth,
+  setSetting,
   setSidebarWidth,
   setTargetLanguage,
   setTheme,
@@ -152,5 +155,53 @@ describe('Target language setting', () => {
     expect(await getTheme(db)).toEqual({ ok: true, data: 'dark' });
     expect(await getSidebarWidth(db)).toEqual({ ok: true, data: 300 });
     expect(await getNotesSidebarWidth(db)).toEqual({ ok: true, data: 420 });
+  });
+});
+
+describe('focus preferences', () => {
+  async function freshDb() {
+    const db = createMemoryDriver();
+    await db.exec(settingsSchema());
+    return db;
+  }
+
+  it('falls back to no sound, the default volume and 25 minutes when nothing is stored', async () => {
+    const res = await getFocusPreferences(await freshDb());
+    expect(res).toEqual({ ok: true, data: { soundId: null, volume: 0.3, minutes: 25 } });
+  });
+
+  it('round-trips sound, volume and length', async () => {
+    const db = await freshDb();
+    expect(isOk(await setFocusPreferences(db, { soundId: 'pink-noise', volume: 0.7, minutes: 45 }))).toBe(true);
+    expect(await getFocusPreferences(db)).toEqual({ ok: true, data: { soundId: 'pink-noise', volume: 0.7, minutes: 45 } });
+  });
+
+  it('keeps the other choices when saving one, and remembers "no sound"', async () => {
+    const db = await freshDb();
+    await setFocusPreferences(db, { soundId: 'brown-noise', minutes: 60 });
+    await setFocusPreferences(db, { volume: 0 });
+    await setFocusPreferences(db, { soundId: null });
+    expect(await getFocusPreferences(db)).toEqual({ ok: true, data: { soundId: null, volume: 0, minutes: 60 } });
+  });
+
+  it('falls back per value for unknown or out-of-range stored values', async () => {
+    const db = await freshDb();
+    await setSetting(db, 'focus.soundId', 'whale-song');
+    await setSetting(db, 'focus.volume', '4');
+    await setSetting(db, 'focus.minutes', '999');
+    expect(await getFocusPreferences(db)).toEqual({ ok: true, data: { soundId: null, volume: 0.3, minutes: 25 } });
+    await setSetting(db, 'focus.volume', 'loud');
+    await setSetting(db, 'focus.minutes', '12.5');
+    await setSetting(db, 'focus.soundId', 'white-noise');
+    expect(await getFocusPreferences(db)).toEqual({ ok: true, data: { soundId: 'white-noise', volume: 0.3, minutes: 25 } });
+  });
+
+  it('rejects invalid values and saves nothing', async () => {
+    const db = await freshDb();
+    expect(isErr(await setFocusPreferences(db, { soundId: 'whale-song' }))).toBe(true);
+    expect(isErr(await setFocusPreferences(db, { volume: 2 }))).toBe(true);
+    expect(isErr(await setFocusPreferences(db, { minutes: 0 }))).toBe(true);
+    expect(isErr(await setFocusPreferences(db, { minutes: 30, volume: Number.NaN }))).toBe(true);
+    expect(await getFocusPreferences(db)).toEqual({ ok: true, data: { soundId: null, volume: 0.3, minutes: 25 } });
   });
 });

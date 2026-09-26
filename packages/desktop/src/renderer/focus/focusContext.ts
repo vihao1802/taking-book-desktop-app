@@ -7,6 +7,10 @@ export interface FocusContextValue {
   timeLeftMs: number | null;
   /** Starts a Focus timer, replacing any running one; fails for a length outside the Focus timer rules. */
   start: (minutes: number) => Result<void, FocusError>;
+  /** The Focus timer length last chosen, in whole minutes; the default until the saved one has loaded. */
+  lengthMinutes: number;
+  /** Selects and remembers a Focus timer length; it does not start the timer. */
+  chooseLength: (minutes: number) => void;
   pause: () => void;
   resume: () => void;
   /** Stops the Focus timer by hand, silently. */

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  DEFAULT_FOCUS_MINUTES,
   FOCUS_MAX_MINUTES,
   FOCUS_MIN_MINUTES,
   FOCUS_PRESET_MINUTES,
@@ -19,15 +18,17 @@ const INVALID_LENGTH_MESSAGE = `Enter a whole number of minutes from ${FOCUS_MIN
 
 /** Picks a Focus timer length, from a preset or a custom whole number of minutes, and starts it. */
 export function FocusTimerSetup() {
-  const { start } = useFocus();
-  // null means the custom field is the chosen length.
-  const [preset, setPreset] = useState<number | null>(DEFAULT_FOCUS_MINUTES);
-  const [customDraft, setCustomDraft] = useState('');
+  const { start, lengthMinutes, chooseLength } = useFocus();
+  // null means the length shown is the remembered one; text means the reader is typing a custom length.
+  const [typedDraft, setTypedDraft] = useState<string | null>(null);
+  const preset = typedDraft === null && FOCUS_PRESET_MINUTES.includes(lengthMinutes) ? lengthMinutes : null;
+  const customDraft = typedDraft ?? (preset === null ? String(lengthMinutes) : '');
   const [error, setError] = useState<string | null>(null);
 
   const startChosenLength = (): void => {
     const length: Result<number, FocusError> = preset === null ? parseFocusMinutes(customDraft) : ok(preset);
     const started = length.ok ? start(length.data) : length;
+    if (length.ok && started.ok) chooseLength(length.data);
     setError(started.ok ? null : INVALID_LENGTH_MESSAGE);
   };
 
@@ -41,7 +42,8 @@ export function FocusTimerSetup() {
             size="sm"
             aria-pressed={preset === minutes}
             onClick={() => {
-              setPreset(minutes);
+              setTypedDraft(null);
+              chooseLength(minutes);
               setError(null);
             }}
           >
@@ -56,8 +58,7 @@ export function FocusTimerSetup() {
         aria-label="Custom Focus timer minutes"
         aria-invalid={error !== null}
         onChange={(event) => {
-          setCustomDraft(event.target.value);
-          setPreset(null);
+          setTypedDraft(event.target.value);
           setError(null);
         }}
         onKeyDown={(event) => {

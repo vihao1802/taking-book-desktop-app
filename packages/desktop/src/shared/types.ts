@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
+import type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -57,6 +57,10 @@ export interface ReaderApi {
   getTargetLanguage(): Promise<Result<string>>;
   /** Saves the reader's Target language; an unsupported code is rejected. */
   setTargetLanguage(code: string): Promise<Result<void>>;
+  /** The Focus controls' remembered sound, volume and timer length, with defaults for anything missing or invalid. */
+  getFocusPreferences(): Promise<Result<FocusPreferences>>;
+  /** Saves the given Focus choices and leaves the others as they were; an invalid value is rejected. */
+  setFocusPreferences(preferences: Partial<FocusPreferences>): Promise<Result<void>>;
   /** Translates selected text into the Target language in effect; the error is worded for the reader. */
   translate(text: string): Promise<Result<Translation>>;
   getCloudAccount(): Promise<Result<CloudAccount | null>>;

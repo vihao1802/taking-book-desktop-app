@@ -64,9 +64,42 @@ export function parseFocusMinutes(input: string): Result<number, FocusError> {
   return validateFocusMinutes(Number(trimmed));
 }
 
-function validateFocusMinutes(minutes: number): Result<number, FocusError> {
+/** Checks a Focus timer length in whole minutes against the Focus timer rules. */
+export function validateFocusMinutes(minutes: number): Result<number, FocusError> {
   const valid = Number.isInteger(minutes) && minutes >= FOCUS_MIN_MINUTES && minutes <= FOCUS_MAX_MINUTES;
   return valid ? ok(minutes) : err('invalid-length');
+}
+
+/** What the reader last chose in the Focus controls, remembered between launches. A running Focus timer is never part of it. */
+export interface FocusPreferences {
+  /** The last Ambient sound chosen, or null when none was. */
+  soundId: string | null;
+  /** The shared Ambient sound volume, from 0 to 1. */
+  volume: number;
+  /** The Focus timer length, in whole minutes. */
+  minutes: number;
+}
+
+/** Raw stored values, each null when never saved. */
+export interface StoredFocusPreferences {
+  soundId: string | null;
+  volume: string | null;
+  minutes: string | null;
+}
+
+/**
+ * Checks Focus preferences read back from storage. Each value that is
+ * missing, unknown or out of range falls back to its default on its own: no
+ * sound, the default volume, 25 minutes.
+ */
+export function resolveFocusPreferences(stored: StoredFocusPreferences): FocusPreferences {
+  const volume = stored.volume === null || stored.volume.trim() === '' ? NaN : Number(stored.volume);
+  const minutes = stored.minutes === null ? NaN : Number(stored.minutes);
+  return {
+    soundId: stored.soundId !== null && getAmbientSound(stored.soundId) !== null ? stored.soundId : null,
+    volume: volume >= 0 && volume <= 1 ? volume : DEFAULT_AMBIENT_VOLUME,
+    minutes: validateFocusMinutes(minutes).ok ? minutes : DEFAULT_FOCUS_MINUTES,
+  };
 }
 
 /**
