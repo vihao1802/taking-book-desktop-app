@@ -36,7 +36,8 @@ Steps:
 - **Windows build** (Squirrel `.exe`) is unsigned — SmartScreen will warn users
   "Unknown publisher". Signing needs a code-signing certificate; see
   `.github/workflows/release.yml` if that becomes necessary.
-- **macOS**: a `.dmg`/`.app` must be built and notarized on a Mac (GitHub
-  `macos-latest` runners) and requires an Apple Developer account. Not wired
-  up yet.
+- **macOS**: the workflow builds an unsigned, un-notarized `.zip` on `macos-latest`
+  (Apple Silicon only). Users must right-click the app and choose Open the first
+  time. A signed `.dmg` and an Intel build need an Apple Developer account and
+  are not wired up.
 - Install the Linux package with `sudo apt install ./taking-book-desktop-app_*.deb`.

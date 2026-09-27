@@ -9,7 +9,7 @@ on:
   push:
     tags:
       - 'v*'
-  # Manual trigger to verify Windows + Linux builds without cutting a tag.
+  # Manual trigger to verify Windows, Linux and macOS builds without cutting a tag.
   workflow_dispatch:
 
 permissions:
@@ -25,7 +25,10 @@ jobs:
         # node-gyp cannot detect ("unknown version undefined"), so any native
         # module source build (better-sqlite3 via npm ci, electron-rebuild
         # via forge make) fails. Pin windows-2022, which ships VS2022.
-        os: [ubuntu-latest, windows-2022]
+        # macos-latest is Apple Silicon (arm64): the .zip it makes runs on
+        # M-series Macs only. The app is unsigned and not notarized, so users
+        # open it once via right-click -> Open.
+        os: [ubuntu-latest, windows-2022, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -73,5 +76,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: artifacts/**/*.{exe,nupkg,blockmap,deb}
+          files: artifacts/**/*.{exe,nupkg,blockmap,deb,zip}
           fail_on_unmatched_files: false
