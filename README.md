@@ -12,7 +12,7 @@ and pick the file for your system under **Assets**.
 | --- | --- | --- |
 | Windows | `taking-book-desktop-app-<version>.Setup.exe` | Run the installer. Windows SmartScreen may say "Unknown publisher" because the app is not code-signed: click **More info**, then **Run anyway**. |
 | macOS (Apple Silicon: M1 or newer) | `.zip` with `darwin-arm64` in its name | Unzip it and drag the app to **Applications**. The app is not notarized, so the first time, right-click it and choose **Open**, then **Open** again. Intel Macs are not supported yet. |
-| Linux (Debian/Ubuntu) | `taking-book-desktop_<version>_amd64.deb` | `sudo apt install ./taking-book-desktop_<version>_amd64.deb` |
+| Linux (Debian/Ubuntu) | `taking-book-desktop_<version>_amd64.deb` | Copy it to `/tmp` and install it from there: `cp taking-book-desktop_<version>_amd64.deb /tmp/ && sudo apt install /tmp/taking-book-desktop_<version>_amd64.deb`. Installing straight from `~/Downloads` also works but prints a harmless "Download is performed unsandboxed as root" note, because apt's `_apt` user cannot read your home folder. |
 
 The macOS file only appears on releases built after macOS support was added.
 Your library stays on your device; Google Drive sync is optional.
