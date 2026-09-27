@@ -67,15 +67,36 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history so the notes can list commits since the previous tag.
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v6
         with:
           path: artifacts
           merge-multiple: true
 
+      # Work lands as direct commits rather than PRs, so GitHub's generated
+      # notes come out empty; list the commit subjects since the last tag.
+      - name: Write release notes
+        run: |
+          previous_tag=$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          range=${previous_tag:+${previous_tag}..}${GITHUB_REF_NAME}
+          {
+            echo "## What's changed"
+            echo
+            git log "$range" --no-merges --pretty='- %s'
+            if [ -n "$previous_tag" ]; then
+              echo
+              echo "**Full changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${previous_tag}...${GITHUB_REF_NAME}"
+            fi
+          } > release-notes.md
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: release-notes.md
           files: artifacts/**/*.{exe,nupkg,blockmap,deb,zip}
           fail_on_unmatched_files: false
 
