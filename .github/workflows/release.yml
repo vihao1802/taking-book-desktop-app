@@ -72,9 +72,16 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      # Installers go to a separate public repo so readers (and the app's
+      # update check) can reach them while this source repo stays private.
+      # RELEASES_REPO_TOKEN is a fine-grained token with Contents: read and
+      # write on that repo only; the default GITHUB_TOKEN cannot write there.
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          repository: vihao1802/taking-book-releases
+          token: ${{ secrets.RELEASES_REPO_TOKEN }}
+          name: ${{ github.ref_name }}
+          body: Taking Book ${{ github.ref_name }}. See the README for how to install or upgrade.
           files: artifacts/**/*.{exe,nupkg,blockmap,deb,zip}
           fail_on_unmatched_files: false

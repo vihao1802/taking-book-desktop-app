@@ -1,9 +1,12 @@
 # Releasing
 
-End users download the app from the **GitHub Releases** page of this repo. A
-tagged release triggers a GitHub Actions workflow
-(`.github/workflows/release.yml`) that builds a `.deb` (Linux) and a `.exe`
-(Windows) and attaches them to the release.
+End users download the app from the **GitHub Releases** page of the public
+repo [`vihao1802/taking-book-releases`](https://github.com/vihao1802/taking-book-releases),
+which holds only installers; this source repo stays private. A tag pushed here
+triggers a GitHub Actions workflow (`.github/workflows/release.yml`) that builds
+a `.deb` (Linux), a `.exe` (Windows) and a `.zip` (macOS) and publishes them as
+a release of that public repo. The app's update notice reads the same repo, so
+readers are told about the new version on their next launch.
 
 ## Cutting a release
 
@@ -23,11 +26,15 @@ Steps:
    git push origin v1.0.0
    ```
 
-   The workflow builds both platforms and publishes the release notes
-   automatically from the commits since the last tag.
-3. Verify the release at `https://github.com/vihao1802/taking-book-desktop-app/releases`.
+   The workflow builds all three platforms and publishes the release.
+3. Verify the release at `https://github.com/vihao1802/taking-book-releases/releases`.
 
 ## Notes
+
+- **Publishing token**: the `RELEASES_REPO_TOKEN` secret of this repo is a
+  fine-grained personal access token with *Contents: Read and write* on
+  `vihao1802/taking-book-releases` only. When it expires, the release job fails
+  with a 401/403; create a new one and update the secret.
 
 - **Google OAuth credentials** are injected from the `TB_GDRIVE_CLIENT_ID` /
   `TB_GDRIVE_CLIENT_SECRET` repository secrets at build time. Set them in the
@@ -40,4 +47,4 @@ Steps:
   (Apple Silicon only). Users must right-click the app and choose Open the first
   time. A signed `.dmg` and an Intel build need an Apple Developer account and
   are not wired up.
-- Install the Linux package with `sudo apt install ./taking-book-desktop-app_*.deb`.
+- Install the Linux package with `cp taking-book-desktop_*.deb /tmp/ && sudo apt install /tmp/taking-book-desktop_*.deb`.

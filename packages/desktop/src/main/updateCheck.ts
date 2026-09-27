@@ -1,7 +1,9 @@
 import { app, ipcMain, net, shell } from 'electron';
 import { checkForUpdate, err, ok, type AvailableUpdate, type Result } from '@taking-book/core';
 
-const REPOSITORY = 'vihao1802/taking-book-desktop-app';
+// Installers are published to a public repo so readers can download them and
+// the check works anonymously; the source repo stays private.
+const REPOSITORY = 'vihao1802/taking-book-releases';
 const LATEST_RELEASE_API_URL = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
 const RELEASES_URL_PREFIX = `https://github.com/${REPOSITORY}/releases/`;
 
