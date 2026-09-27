@@ -83,6 +83,8 @@ const api: ReaderApi = {
   submitQuizAttempt: (quizId, fileHash, answers) =>
     ipcRenderer.invoke('quiz:attempt:save', quizId, fileHash, answers),
   listQuizAttempts: (fileHash) => ipcRenderer.invoke('quiz:attempts:list', fileHash),
+  getQuizPrivacyNoticeAcknowledged: () => ipcRenderer.invoke('quiz:privacy:get'),
+  acknowledgeQuizPrivacyNotice: () => ipcRenderer.invoke('quiz:privacy:ack'),
 };
 
 contextBridge.exposeInMainWorld('api', api);

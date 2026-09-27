@@ -288,3 +288,4 @@ export {
   type GenerateQuizOptions,
   type SubmitQuizAttemptOptions,
 } from './quiz/quizService';
+export { acknowledgeQuizPrivacyNotice, getQuizPrivacyNoticeAcknowledged } from './quiz/privacyNotice';

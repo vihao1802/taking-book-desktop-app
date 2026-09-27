@@ -36,6 +36,7 @@ export function QuizDialog({ file, onOpenChange }: { file: BookFile; onOpenChang
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         {state.phase === 'setup' && <SetupScreen file={file} state={state} actions={actions} />}
+        {state.phase === 'privacy' && <PrivacyScreen actions={actions} />}
         {state.phase === 'generating' && <GeneratingScreen label="Writing your Quiz…" />}
         {state.phase === 'error' && <ErrorScreen message={state.error ?? 'Could not generate a Quiz.'} actions={actions} />}
         {state.phase === 'question' && state.flow && !isFinished(state.flow) && (
@@ -112,6 +113,26 @@ function SetupScreen({
           Cancel
         </Button>
         <Button onClick={actions.start}>Start Quiz</Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function PrivacyScreen({ actions }: { actions: ReturnType<typeof useQuizSession>[1] }) {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Before your first Quiz</DialogTitle>
+        <DialogDescription>
+          To write a Quiz, the text of the pages it covers is sent to the AI provider using your own API key.
+          Nothing else leaves this device. This choice is remembered on this device only.
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button variant="outline" onClick={actions.declinePrivacyNotice}>
+          Not now
+        </Button>
+        <Button onClick={actions.acceptPrivacyNotice}>I understand</Button>
       </DialogFooter>
     </>
   );

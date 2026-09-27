@@ -118,6 +118,10 @@ export interface ReaderApi {
   submitQuizAttempt(quizId: number, fileHash: string, answers: QuizAnswerInput[]): Promise<Result<QuizAttempt>>;
   /** A Book's Quiz attempts, most recent first. */
   listQuizAttempts(fileHash: string): Promise<Result<QuizAttempt[]>>;
+  /** Whether the reader acknowledged the one-time Quiz privacy notice on this device (ADR-0007). */
+  getQuizPrivacyNoticeAcknowledged(): Promise<Result<boolean>>;
+  /** Remembers on this device that the reader accepted the Quiz privacy notice. */
+  acknowledgeQuizPrivacyNotice(): Promise<Result<void>>;
 }
 
 export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };

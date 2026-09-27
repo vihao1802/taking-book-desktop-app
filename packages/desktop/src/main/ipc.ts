@@ -1,6 +1,7 @@
 import { BrowserWindow, app, dialog, ipcMain, type WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
 import {
+  acknowledgeQuizPrivacyNotice,
   computeReadingStats,
   createAnnotation,
   createGeminiProvider,
@@ -15,6 +16,7 @@ import {
   getLastPosition,
   getLiveFileByHash,
   getQuiz,
+  getQuizPrivacyNoticeAcknowledged,
   getReadingMinutesByBook,
   getNotesSidebarWidth,
   getSidebarWidth,
@@ -479,6 +481,12 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('quiz:attempts:list', (_event, fileHash: string): Promise<Result<QuizAttempt[]>> =>
     listQuizAttemptsForBook(db, fileHash),
   );
+
+  // The one-time Quiz privacy notice gate (ADR-0007): the acknowledgement is a
+  // device-local setting, read and written from the main process so the
+  // renderer only ever sees (and stores) a yes/no, never more.
+  ipcMain.handle('quiz:privacy:get', (): Promise<Result<boolean>> => getQuizPrivacyNoticeAcknowledged(db));
+  ipcMain.handle('quiz:privacy:ack', (): Promise<Result<void>> => acknowledgeQuizPrivacyNotice(db));
 }
 
 function isStringArray(value: unknown): value is string[] {
