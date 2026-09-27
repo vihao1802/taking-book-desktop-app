@@ -77,6 +77,11 @@ const api: ReaderApi = {
     ipcRenderer.on('window:fullscreen:changed', handler);
     return () => ipcRenderer.removeListener('window:fullscreen:changed', handler);
   },
+  generateQuiz: (input) => ipcRenderer.invoke('quiz:generate', input),
+  listQuizzes: (fileHash) => ipcRenderer.invoke('quiz:list', fileHash),
+  submitQuizAttempt: (quizId, fileHash, answers) =>
+    ipcRenderer.invoke('quiz:attempt:save', quizId, fileHash, answers),
+  listQuizAttempts: (fileHash) => ipcRenderer.invoke('quiz:attempts:list', fileHash),
 };
 
 contextBridge.exposeInMainWorld('api', api);

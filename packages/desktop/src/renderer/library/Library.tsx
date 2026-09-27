@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { QuizDialog } from '../quiz/QuizDialog';
 import { useAddPdf } from './useAddPdf';
 import { useLibrary } from './useLibrary';
 
@@ -49,6 +50,7 @@ export function Library({
   const [tagFilter, setTagFilter] = useState<string>('all');
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<BookFile | null>(null);
+  const [quizFile, setQuizFile] = useState<BookFile | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const searchRef = useRef<HTMLInputElement>(null);
   useSearchShortcut(searchRef);
@@ -263,6 +265,7 @@ export function Library({
               onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
               onRemove={() => setPendingRemove(file)}
               onRename={(title) => setTitle(file.id, title)}
+              onQuiz={() => setQuizFile(file)}
             />
           ))}
         </ul>
@@ -278,10 +281,13 @@ export function Library({
               onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
               onRemove={() => setPendingRemove(file)}
               onRename={(title) => setTitle(file.id, title)}
+              onQuiz={() => setQuizFile(file)}
             />
           ))}
         </ul>
       )}
+
+      {quizFile && <QuizDialog file={quizFile} onOpenChange={(open) => !open && setQuizFile(null)} />}
 
       <Dialog open={pendingRemove != null} onOpenChange={(open) => !open && setPendingRemove(null)}>
         <DialogContent>
@@ -314,6 +320,7 @@ function BookCard({
   onToggleFavorite,
   onRemove,
   onRename,
+  onQuiz,
 }: {
   file: BookFile;
   onOpen: () => void;
@@ -322,6 +329,7 @@ function BookCard({
   onToggleFavorite: () => void;
   onRemove: () => void;
   onRename: (title: string) => void;
+  onQuiz: () => void;
 }) {
   const [draftTag, setDraftTag] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -435,6 +443,20 @@ function BookCard({
               Added {new Date(file.createdAt.replace(' ', 'T') + 'Z').toLocaleDateString()}
             </p>
             <div className="flex items-center gap-2">
+              {file.lastPage != null && file.lastPage > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onQuiz();
+                  }}
+                  aria-label={`Take a Quiz on ${file.title}`}
+                >
+                  Quiz
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -544,6 +566,7 @@ function BookRow({
   onToggleFavorite,
   onRemove,
   onRename,
+  onQuiz,
 }: {
   file: BookFile;
   onOpen: () => void;
@@ -552,6 +575,7 @@ function BookRow({
   onToggleFavorite: () => void;
   onRemove: () => void;
   onRename: (title: string) => void;
+  onQuiz: () => void;
 }) {
   const [draftTag, setDraftTag] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -659,6 +683,20 @@ function BookRow({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            {file.lastPage != null && file.lastPage > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuiz();
+                }}
+                aria-label={`Take a Quiz on ${file.title}`}
+              >
+                Quiz
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"

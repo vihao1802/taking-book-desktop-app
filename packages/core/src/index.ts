@@ -240,3 +240,49 @@ export {
   type ReleaseAsset,
   type UpdateTarget,
 } from './updates';
+export type {
+  Quiz,
+  QuizAnswerInput,
+  QuizAttempt,
+  QuizAttemptAnswer,
+  QuizQuestion,
+  QuizQuestionType,
+} from './quiz/models';
+export {
+  DEFAULT_QUIZ_SCOPE_PAGES,
+  DEFAULT_QUIZ_SIZE,
+  QUIZ_SIZES,
+  isQuizSize,
+  resolveQuizScope,
+  type QuizScope,
+  type QuizSize,
+} from './quiz/quizScope';
+export {
+  createQuizProviderEngine,
+  type AiProviderKind,
+  type QuizProviderEngine,
+  type QuizProviderFailure,
+  type QuizProviderFailureKind,
+  type QuizProviderQuestion,
+  type QuizProviderRequest,
+  type QuizScopePage,
+} from './quiz/quizProvider';
+export { validateQuizQuestions } from './quiz/validateQuizQuestions';
+export { GEMINI_MODEL, GEMINI_TIMEOUT_MS, createGeminiProvider, type FetchLike } from './quiz/geminiProvider';
+export { scoreAnswers, totalCorrect } from './quiz/quizScoring';
+export {
+  createQuiz,
+  getQuiz,
+  listQuizAttemptsForBook,
+  listQuizzesForBook,
+  quizSchema,
+  saveQuizAttempt,
+} from './quiz/quizRepository';
+export {
+  MISSING_KEY_MESSAGE,
+  NO_TEXT_MESSAGE,
+  generateQuiz,
+  submitQuizAttempt,
+  type GenerateQuizOptions,
+  type SubmitQuizAttemptOptions,
+} from './quiz/quizService';

@@ -1,4 +1,4 @@
-import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
+import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizQuestion, QuizScopePage, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -93,6 +93,25 @@ export interface ReaderApi {
   toggleFullScreen(): Promise<Result<boolean>>;
   /** Subscribes to full-screen changes (including menu/F11); returns an unsubscribe function. */
   onFullScreenChange(listener: (fullScreen: boolean) => void): () => void;
+  /**
+   * Generates and stores a Quiz for a Book (ADR-0007). `pages` is the caller's
+   * already-extracted text for candidate pages; the scope actually sent to the
+   * AI provider never extends past `lastPage`. The error is worded for the reader.
+   */
+  generateQuiz(input: {
+    fileHash: string;
+    title: string;
+    lastPage: number;
+    scopeStartPage?: number;
+    size?: number;
+    pages: QuizScopePage[];
+  }): Promise<Result<Quiz>>;
+  /** A Book's Quizzes, most recently generated first. */
+  listQuizzes(fileHash: string): Promise<Result<Quiz[]>>;
+  /** Scores and stores one Quiz attempt. */
+  submitQuizAttempt(quizId: number, fileHash: string, answers: QuizAnswerInput[]): Promise<Result<QuizAttempt>>;
+  /** A Book's Quiz attempts, most recent first. */
+  listQuizAttempts(fileHash: string): Promise<Result<QuizAttempt[]>>;
 }
 
-export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };
+export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizQuestion, QuizScopePage, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };

@@ -3,14 +3,17 @@ import { randomUUID } from 'node:crypto';
 import {
   computeReadingStats,
   createAnnotation,
+  createGeminiProvider,
   deleteAnnotation,
   deleteFile,
   deleteNote,
+  generateQuiz,
   getDailyReadingMinutes,
   getEffectiveTargetLanguage,
   getFocusPreferences,
   getFileZoom,
   getLastPosition,
+  getLiveFileByHash,
   getReadingMinutesByBook,
   getNotesSidebarWidth,
   getSidebarWidth,
@@ -20,6 +23,8 @@ import {
   listAnnotations,
   listFiles,
   listLibraryAnnotations,
+  listQuizAttemptsForBook,
+  listQuizzesForBook,
   parseReflowCache,
   recordReadingSession,
   saveLastPosition,
@@ -41,10 +46,12 @@ import {
   setFocusPreferences,
   setTargetLanguage,
   setTheme,
+  submitQuizAttempt,
+  MISSING_KEY_MESSAGE,
   TRANSLATION_FAILED_MESSAGE,
   translateText,
 } from '@taking-book/core';
-import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, FocusPreferences, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
+import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, FocusPreferences, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizScopePage, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
 import { join } from 'node:path';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -69,6 +76,7 @@ export function registerIpc(db: SqlDriver): void {
   const userDataDir = app.getPath('userData');
   registerCustomSoundsIpc(db);
   const apiKeyStore = createApiKeyStore(db);
+  const quizEngine = createGeminiProvider();
   async function stamp(): Promise<SyncStamp> {
     return { updatedAt: Date.now(), updatedBy: await getDeviceId(db) };
   }
@@ -416,10 +424,97 @@ export function registerIpc(db: SqlDriver): void {
     if (!isOk(provider)) return provider;
     return runSync(db, userDataDir, provider.data);
   });
+
+  // The reader's key is read here, in the main process, and handed straight
+  // to the Gemini adapter; it is never sent back to the renderer (ADR-0007).
+  ipcMain.handle('quiz:generate', async (_event, input: unknown): Promise<Result<Quiz>> => {
+    if (!isGenerateQuizInput(input)) return { ok: false, error: 'Malformed Quiz request.' };
+    const file = await getLiveFileByHash(db, input.fileHash);
+    if (!isOk(file) || !file.data) return { ok: false, error: 'This book is no longer in the library.' };
+    // The scope boundary comes from the Book's own stored Last-read position,
+    // never the renderer's claim, so a stale or tampered value cannot widen a
+    // Quiz's scope past what this device actually recorded.
+    const lastPage = file.data.lastPage;
+    if (lastPage == null) return { ok: false, error: 'This book has no read progress yet, so a Quiz cannot be made.' };
+    const key = await apiKeyStore.getKey();
+    if (!isOk(key)) {
+      console.error(`quiz: could not read the saved AI provider key: ${key.error}`);
+      return { ok: false, error: MISSING_KEY_MESSAGE };
+    }
+    return generateQuiz(db, {
+      fileHash: input.fileHash,
+      title: input.title,
+      lastPage,
+      scopeStartPage: input.scopeStartPage,
+      size: input.size,
+      pages: input.pages,
+      engine: quizEngine,
+      apiKey: key.data,
+    });
+  });
+
+  ipcMain.handle('quiz:list', (_event, fileHash: string): Promise<Result<Quiz[]>> =>
+    listQuizzesForBook(db, fileHash),
+  );
+
+  ipcMain.handle(
+    'quiz:attempt:save',
+    (_event, quizId: unknown, fileHash: unknown, answers: unknown): Promise<Result<QuizAttempt>> => {
+      if (typeof quizId !== 'number' || typeof fileHash !== 'string' || !isQuizAnswerArray(answers)) {
+        return Promise.resolve({ ok: false, error: 'Malformed Quiz attempt.' });
+      }
+      return submitQuizAttempt(db, { quizId, fileHash, answers });
+    },
+  );
+
+  ipcMain.handle('quiz:attempts:list', (_event, fileHash: string): Promise<Result<QuizAttempt[]>> =>
+    listQuizAttemptsForBook(db, fileHash),
+  );
 }
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isQuizAnswerArray(value: unknown): value is QuizAnswerInput[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (a) =>
+        typeof a === 'object' &&
+        a !== null &&
+        typeof (a as Record<string, unknown>).questionId === 'number' &&
+        typeof (a as Record<string, unknown>).selectedIndex === 'number',
+    )
+  );
+}
+
+interface GenerateQuizInput {
+  fileHash: string;
+  title: string;
+  scopeStartPage?: number;
+  size?: number;
+  pages: QuizScopePage[];
+}
+
+/** Narrows the renderer's `quiz:generate` payload before it reaches core, like every other handler in this file does for untrusted input. */
+function isGenerateQuizInput(value: unknown): value is GenerateQuizInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.fileHash === 'string' &&
+    typeof v.title === 'string' &&
+    (v.scopeStartPage === undefined || typeof v.scopeStartPage === 'number') &&
+    (v.size === undefined || typeof v.size === 'number') &&
+    Array.isArray(v.pages) &&
+    v.pages.every(
+      (p) =>
+        typeof p === 'object' &&
+        p !== null &&
+        typeof (p as Record<string, unknown>).page === 'number' &&
+        typeof (p as Record<string, unknown>).text === 'string',
+    )
+  );
 }
 
 function errorMessage(error: unknown): string {
