@@ -439,14 +439,22 @@ export function registerIpc(db: SqlDriver): void {
     // never the renderer's claim, so a stale or tampered value cannot widen a
     // Quiz's scope past what this device actually recorded.
     const lastPage = file.data.lastPage;
-    if (lastPage == null) return { ok: false, error: 'This book has no read progress yet, so a Quiz cannot be made.' };
+    if (lastPage == null) {
+      console.error(`quiz: "${file.data.title}" (${input.fileHash}) has no read progress, so a Quiz cannot be made`);
+      return { ok: false, error: 'This book has no read progress yet, so a Quiz cannot be made.' };
+    }
+    const bookTitle = file.data.title;
     const key = await apiKeyStore.getKey();
     if (!isOk(key)) {
       // An unreadable stored key is logged, but it must not block reusing a
       // saved Quiz for an identical request — only writing new questions needs it.
       console.error(`quiz: could not read the saved AI provider key: ${key.error}`);
     }
-    return generateQuiz(db, {
+    // Provider failures are logged with their kind and detail; the local
+    // refusals (nothing read, no readable text, no key) have no detail to add,
+    // so they are logged once with Book context when the hook did not fire.
+    let providerFailureLogged = false;
+    const result = await generateQuiz(db, {
       fileHash: input.fileHash,
       title: input.title,
       lastPage,
@@ -456,7 +464,17 @@ export function registerIpc(db: SqlDriver): void {
       engine: quizEngine,
       apiKey: isOk(key) ? key.data : null,
       forceNew: input.forceNew,
+      // Log the failure's kind and detail with Book context for diagnosis; the
+      // key and the Book's text are never part of the failure and never logged.
+      onEngineFailure: ({ kind, detail }) => {
+        providerFailureLogged = true;
+        console.error(`quiz: generating for "${bookTitle}" (${input.fileHash}) failed (${kind}): ${detail}`);
+      },
     });
+    if (!isOk(result) && !providerFailureLogged) {
+      console.error(`quiz: could not generate for "${bookTitle}" (${input.fileHash}): ${result.error}`);
+    }
+    return result;
   });
 
   ipcMain.handle('quiz:list', (_event, fileHash: string): Promise<Result<Quiz[]>> =>

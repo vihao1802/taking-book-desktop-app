@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMemoryDriver } from './helpers';
 import {
+  INVALID_KEY_MESSAGE,
   MISSING_KEY_MESSAGE,
   NO_TEXT_MESSAGE,
   QUIZ_SIZES,
@@ -10,7 +11,7 @@ import {
   listQuizzesForBook,
   quizSchema,
 } from '../src/index';
-import type { QuizProviderEngine, QuizProviderQuestion, SqlDriver } from '../src/index';
+import type { QuizProviderEngine, QuizProviderQuestion, QuizProviderFailure, SqlDriver } from '../src/index';
 
 async function setup(): Promise<SqlDriver> {
   const db = createMemoryDriver();
@@ -54,7 +55,7 @@ function sizedEngine(): QuizProviderEngine & { calls: number } {
   return engine;
 }
 
-function failingEngine(kind: 'rate-limited' | 'unreachable' | 'malformed' | 'other'): QuizProviderEngine {
+function failingEngine(kind: 'invalid-key' | 'rate-limited' | 'unreachable' | 'malformed' | 'other'): QuizProviderEngine {
   return {
     async generateQuestions() {
       return { ok: false, error: { kind, detail: 'boom' } };
@@ -205,6 +206,122 @@ describe('generateQuiz', () => {
 
     const listed = await listQuizzesForBook(db, 'hash-1');
     expect(isOk(listed) && listed.data).toHaveLength(1);
+  });
+
+  it.each([
+    ['invalid-key', INVALID_KEY_MESSAGE],
+    ['rate-limited', /quota/],
+    ['unreachable', /connection/i],
+    ['malformed', /usable/i],
+    ['other', /right now/i],
+  ] as const)('a %s failure shows its own clear message and stores nothing', async (kind, expected) => {
+    const db = await setup();
+    const engine = failingEngine(kind);
+    const result = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error).toMatch(expected);
+    const listed = await listQuizzesForBook(db, 'hash-1');
+    expect(isOk(listed) && listed.data).toEqual([]);
+  });
+
+  it('an invalid key message is distinct from a missing key message', () => {
+    expect(INVALID_KEY_MESSAGE).not.toBe(MISSING_KEY_MESSAGE);
+  });
+
+  it('reports every provider failure through onEngineFailure for logging, with its detail', async () => {
+    const db = await setup();
+    const seen: QuizProviderFailure[] = [];
+    await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine: failingEngine('malformed'),
+      apiKey: 'key',
+      onEngineFailure: (failure) => seen.push(failure),
+    });
+    expect(seen).toEqual([{ kind: 'malformed', detail: 'boom' }]);
+  });
+
+  it('sends no provider call and no blank pages when a scope has no readable text (no OCR, no images)', async () => {
+    const db = await setup();
+    let called = false;
+    const engine: QuizProviderEngine = {
+      async generateQuestions() {
+        called = true;
+        return { ok: true, data: twoQuestions };
+      },
+    };
+    const blankPages = pages.map((p) => ({ ...p, text: '   ' }));
+    const result = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages: blankPages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isErr(result) && result.error).toBe(NO_TEXT_MESSAGE);
+    expect(called).toBe(false);
+    const listed = await listQuizzesForBook(db, 'hash-1');
+    expect(isOk(listed) && listed.data).toEqual([]);
+  });
+
+  it('filters blank pages out of the scope before they reach the provider', async () => {
+    const db = await setup();
+    let sent: { page: number; text: string }[] = [];
+    const engine: QuizProviderEngine = {
+      async generateQuestions(request) {
+        sent = request.pages;
+        return { ok: true, data: twoQuestions };
+      },
+    };
+    const mixed = pages.map((p, i) => (i % 2 === 0 ? p : { ...p, text: '  ' }));
+    await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages: mixed,
+      engine,
+      apiKey: 'key',
+    });
+    expect(sent.every((p) => p.text.trim() !== '')).toBe(true);
+    expect(sent.map((p) => p.page)).toEqual([1, 3, 5, 7, 9]);
+  });
+
+  it('refuses a Book with nothing read yet and never calls the provider', async () => {
+    const db = await setup();
+    let called = false;
+    const engine: QuizProviderEngine = {
+      async generateQuestions() {
+        called = true;
+        return { ok: true, data: twoQuestions };
+      },
+    };
+    const result = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 0,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isErr(result) && result.error).toMatch(/no read progress/);
+    expect(called).toBe(false);
+    const listed = await listQuizzesForBook(db, 'hash-1');
+    expect(isOk(listed) && listed.data).toEqual([]);
   });
 
   it('reuses the saved questions for an identical request without calling the provider again', async () => {

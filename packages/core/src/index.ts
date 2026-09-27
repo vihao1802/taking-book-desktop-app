@@ -281,6 +281,7 @@ export {
   saveQuizAttempt,
 } from './quiz/quizRepository';
 export {
+  INVALID_KEY_MESSAGE,
   MISSING_KEY_MESSAGE,
   NO_TEXT_MESSAGE,
   generateQuiz,

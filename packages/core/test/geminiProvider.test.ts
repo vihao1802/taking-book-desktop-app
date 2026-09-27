@@ -83,10 +83,16 @@ describe('createGeminiProvider', () => {
     expect(isErr(result) && result.error.kind).toBe('rate-limited');
   });
 
-  it('maps a 403 status to a missing-key failure', async () => {
+  it('maps a 403 status to an invalid-key failure (a key was sent but rejected)', async () => {
     const provider = createGeminiProvider(fakeFetch(403, {}));
     const result = await provider.generateQuestions(request(2), 'test-key');
-    expect(isErr(result) && result.error.kind).toBe('missing-key');
+    expect(isErr(result) && result.error.kind).toBe('invalid-key');
+  });
+
+  it('maps a 401 status to an invalid-key failure', async () => {
+    const provider = createGeminiProvider(fakeFetch(401, {}));
+    const result = await provider.generateQuestions(request(2), 'test-key');
+    expect(isErr(result) && result.error.kind).toBe('invalid-key');
   });
 
   it('maps a network rejection to an unreachable failure', async () => {

@@ -82,7 +82,9 @@ function extractCandidateText(payload: unknown): string | null {
 }
 
 function failureForStatus(status: number): QuizProviderFailure {
-  if (status === 401 || status === 403) return { kind: 'missing-key', detail: `HTTP ${status}` };
+  // A 401/403 means the key was sent but rejected, which is distinct from no
+  // key being configured at all (the caller refuses that before calling us).
+  if (status === 401 || status === 403) return { kind: 'invalid-key', detail: `HTTP ${status}` };
   if (status === 429) return { kind: 'rate-limited', detail: `HTTP ${status}` };
   return { kind: 'other', detail: `HTTP ${status}` };
 }

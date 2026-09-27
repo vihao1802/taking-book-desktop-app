@@ -36,7 +36,13 @@ export interface QuizProviderQuestion {
  * Why a provider call failed. `kind` picks the reader-facing message (see
  * `quizService`); `detail` is for logs only and never reaches the reader.
  */
-export type QuizProviderFailureKind = 'missing-key' | 'rate-limited' | 'unreachable' | 'malformed' | 'other';
+export type QuizProviderFailureKind =
+  | 'missing-key'
+  | 'invalid-key'
+  | 'rate-limited'
+  | 'unreachable'
+  | 'malformed'
+  | 'other';
 
 export interface QuizProviderFailure {
   kind: QuizProviderFailureKind;

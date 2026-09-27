@@ -9,12 +9,16 @@ import { DEFAULT_QUIZ_SIZE, isQuizSize, resolveQuizScope } from './quizScope';
 /** Shown when there is no saved AI provider key (ADR-0007); Settings is where one is added. */
 export const MISSING_KEY_MESSAGE = 'Add your AI provider key in Settings to take a Quiz.';
 
+/** Shown when the saved key exists but the AI provider rejected it (wrong, revoked or expired). */
+export const INVALID_KEY_MESSAGE = 'Your AI provider key was rejected. Check it in Settings and try again.';
+
 /** Shown when the Quiz scope has no extractable text (e.g. a scanned page). */
 export const NO_TEXT_MESSAGE = 'This part of the book has no extractable text, so a Quiz cannot be made from it.';
 
 const FAILURE_MESSAGES: Readonly<Record<QuizProviderFailure['kind'], string>> = {
   'missing-key': MISSING_KEY_MESSAGE,
-  'rate-limited': 'The AI provider is busy. Try again shortly.',
+  'invalid-key': INVALID_KEY_MESSAGE,
+  'rate-limited': 'The AI provider is busy, or you have reached its quota. Try again shortly.',
   unreachable: 'Could not reach the AI provider. Check your connection.',
   malformed: 'The AI provider did not return a usable Quiz. Try again.',
   other: 'Could not generate a Quiz right now. Try again later.',
@@ -38,6 +42,12 @@ export interface GenerateQuizOptions {
   apiKey: string | null;
   /** When true, always ask the provider for a fresh set, even if saved questions match (a Retake with new questions). */
   forceNew?: boolean;
+  /**
+   * Called with every provider failure, so the platform can log its kind and
+   * detail; the reader only ever sees the message. Never called with the key
+   * or the Book's text.
+   */
+  onEngineFailure?: (failure: QuizProviderFailure) => void;
 }
 
 /**
@@ -52,7 +62,8 @@ export interface GenerateQuizOptions {
  *
  * @param db - The data-access driver.
  * @param options - The Book, its Last-read position, the requested scope and
- *   size, the extracted page text, the provider engine and the reader's key.
+ *   size, the extracted page text, the provider engine, the reader's key, and
+ *   an optional failure logger (`onEngineFailure`) for the platform.
  * @returns The stored Quiz (or a reused one), or an error message fit to show the reader.
  */
 export async function generateQuiz(db: SqlDriver, options: GenerateQuizOptions): Promise<Result<Quiz>> {
@@ -83,7 +94,10 @@ export async function generateQuiz(db: SqlDriver, options: GenerateQuizOptions):
     { title: options.title, pages: scopedPages, size },
     options.apiKey,
   );
-  if (isErr(result)) return err(FAILURE_MESSAGES[result.error.kind]);
+  if (isErr(result)) {
+    options.onEngineFailure?.(result.error);
+    return err(FAILURE_MESSAGES[result.error.kind]);
+  }
 
   return createQuiz(db, options.fileHash, scope.data, result.data);
 }
