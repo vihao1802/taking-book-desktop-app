@@ -168,6 +168,38 @@ export async function getQuiz(db: SqlDriver, quizId: number): Promise<Result<Qui
   }
 }
 
+/**
+ * Finds the most recent saved Quiz for an identical request — the same Book,
+ * page range and size — so a repeat of it can reuse the saved questions
+ * without calling the provider (the `Retake` with the same questions, which is
+ * free and works offline).
+ *
+ * @param db - The data-access driver.
+ * @param fileHash - Content hash of the Book the Quiz belongs to.
+ * @param scope - The resolved page range the request draws from.
+ * @param size - The requested Quiz size.
+ * @returns The matching Quiz with its questions, or null when none is saved yet.
+ */
+export async function findQuizForRequest(
+  db: SqlDriver,
+  fileHash: string,
+  scope: QuizScope,
+  size: number,
+): Promise<Result<Quiz | null>> {
+  try {
+    const row = await db.get(
+      `SELECT id FROM quizzes
+       WHERE file_hash = ? AND scope_start_page = ? AND scope_end_page = ? AND size = ?
+       ORDER BY id DESC LIMIT 1`,
+      [fileHash, scope.startPage, scope.endPage, size],
+    );
+    if (!row) return ok(null);
+    return getQuiz(db, Number(row.id));
+  } catch (error) {
+    return err(`Failed to find a saved Quiz for ${fileHash}: ${errorMessage(error)}`);
+  }
+}
+
 /** Lists a Book's Quizzes, most recently generated first, each with its questions. */
 export async function listQuizzesForBook(db: SqlDriver, fileHash: string): Promise<Result<Quiz[]>> {
   try {

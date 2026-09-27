@@ -28,6 +28,10 @@ export interface QuizSessionActions {
   reveal(): void;
   next(): void;
   retake(): void;
+  /** Restarts the finished Quiz with the same saved questions; no provider call, works offline. */
+  retakeSame(): void;
+  /** Asks the provider for a fresh set of questions and saves it, then restarts the Quiz. */
+  retakeNew(): void;
   close(): void;
 }
 
@@ -47,6 +51,10 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
   const [flow, setFlow] = useState<QuizFlowState | null>(null);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
+
+  // True only for a Retake with new questions: the same scope and size, but the
+  // provider is asked for a fresh set instead of reusing the saved questions.
+  const [forceNew, setForceNew] = useState(false);
 
   // Text is only extracted once the reader starts, and only for the scope
   // they chose — never the whole book they have read so far.
@@ -68,6 +76,7 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
         scopeStartPage: extractRange.start,
         size,
         pages: scopeText.pages,
+        forceNew,
       });
       if (!isOk(result)) {
         setError(result.error);
@@ -77,11 +86,13 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
       setQuiz(result.data);
       setFlow(initQuizFlow(result.data.questions));
       setPhase('question');
+      setForceNew(false);
     })();
     // Deliberately keyed on the settled extraction rather than every value the
-    // body reads (size, file.hash/title, lastPage): those only change together
-    // with a fresh `extractRange` from `start()`, and re-running on every
-    // render would re-generate (and re-store) the same Quiz repeatedly.
+    // body reads (size, file.hash/title, lastPage, forceNew): those only change
+    // together with a fresh `extractRange` from `start()` or `retakeNew()`, and
+    // re-running on every render would re-generate (and re-store) the same Quiz
+    // repeatedly.
   }, [phase, extractRange, scopeText.settled, scopeText.error, scopeText.pages]);
 
   // Submits the finished attempt as its own effect, not as a side effect of
@@ -120,6 +131,7 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
           return;
         }
         setError(null);
+        setForceNew(false);
         setExtractRange({ start: scope.startPage, end: scope.endPage });
         setPhase('generating');
       },
@@ -139,11 +151,32 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
         setFlow(null);
         setAttempt(null);
         setQuiz(null);
+        setForceNew(false);
         setExtractRange(null);
+      },
+      retakeSame() {
+        if (!quiz) return;
+        submittedRef.current = false;
+        setError(null);
+        setAttempt(null);
+        setFlow(initQuizFlow(quiz.questions));
+        setPhase('question');
+      },
+      retakeNew() {
+        if (!quiz) return;
+        submittedRef.current = false;
+        setError(null);
+        setAttempt(null);
+        setForceNew(true);
+        // Re-runs the generation effect on the same scope and size the reader
+        // chose in setup: the provider is asked for a fresh set, which replaces
+        // the saved one.
+        setExtractRange({ start: scope.startPage, end: scope.endPage });
+        setPhase('generating');
       },
       close: onClose,
     }),
-    [lastPage, scope, onClose],
+    [lastPage, scope, quiz, onClose],
   );
 
   return [{ phase, scope, size, error, flow, attempt }, actions];

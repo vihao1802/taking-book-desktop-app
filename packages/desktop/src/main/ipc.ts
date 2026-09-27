@@ -47,7 +47,6 @@ import {
   setTargetLanguage,
   setTheme,
   submitQuizAttempt,
-  MISSING_KEY_MESSAGE,
   TRANSLATION_FAILED_MESSAGE,
   translateText,
 } from '@taking-book/core';
@@ -427,6 +426,8 @@ export function registerIpc(db: SqlDriver): void {
 
   // The reader's key is read here, in the main process, and handed straight
   // to the Gemini adapter; it is never sent back to the renderer (ADR-0007).
+  // A saved Quiz for an identical request reuses the saved questions without a
+  // provider call, so the key is only needed when actually writing new ones.
   ipcMain.handle('quiz:generate', async (_event, input: unknown): Promise<Result<Quiz>> => {
     if (!isGenerateQuizInput(input)) return { ok: false, error: 'Malformed Quiz request.' };
     const file = await getLiveFileByHash(db, input.fileHash);
@@ -438,8 +439,9 @@ export function registerIpc(db: SqlDriver): void {
     if (lastPage == null) return { ok: false, error: 'This book has no read progress yet, so a Quiz cannot be made.' };
     const key = await apiKeyStore.getKey();
     if (!isOk(key)) {
+      // An unreadable stored key is logged, but it must not block reusing a
+      // saved Quiz for an identical request — only writing new questions needs it.
       console.error(`quiz: could not read the saved AI provider key: ${key.error}`);
-      return { ok: false, error: MISSING_KEY_MESSAGE };
     }
     return generateQuiz(db, {
       fileHash: input.fileHash,
@@ -449,7 +451,8 @@ export function registerIpc(db: SqlDriver): void {
       size: input.size,
       pages: input.pages,
       engine: quizEngine,
-      apiKey: key.data,
+      apiKey: isOk(key) ? key.data : null,
+      forceNew: input.forceNew,
     });
   });
 
@@ -495,6 +498,7 @@ interface GenerateQuizInput {
   scopeStartPage?: number;
   size?: number;
   pages: QuizScopePage[];
+  forceNew?: boolean;
 }
 
 /** Narrows the renderer's `quiz:generate` payload before it reaches core, like every other handler in this file does for untrusted input. */
@@ -506,6 +510,7 @@ function isGenerateQuizInput(value: unknown): value is GenerateQuizInput {
     typeof v.title === 'string' &&
     (v.scopeStartPage === undefined || typeof v.scopeStartPage === 'number') &&
     (v.size === undefined || typeof v.size === 'number') &&
+    (v.forceNew === undefined || typeof v.forceNew === 'boolean') &&
     Array.isArray(v.pages) &&
     v.pages.every(
       (p) =>

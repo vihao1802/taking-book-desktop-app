@@ -96,7 +96,10 @@ export interface ReaderApi {
   /**
    * Generates and stores a Quiz for a Book (ADR-0007). `pages` is the caller's
    * already-extracted text for candidate pages; the scope actually sent to the
-   * AI provider never extends past `lastPage`. The error is worded for the reader.
+   * AI provider never extends past `lastPage`. An identical request (same
+   * Book, page range and size) reuses the saved questions with no provider
+   * call, so a saved Quiz opens offline; `forceNew` asks the provider for a
+   * fresh set instead (a Retake with new questions). The error is worded for the reader.
    */
   generateQuiz(input: {
     fileHash: string;
@@ -105,6 +108,7 @@ export interface ReaderApi {
     scopeStartPage?: number;
     size?: number;
     pages: QuizScopePage[];
+    forceNew?: boolean;
   }): Promise<Result<Quiz>>;
   /** A Book's Quizzes, most recently generated first. */
   listQuizzes(fileHash: string): Promise<Result<Quiz[]>>;

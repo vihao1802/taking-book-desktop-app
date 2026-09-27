@@ -272,6 +272,7 @@ export { GEMINI_MODEL, GEMINI_TIMEOUT_MS, createGeminiProvider, type FetchLike }
 export { scoreAnswers, totalCorrect } from './quiz/quizScoring';
 export {
   createQuiz,
+  findQuizForRequest,
   getQuiz,
   listQuizAttemptsForBook,
   listQuizzesForBook,

@@ -222,11 +222,18 @@ function ScoreScreen({
             : (state.error ?? 'Your attempt could not be saved.')}
         </DialogDescription>
       </DialogHeader>
+      <p className="text-muted-foreground text-xs">
+        Same questions reuses what you’ve already got, free and offline. New questions asks the AI to
+        write a fresh set.
+      </p>
       <DialogFooter>
-        <Button variant="outline" onClick={actions.close}>
+        <Button variant="ghost" onClick={actions.close}>
           Close
         </Button>
-        <Button onClick={actions.retake}>Take again</Button>
+        <Button variant="outline" onClick={actions.retakeSame}>
+          Same questions
+        </Button>
+        <Button onClick={actions.retakeNew}>New questions</Button>
       </DialogFooter>
     </>
   );

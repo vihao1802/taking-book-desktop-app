@@ -3,6 +3,7 @@ import { createMemoryDriver } from './helpers';
 import {
   createQuiz,
   filesSchema,
+  findQuizForRequest,
   getQuiz,
   isErr,
   isOk,
@@ -128,5 +129,26 @@ describe('quizRepository', () => {
 
     const listed = await listQuizzesForBook(db, 'hash-1');
     expect(isOk(listed) && listed.data).toEqual([]);
+  });
+
+  it('finds the most recent saved Quiz matching a Book, page range and size', async () => {
+    const db = await setup();
+    const none = await findQuizForRequest(db, 'hash-1', { startPage: 1, endPage: 5 }, 2);
+    expect(isOk(none) && none.data).toBeNull();
+
+    const first = await createQuiz(db, 'hash-1', { startPage: 1, endPage: 5 }, twoQuestions);
+    const second = await createQuiz(db, 'hash-1', { startPage: 1, endPage: 5 }, twoQuestions);
+    if (!isOk(first) || !isOk(second)) throw new Error('setup failed');
+
+    const found = await findQuizForRequest(db, 'hash-1', { startPage: 1, endPage: 5 }, 2);
+    expect(isOk(found) && found.data?.id).toBe(second.data.id);
+
+    // A different page range or size must not match the same request.
+    const otherScope = await findQuizForRequest(db, 'hash-1', { startPage: 1, endPage: 10 }, 2);
+    expect(isOk(otherScope) && otherScope.data).toBeNull();
+    const otherSize = await findQuizForRequest(db, 'hash-1', { startPage: 1, endPage: 5 }, 10);
+    expect(isOk(otherSize) && otherSize.data).toBeNull();
+    const otherBook = await findQuizForRequest(db, 'hash-2', { startPage: 1, endPage: 5 }, 2);
+    expect(isOk(otherBook) && otherBook.data).toBeNull();
   });
 });

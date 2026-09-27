@@ -1,8 +1,8 @@
 import type { Result } from '../result';
-import { err, isErr } from '../result';
+import { err, isErr, ok } from '../result';
 import type { SqlDriver } from '../sql';
 import type { Quiz, QuizAnswerInput, QuizAttempt } from './models';
-import { createQuiz, saveQuizAttempt } from './quizRepository';
+import { createQuiz, findQuizForRequest, saveQuizAttempt } from './quizRepository';
 import type { QuizProviderEngine, QuizProviderFailure, QuizScopePage } from './quizProvider';
 import { DEFAULT_QUIZ_SIZE, isQuizSize, resolveQuizScope } from './quizScope';
 
@@ -36,27 +36,42 @@ export interface GenerateQuizOptions {
   engine: QuizProviderEngine;
   /** The reader's saved AI provider key; null when none is saved. */
   apiKey: string | null;
+  /** When true, always ask the provider for a fresh set, even if saved questions match (a Retake with new questions). */
+  forceNew?: boolean;
 }
 
 /**
- * Generates and stores a Quiz for a Book. A missing key, an out-of-range
- * scope, no extractable text in the scope, or any provider failure each
- * return a clear message and store nothing — existing Quizzes and attempts on
- * this Book are left untouched either way, per the acceptance criteria.
+ * Generates and stores a Quiz for a Book. A repeat of the same Book, page
+ * range and size reuses the saved questions without calling the provider, so a
+ * saved Quiz opens offline and costs nothing — unless `forceNew` is set, in
+ * which case the provider is asked for a fresh set and the new questions are
+ * saved (a Retake with new questions). A missing key, an out-of-range scope,
+ * no extractable text in the scope, or any provider failure each return a
+ * clear message and store nothing — existing Quizzes and attempts on this Book
+ * are left untouched either way, per the acceptance criteria.
  *
  * @param db - The data-access driver.
  * @param options - The Book, its Last-read position, the requested scope and
  *   size, the extracted page text, the provider engine and the reader's key.
- * @returns The stored Quiz, or an error message fit to show the reader.
+ * @returns The stored Quiz (or a reused one), or an error message fit to show the reader.
  */
 export async function generateQuiz(db: SqlDriver, options: GenerateQuizOptions): Promise<Result<Quiz>> {
-  if (!options.apiKey || options.apiKey.trim() === '') return err(MISSING_KEY_MESSAGE);
-
   const scope = resolveQuizScope(options.lastPage, options.scopeStartPage);
   if (isErr(scope)) return scope;
 
   const size = options.size ?? DEFAULT_QUIZ_SIZE;
   if (!isQuizSize(size)) return err('Quiz size must be 5, 10 or 15.');
+
+  // An identical request (same Book, page range and size) reuses the saved
+  // questions with no provider call, so a Retake with the same questions is
+  // free and works offline (ADR-0007). forceNew skips the reuse.
+  if (!options.forceNew) {
+    const saved = await findQuizForRequest(db, options.fileHash, scope.data, size);
+    if (isErr(saved)) return saved;
+    if (saved.data) return ok(saved.data);
+  }
+
+  if (!options.apiKey || options.apiKey.trim() === '') return err(MISSING_KEY_MESSAGE);
 
   const scopedPages = options.pages
     .filter((page) => page.page >= scope.data.startPage && page.page <= scope.data.endPage)

@@ -34,6 +34,26 @@ function fakeEngine(questions: QuizProviderQuestion[]): QuizProviderEngine & { c
   return engine;
 }
 
+/** A fake engine that returns exactly the requested number of questions, so a stored Quiz's size column matches the request it was made from. */
+function sizedEngine(): QuizProviderEngine & { calls: number } {
+  const engine = {
+    calls: 0,
+    async generateQuestions(request: { size: number }) {
+      engine.calls += 1;
+      const questions: QuizProviderQuestion[] = Array.from({ length: request.size }, (_, i) => ({
+        type: 'true_false',
+        prompt: `Q${i + 1}`,
+        options: ['True', 'False'],
+        correctIndex: 0,
+        explanation: `E${i + 1}`,
+        sourcePage: 8,
+      }));
+      return { ok: true as const, data: questions };
+    },
+  };
+  return engine;
+}
+
 function failingEngine(kind: 'rate-limited' | 'unreachable' | 'malformed' | 'other'): QuizProviderEngine {
   return {
     async generateQuestions() {
@@ -183,6 +203,199 @@ describe('generateQuiz', () => {
     });
     expect(isErr(failed) && failed.error).toMatch(/busy/);
 
+    const listed = await listQuizzesForBook(db, 'hash-1');
+    expect(isOk(listed) && listed.data).toHaveLength(1);
+  });
+
+  it('reuses the saved questions for an identical request without calling the provider again', async () => {
+    const db = await setup();
+    const engine = sizedEngine();
+    const first = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isOk(first)).toBe(true);
+
+    const second = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isOk(second) && second.data.id).toBe(isOk(first) ? first.data.id : undefined);
+    expect(engine.calls).toBe(1);
+    const listed = await listQuizzesForBook(db, 'hash-1');
+    expect(isOk(listed) && listed.data).toHaveLength(1);
+  });
+
+  it('opens a saved Quiz offline, with no key and no provider call', async () => {
+    const db = await setup();
+    const engine = sizedEngine();
+    const first = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isOk(first)).toBe(true);
+
+    const offline = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: null,
+    });
+    expect(isOk(offline) && offline.data.id).toBe(isOk(first) ? first.data.id : undefined);
+    expect(engine.calls).toBe(1);
+  });
+
+  it('does not reuse saved questions for a different size', async () => {
+    const db = await setup();
+    const engine = sizedEngine();
+    await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    const other = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 10,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isOk(other)).toBe(true);
+    expect(engine.calls).toBe(2);
+  });
+
+  it('does not reuse saved questions for a different scope', async () => {
+    const db = await setup();
+    const engine = sizedEngine();
+    await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    const widened = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      scopeStartPage: 2,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isOk(widened)).toBe(true);
+    expect(engine.calls).toBe(2);
+  });
+
+  it('does not reuse saved questions for another Book', async () => {
+    const db = await setup();
+    const engine = sizedEngine();
+    await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    const other = await generateQuiz(db, {
+      fileHash: 'hash-2',
+      title: 'Other',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isOk(other)).toBe(true);
+    expect(engine.calls).toBe(2);
+  });
+
+  it('a Retake with new questions calls the provider and saves the new set', async () => {
+    const db = await setup();
+    const engine = sizedEngine();
+    const first = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isOk(first)).toBe(true);
+
+    const retake = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+      forceNew: true,
+    });
+    expect(isOk(retake)).toBe(true);
+    expect(engine.calls).toBe(2);
+    expect(retake.data?.id).not.toBe(isOk(first) ? first.data.id : undefined);
+
+    const listed = await listQuizzesForBook(db, 'hash-1');
+    expect(isOk(listed) && listed.data).toHaveLength(2);
+  });
+
+  it('a Retake with new questions needs a key even when a saved Quiz exists', async () => {
+    const db = await setup();
+    const engine = sizedEngine();
+    await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+
+    const retake = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size: 5,
+      pages,
+      engine,
+      apiKey: null,
+      forceNew: true,
+    });
+    expect(isErr(retake) && retake.error).toBe(MISSING_KEY_MESSAGE);
+    expect(engine.calls).toBe(1);
     const listed = await listQuizzesForBook(db, 'hash-1');
     expect(isOk(listed) && listed.data).toHaveLength(1);
   });
