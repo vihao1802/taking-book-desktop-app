@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import type { BookFile } from '../../shared/types';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,9 @@ import {
 import { cn } from '@/lib/utils';
 import { currentQuestion, isFinished } from './quizFlow';
 import { attemptKey, formatAttemptTime } from './quizHistory';
+import { resolveQuizKey } from './quizKeys';
 import { quizSizeOptions } from './quizSizeChoice';
+import { sourcePageJump } from './quizSourcePage';
 import { useQuizSession } from './useQuizSession';
 
 /**
@@ -29,8 +32,17 @@ import { useQuizSession } from './useQuizSession';
  * a time with a reveal, and the final score. Opened from the Book detail or
  * library view — never the reader (see the `Quiz` glossary entry).
  */
-export function QuizDialog({ file, onOpenChange }: { file: BookFile; onOpenChange: (open: boolean) => void }) {
-  const [state, actions] = useQuizSession(file, () => onOpenChange(false));
+export function QuizDialog({
+  file,
+  onOpenChange,
+  onOpenAtPage,
+}: {
+  file: BookFile;
+  onOpenChange: (open: boolean) => void;
+  /** Opens the Book in the reader at a question's source page. */
+  onOpenAtPage: (page: number) => void;
+}) {
+  const [state, actions] = useQuizSession(file, () => onOpenChange(false), onOpenAtPage);
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -172,6 +184,41 @@ function QuestionScreen({
   actions: ReturnType<typeof useQuizSession>[1];
 }) {
   const question = currentQuestion(flow);
+  const { selectAnswer, reveal, next, openSourcePage } = actions;
+
+  // Answering with the keyboard: 1–N picks an option, Enter reveals it, and
+  // Enter again moves on. Prevent default so a focused button does not also
+  // fire its click and double-advance the flow. The source-page jump is the one
+  // control the flow must not steal Enter from: when it is focused, Enter (or
+  // Space) opens the page instead of advancing, so it stays reachable by
+  // keyboard like every other button.
+  useEffect(() => {
+    if (!question) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as Element | null;
+      const jumpButton = target?.closest('[data-quiz-jump]') as HTMLButtonElement | null;
+      if (jumpButton && (event.code === 'Enter' || event.code === 'Space')) {
+        event.preventDefault();
+        jumpButton.click();
+        return;
+      }
+      const action = resolveQuizKey({
+        key: event.key,
+        revealed: flow.revealed,
+        selected: flow.selected,
+        optionCount: question.options.length,
+      });
+      if (!action) return;
+      event.preventDefault();
+      if (action.type === 'selectOption') selectAnswer(action.index);
+      else if (action.type === 'reveal') reveal();
+      else next();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [question, flow.revealed, flow.selected, selectAnswer, reveal, next]);
+
   if (!question) return null;
 
   return (
@@ -191,7 +238,7 @@ function QuestionScreen({
               <button
                 type="button"
                 disabled={flow.revealed}
-                onClick={() => actions.selectAnswer(index)}
+                onClick={() => selectAnswer(index)}
                 className={cn(
                   'w-full cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-sm transition-colors',
                   !flow.revealed && isSelected && 'border-ink bg-secondary',
@@ -212,22 +259,43 @@ function QuestionScreen({
         })}
       </ul>
       {flow.revealed && (
-        <p className="text-muted-foreground text-sm">
-          {question.explanation} <span className="whitespace-nowrap">(page {question.sourcePage})</span>
+        <p className="text-muted-foreground flex items-baseline gap-1 text-sm">
+          {question.explanation}
+          <SourcePageButton page={question.sourcePage} onOpen={openSourcePage} />
         </p>
       )}
+      <p className="text-muted-foreground text-xs">
+        {flow.revealed
+          ? 'Enter for the next question · Tab to open the page in the reader'
+          : `1–${question.options.length} to pick an answer, Enter to check`}
+      </p>
       <DialogFooter>
         {!flow.revealed ? (
-          <Button onClick={actions.reveal} disabled={flow.selected === null}>
+          <Button onClick={reveal} disabled={flow.selected === null}>
             Check answer
           </Button>
         ) : (
-          <Button onClick={actions.next}>
+          <Button onClick={next}>
             {flow.index + 1 < flow.questions.length ? 'Next question' : 'See score'}
           </Button>
         )}
       </DialogFooter>
     </>
+  );
+}
+
+function SourcePageButton({ page, onOpen }: { page: number; onOpen: (page: number) => void }) {
+  const jump = sourcePageJump(page);
+  return (
+    <Button
+      variant="link"
+      size="sm"
+      className="h-auto px-0 text-xs"
+      data-quiz-jump
+      onClick={() => onOpen(jump.page)}
+    >
+      {jump.label}
+    </Button>
   );
 }
 
@@ -388,8 +456,9 @@ function ReviewScreen({
                   );
                 })}
               </ul>
-              <p className="text-muted-foreground text-sm">
-                {question.explanation} <span className="whitespace-nowrap">(page {question.sourcePage})</span>
+              <p className="text-muted-foreground flex items-baseline gap-1 text-sm">
+                {question.explanation}
+                <SourcePageButton page={question.sourcePage} onOpen={actions.openSourcePage} />
               </p>
             </li>
           ))}

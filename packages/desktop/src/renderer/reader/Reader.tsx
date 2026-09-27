@@ -36,9 +36,11 @@ interface ReaderProps {
   onClose: () => void;
   /** A Note chosen in the Notes view: the book opens at it with the Notes sidebar on its card. Null for a normal open. */
   noteToOpen?: Annotation | null;
+  /** A Quiz question's source page: the book opens at this real PDF page instead of its saved position. Null for a normal open. */
+  pageToOpen?: number | null;
 }
 
-export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
+export function Reader({ file, onClose, noteToOpen = null, pageToOpen = null }: ReaderProps) {
   const [mode, setMode] = useState<ReadMode>('page');
   const [notice, setNotice] = useState<ReaderNotice | null>(null);
   const { pdf, error: pdfError } = usePdfDocument(fileUrl(file.path));
@@ -125,8 +127,13 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
   // report it, and it is handed to the other view on a mode toggle: a scroll
   // fraction means different places in a PDF layout and in re-wrapped text, but
   // a page number means the same place in both.
-  const locationRef = useRef<PageLocation | null>(null);
-  const [handoffLocation, setHandoffLocation] = useState<PageLocation | undefined>(undefined);
+  // A jump to a Quiz source page is the page to open at; it wins over the saved
+  // spot but keeps the mode the book was last read in, so the same page opens
+  // in either view. Both the location and the hand-off to the views start there.
+  const sourcePageLocation: PageLocation | undefined =
+    pageToOpen != null ? { page: pageToOpen, fraction: 0 } : undefined;
+  const locationRef = useRef<PageLocation | null>(sourcePageLocation ?? null);
+  const [handoffLocation, setHandoffLocation] = useState<PageLocation | undefined>(sourcePageLocation);
   const [currentPage, setCurrentPage] = useState(1);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
@@ -148,8 +155,9 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
       if (!saved) return;
       // Reopen in the view the book was last read in. Reflow saves a page plus
       // how far down it, the same shape the mode toggle hands over, so it can
-      // reopen on the exact spot instead of the top of the document.
-      if (saved.mode === 'reflow') {
+      // reopen on the exact spot instead of the top of the document. A jump to
+      // a Quiz source page overrides the saved spot, so it is skipped here.
+      if (pageToOpen == null && saved.mode === 'reflow') {
         const location = { page: saved.page, fraction: Math.min(Math.max(saved.position, 0), 1) };
         locationRef.current = location;
         setHandoffLocation(location);
@@ -159,7 +167,7 @@ export function Reader({ file, onClose, noteToOpen = null }: ReaderProps) {
     return () => {
       cancelled = true;
     };
-  }, [file.id]);
+  }, [file.id, pageToOpen]);
 
   useEffect(() => {
     if (pdf && pdf.numPages > 0) {

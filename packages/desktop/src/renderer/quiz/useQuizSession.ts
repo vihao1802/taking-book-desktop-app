@@ -70,6 +70,8 @@ export interface QuizSessionActions {
   beginReview(attempt: QuizAttempt): void;
   /** Leaves the review back to the attempt-history list. */
   closeReview(): void;
+  /** Opens the Book in the reader at the question's real PDF source page, closing the Quiz. */
+  openSourcePage(page: number): void;
   close(): void;
 }
 
@@ -78,9 +80,14 @@ export interface QuizSessionActions {
  * generating and storing the Quiz over IPC (extracting the scope's page text
  * itself, since Quiz starts outside the reader), the one-question-at-a-time
  * flow, and submitting the finished attempt. `onClose` is called from `close`
- * so the caller can dismiss the dialog.
+ * so the caller can dismiss the dialog; `onOpenAtPage` opens the Book in the
+ * reader at a question's source page.
  */
-export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessionState, QuizSessionActions] {
+export function useQuizSession(
+  file: BookFile,
+  onClose: () => void,
+  onOpenAtPage: (page: number) => void,
+): [QuizSessionState, QuizSessionActions] {
   const lastPage = file.lastPage ?? 0;
   const [phase, setPhase] = useState<QuizPhase>('setup');
   const [scope, setScope] = useState<QuizScopeChoice>(() => defaultScopeChoice(lastPage));
@@ -298,10 +305,14 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
           setHistory((current) => closeReview(current));
           setPhase('history');
         },
+        openSourcePage(page) {
+          onClose();
+          onOpenAtPage(page);
+        },
         close: onClose,
       };
     },
-    [lastPage, scope, quiz, onClose],
+    [lastPage, scope, quiz, onClose, onOpenAtPage],
   );
 
   return [{ phase, scope, size, error, flow, attempt, history }, actions];

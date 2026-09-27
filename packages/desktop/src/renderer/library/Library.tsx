@@ -27,7 +27,8 @@ import { useLibrary } from './useLibrary';
 export function Library({
   onOpen,
 }: {
-  onOpen: (file: BookFile) => void;
+  /** Opens a Book; pass a page to open the reader at that page instead of the saved spot. */
+  onOpen: (file: BookFile, page?: number) => void;
 }) {
   const {
     files,
@@ -287,7 +288,13 @@ export function Library({
         </ul>
       )}
 
-      {quizFile && <QuizDialog file={quizFile} onOpenChange={(open) => !open && setQuizFile(null)} />}
+      {quizFile && (
+        <QuizDialog
+          file={quizFile}
+          onOpenChange={(open) => !open && setQuizFile(null)}
+          onOpenAtPage={(page) => onOpen(quizFile, page)}
+        />
+      )}
 
       <Dialog open={pendingRemove != null} onOpenChange={(open) => !open && setPendingRemove(null)}>
         <DialogContent>
