@@ -48,6 +48,7 @@ import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, 
 import { join } from 'node:path';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
+import { createApiKeyStore } from './apiKeyStore';
 import { googleTranslateEngine } from './googleTranslateEngine';
 import { registerCustomSoundsIpc } from './customSounds';
 import { createImportFileSystem } from './importFileSystem';
@@ -67,6 +68,7 @@ import {
 export function registerIpc(db: SqlDriver): void {
   const userDataDir = app.getPath('userData');
   registerCustomSoundsIpc(db);
+  const apiKeyStore = createApiKeyStore(db);
   async function stamp(): Promise<SyncStamp> {
     return { updatedAt: Date.now(), updatedBy: await getDeviceId(db) };
   }
@@ -346,6 +348,17 @@ export function registerIpc(db: SqlDriver): void {
     if (!wellTyped) return Promise.resolve({ ok: false, error: 'Focus preferences have the wrong types.' });
     return setFocusPreferences(db, { soundId, volume, minutes } as Partial<FocusPreferences>);
   });
+
+  // The renderer only ever learns whether a key is saved; the key itself is
+  // never sent back over IPC, per ADR-0007.
+  ipcMain.handle('settings:aiKey:has', () => apiKeyStore.hasKey());
+
+  ipcMain.handle('settings:aiKey:set', (_event, key: unknown): Promise<Result<void>> => {
+    if (typeof key !== 'string') return Promise.resolve({ ok: false, error: 'API key must be a string.' });
+    return apiKeyStore.setKey(key);
+  });
+
+  ipcMain.handle('settings:aiKey:clear', () => apiKeyStore.clearKey());
 
   // The renderer sends only the selected text; the Target language is resolved
   // here so a compromised renderer cannot pick anything but a supported one.

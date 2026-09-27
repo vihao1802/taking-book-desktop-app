@@ -3,6 +3,7 @@ import type { Theme } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from '../theme';
+import { AiSettings } from './AiSettings';
 import { CustomSoundsSettings } from './CustomSoundsSettings';
 import { TranslationSettings } from './TranslationSettings';
 
@@ -53,6 +54,8 @@ export function Settings() {
       </Card>
 
       <TranslationSettings />
+
+      <AiSettings />
 
       <CustomSoundsSettings />
 

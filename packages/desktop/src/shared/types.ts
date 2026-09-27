@@ -61,6 +61,12 @@ export interface ReaderApi {
   getFocusPreferences(): Promise<Result<FocusPreferences>>;
   /** Saves the given Focus choices and leaves the others as they were; an invalid value is rejected. */
   setFocusPreferences(preferences: Partial<FocusPreferences>): Promise<Result<void>>;
+  /** Whether an AI provider API key is saved (ADR-0007); the key itself is never sent back. */
+  hasAiApiKey(): Promise<Result<boolean>>;
+  /** Saves (or replaces) the AI provider API key; an empty key is rejected. */
+  setAiApiKey(key: string): Promise<Result<void>>;
+  /** Removes the saved AI provider API key. */
+  clearAiApiKey(): Promise<Result<void>>;
   /** Every Custom sound on this device, in the order they were added. */
   listCustomSounds(): Promise<Result<CustomSound[]>>;
   /** Asks the reader to pick audio files and adds them as Custom sounds; null when the picker was cancelled. */
