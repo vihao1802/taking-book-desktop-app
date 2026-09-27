@@ -2,6 +2,21 @@
 
 A distraction-free, local-first document reader with optional Google Drive sync.
 
+## Download
+
+Get the latest version from the
+[Releases page](https://github.com/vihao1802/taking-book-desktop-app/releases/latest)
+and pick the file for your system under **Assets**.
+
+| System | File | Install |
+| --- | --- | --- |
+| Windows | `taking-book-desktop-app-<version>.Setup.exe` | Run the installer. Windows SmartScreen may say "Unknown publisher" because the app is not code-signed: click **More info**, then **Run anyway**. |
+| macOS (Apple Silicon: M1 or newer) | `.zip` with `darwin-arm64` in its name | Unzip it and drag the app to **Applications**. The app is not notarized, so the first time, right-click it and choose **Open**, then **Open** again. Intel Macs are not supported yet. |
+| Linux (Debian/Ubuntu) | `taking-book-desktop_<version>_amd64.deb` | `sudo apt install ./taking-book-desktop_<version>_amd64.deb` |
+
+The macOS file only appears on releases built after macOS support was added.
+Your library stays on your device; Google Drive sync is optional.
+
 ## Architecture
 
 ```mermaid
