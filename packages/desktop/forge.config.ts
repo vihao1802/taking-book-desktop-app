@@ -6,7 +6,8 @@ import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-nati
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
-import { existsSync } from 'node:fs';
+import { cpSync, existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
 // The gitignored `.env` is shipped into the packaged app's resources/ so the
@@ -20,7 +21,37 @@ const bundledEnv = existsSync(path.join(__dirname, '.env')) ? ['.env'] : [];
 // only contains the vite output).
 const bundledIcon = [path.join(__dirname, 'build', 'icon.png')];
 
+// The Vite plugin packages only the `.vite` output, never node_modules, so any
+// module the main process loads at runtime instead of bundling is missing from
+// the packaged app unless copied in. Only the files read at runtime are copied:
+// better-sqlite3's JS plus its N-API prebuild (ABI-stable, so no Electron
+// rebuild), and the pdf.js font/wasm dirs that `appfile://` serves.
+const requireFromDesktop = createRequire(__filename);
+
+function runtimeModuleFiles(platform: string, arch: string): Record<string, string[]> {
+  return {
+    'better-sqlite3': ['package.json', 'lib', `prebuilds/${platform}-${arch}.node`],
+    'pdfjs-dist': ['package.json', 'standard_fonts', 'wasm'],
+  };
+}
+
+function copyRuntimeModules(buildPath: string, platform: string, arch: string): void {
+  for (const [moduleName, files] of Object.entries(runtimeModuleFiles(platform, arch))) {
+    const moduleDir = path.dirname(requireFromDesktop.resolve(`${moduleName}/package.json`));
+    for (const file of files) {
+      cpSync(path.join(moduleDir, file), path.join(buildPath, 'node_modules', moduleName, file), {
+        recursive: true,
+      });
+    }
+  }
+}
+
 const config: ForgeConfig = {
+  hooks: {
+    packageAfterCopy: async (_forgeConfig, buildPath, _electronVersion, platform, arch) => {
+      copyRuntimeModules(buildPath, platform, arch);
+    },
+  },
   packagerConfig: {
     asar: true,
     extraResource: [...bundledEnv, ...bundledIcon],
@@ -38,8 +69,14 @@ const config: ForgeConfig = {
     new MakerZIP({}, ['darwin']),
     // The npm package name is scoped (@taking-book/desktop) but the packaged
     // binary is named from productName; the deb maker defaults its bin to the
-    // package name, so pin it to the real binary or packaging fails.
-    new MakerDeb({ options: { bin: 'taking-book-desktop-app' } }),
+    // package name, so pin it to the real binary or packaging fails. Without an
+    // explicit icon the launcher entry shows Electron's default icon.
+    new MakerDeb({
+      options: {
+        bin: 'taking-book-desktop-app',
+        icon: path.join(__dirname, 'build', 'icon.png'),
+      },
+    }),
   ],
   plugins: [
     new AutoUnpackNativesPlugin({}),
