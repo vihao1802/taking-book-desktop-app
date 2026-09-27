@@ -5,7 +5,7 @@ A distraction-free, local-first document reader with optional Google Drive sync.
 ## Download
 
 Get the latest version from the
-[Releases page](https://github.com/vihao1802/taking-book-releases/releases/latest)
+[Releases page](https://github.com/vihao1802/taking-book-desktop-app/releases/latest)
 and pick the file for your system under **Assets**.
 
 | System | File | Install |

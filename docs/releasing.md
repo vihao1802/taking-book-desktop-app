@@ -1,12 +1,11 @@
 # Releasing
 
-End users download the app from the **GitHub Releases** page of the public
-repo [`vihao1802/taking-book-releases`](https://github.com/vihao1802/taking-book-releases),
-which holds only installers; this source repo stays private. A tag pushed here
-triggers a GitHub Actions workflow (`.github/workflows/release.yml`) that builds
-a `.deb` (Linux), a `.exe` (Windows) and a `.zip` (macOS) and publishes them as
-a release of that public repo. The app's update notice reads the same repo, so
-readers are told about the new version on their next launch.
+End users download the app from the **GitHub Releases** page of this (public)
+repo. A tag pushed here triggers a GitHub Actions workflow
+(`.github/workflows/release.yml`) that builds a `.deb` (Linux), a `.exe`
+(Windows) and a `.zip` (macOS) and attaches them to the release. The app's
+update notice reads the same Releases page, so readers are told about the new
+version on their next launch.
 
 ## Cutting a release
 
@@ -27,15 +26,16 @@ Steps:
    ```
 
    The workflow builds all three platforms and publishes the release.
-3. Verify the release at `https://github.com/vihao1802/taking-book-releases/releases`.
+3. Verify the release at `https://github.com/vihao1802/taking-book-desktop-app/releases`.
 
 ## Notes
 
-- **Publishing token**: the `RELEASES_REPO_TOKEN` secret of this repo is a
-  fine-grained personal access token with *Contents: Read and write* on
-  `vihao1802/taking-book-releases` only. When it expires, the release job fails
-  with a 401/403; create a new one and update the secret.
-
+- **Mirror to `taking-book-releases` (transitional)**: version 1.3.0 checked
+  the separate `vihao1802/taking-book-releases` repo for updates, so the workflow
+  also mirrors each release there, using the `RELEASES_REPO_TOKEN` secret (a
+  fine-grained token with *Contents: Read and write* on that repo only). After
+  the first release following 1.3.0 is out, archive that repo, delete the mirror
+  step and the secret, and revoke the token.
 - **Google OAuth credentials** are injected from the `TB_GDRIVE_CLIENT_ID` /
   `TB_GDRIVE_CLIENT_SECRET` repository secrets at build time. Set them in the
   repo's *Settings → Secrets*; the publisher's (verified) client is used for
