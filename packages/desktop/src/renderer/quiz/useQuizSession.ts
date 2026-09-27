@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { isOk } from '@taking-book/core';
+import type { QuizSize } from '@taking-book/core';
 import type { BookFile, Quiz, QuizAttempt } from '../../shared/types';
 import { initQuizFlow, isFinished, nextQuestion, revealAnswer, selectOption, type QuizFlowState } from './quizFlow';
 import { defaultScopeChoice, widenScopeChoice, type QuizScopeChoice } from './quizScopeChoice';
+import { defaultSizeChoice, isSizeChoice } from './quizSizeChoice';
 import { useQuizScopeText } from './useQuizScopeText';
 
 /** Which screen the Quiz dialog is showing. */
@@ -12,7 +14,7 @@ export interface QuizSessionState {
   phase: QuizPhase;
   /** The default/widened scope shown in setup, and used once the reader starts. */
   scope: QuizScopeChoice;
-  size: number;
+  size: QuizSize;
   error: string | null;
   flow: QuizFlowState | null;
   attempt: QuizAttempt | null;
@@ -40,7 +42,7 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
   const lastPage = file.lastPage ?? 0;
   const [phase, setPhase] = useState<QuizPhase>('setup');
   const [scope, setScope] = useState<QuizScopeChoice>(() => defaultScopeChoice(lastPage));
-  const [size, setSize] = useState(10);
+  const [size, setSizeState] = useState<QuizSize>(defaultSizeChoice);
   const [error, setError] = useState<string | null>(null);
   const [flow, setFlow] = useState<QuizFlowState | null>(null);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
@@ -105,7 +107,9 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
 
   const actions = useMemo<QuizSessionActions>(
     () => ({
-      setSize,
+      setSize(size) {
+        if (isSizeChoice(size)) setSizeState(size);
+      },
       widenStart(startPage) {
         setScope(widenScopeChoice(lastPage, startPage));
       },

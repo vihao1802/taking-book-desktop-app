@@ -1,5 +1,4 @@
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
-import { QUIZ_SIZES } from '@taking-book/core';
 import type { BookFile } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { currentQuestion, isFinished } from './quizFlow';
+import { quizSizeOptions } from './quizSizeChoice';
 import { useQuizSession } from './useQuizSession';
 
 /**
@@ -75,7 +75,7 @@ function SetupScreen({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {QUIZ_SIZES.map((size) => (
+              {quizSizeOptions().map((size) => (
                 <SelectItem key={size} value={String(size)}>
                   {size} questions
                 </SelectItem>

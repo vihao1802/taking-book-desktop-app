@@ -3,6 +3,7 @@ import { createMemoryDriver } from './helpers';
 import {
   MISSING_KEY_MESSAGE,
   NO_TEXT_MESSAGE,
+  QUIZ_SIZES,
   generateQuiz,
   isErr,
   isOk,
@@ -61,6 +62,22 @@ describe('generateQuiz', () => {
     expect(result.data.scopeEndPage).toBe(10);
     expect(result.data.questions).toHaveLength(2);
     expect(engine.calls).toBe(1);
+  });
+
+  it.each(QUIZ_SIZES)('accepts a size of %i questions', async (size) => {
+    const db = await setup();
+    const engine = fakeEngine(twoQuestions);
+    const result = await generateQuiz(db, {
+      fileHash: 'hash-1',
+      title: 'Book',
+      lastPage: 10,
+      size,
+      pages,
+      engine,
+      apiKey: 'key',
+    });
+    expect(isOk(result)).toBe(true);
+    expect(result.data?.questions).toHaveLength(2);
   });
 
   it('fails with a clear message when no AI provider key is saved, and stores nothing', async () => {
