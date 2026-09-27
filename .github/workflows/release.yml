@@ -104,17 +104,3 @@ jobs:
           body_path: release-notes.md
           files: artifacts/**/*.{exe,nupkg,blockmap,deb,zip}
           fail_on_unmatched_files: false
-
-      # Transitional: 1.3.0 checked vihao1802/taking-book-releases for updates,
-      # so the next release is mirrored there to reach those installs. Once it
-      # is out (1.3.1), archive that repo and delete this step and the
-      # RELEASES_REPO_TOKEN secret (a token with Contents: write on that repo).
-      - name: Mirror release for 1.3.0 update checks
-        uses: softprops/action-gh-release@v2
-        with:
-          repository: vihao1802/taking-book-releases
-          token: ${{ secrets.RELEASES_REPO_TOKEN }}
-          name: ${{ github.ref_name }}
-          body: Taking Book ${{ github.ref_name }}. New releases are published at https://github.com/vihao1802/taking-book-desktop-app/releases.
-          files: artifacts/**/*.{exe,nupkg,blockmap,deb,zip}
-          fail_on_unmatched_files: false

@@ -30,12 +30,6 @@ Steps:
 
 ## Notes
 
-- **Mirror to `taking-book-releases` (transitional)**: version 1.3.0 checked
-  the separate `vihao1802/taking-book-releases` repo for updates, so the workflow
-  also mirrors each release there, using the `RELEASES_REPO_TOKEN` secret (a
-  fine-grained token with *Contents: Read and write* on that repo only). After
-  the first release following 1.3.0 is out, archive that repo, delete the mirror
-  step and the secret, and revoke the token.
 - **Google OAuth credentials** are injected from the `TB_GDRIVE_CLIENT_ID` /
   `TB_GDRIVE_CLIENT_SECRET` repository secrets at build time. Set them in the
   repo's *Settings → Secrets*; the publisher's (verified) client is used for
