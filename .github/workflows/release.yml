@@ -92,6 +92,11 @@ jobs:
               echo "**Full changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${previous_tag}...${GITHUB_REF_NAME}"
             fi
           } > release-notes.md
+          # Fail the run rather than publish a release without a change list.
+          if [ "$(git log "$range" --no-merges --pretty='%s' | wc -l)" -eq 0 ]; then
+            echo "No commits found for $range; refusing to publish empty notes." >&2
+            exit 1
+          fi
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
