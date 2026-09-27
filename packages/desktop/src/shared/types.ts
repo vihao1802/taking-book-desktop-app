@@ -1,4 +1,4 @@
-import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizQuestion, QuizScopePage, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
+import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -112,10 +112,12 @@ export interface ReaderApi {
   }): Promise<Result<Quiz>>;
   /** A Book's Quizzes, most recently generated first. */
   listQuizzes(fileHash: string): Promise<Result<Quiz[]>>;
+  /** One stored Quiz with its questions, by local id; used to review an attempt's missed questions. */
+  getQuiz(quizId: number): Promise<Result<Quiz>>;
   /** Scores and stores one Quiz attempt. */
   submitQuizAttempt(quizId: number, fileHash: string, answers: QuizAnswerInput[]): Promise<Result<QuizAttempt>>;
   /** A Book's Quiz attempts, most recent first. */
   listQuizAttempts(fileHash: string): Promise<Result<QuizAttempt[]>>;
 }
 
-export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizQuestion, QuizScopePage, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };
+export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };

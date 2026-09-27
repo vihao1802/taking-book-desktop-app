@@ -79,6 +79,7 @@ const api: ReaderApi = {
   },
   generateQuiz: (input) => ipcRenderer.invoke('quiz:generate', input),
   listQuizzes: (fileHash) => ipcRenderer.invoke('quiz:list', fileHash),
+  getQuiz: (quizId) => ipcRenderer.invoke('quiz:get', quizId),
   submitQuizAttempt: (quizId, fileHash, answers) =>
     ipcRenderer.invoke('quiz:attempt:save', quizId, fileHash, answers),
   listQuizAttempts: (fileHash) => ipcRenderer.invoke('quiz:attempts:list', fileHash),

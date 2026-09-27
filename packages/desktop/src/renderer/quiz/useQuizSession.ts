@@ -3,12 +3,23 @@ import { isOk } from '@taking-book/core';
 import type { QuizSize } from '@taking-book/core';
 import type { BookFile, Quiz, QuizAttempt } from '../../shared/types';
 import { initQuizFlow, isFinished, nextQuestion, revealAnswer, selectOption, type QuizFlowState } from './quizFlow';
+import {
+  beginReview,
+  closeReview,
+  historyFailed,
+  historyLoading,
+  historyReady,
+  initialHistory,
+  reviewFailed,
+  reviewReady,
+  type QuizHistoryState,
+} from './quizHistory';
 import { defaultScopeChoice, widenScopeChoice, type QuizScopeChoice } from './quizScopeChoice';
 import { defaultSizeChoice, isSizeChoice } from './quizSizeChoice';
 import { useQuizScopeText } from './useQuizScopeText';
 
 /** Which screen the Quiz dialog is showing. */
-export type QuizPhase = 'setup' | 'generating' | 'error' | 'question' | 'submitting' | 'score';
+export type QuizPhase = 'setup' | 'generating' | 'error' | 'question' | 'submitting' | 'score' | 'history' | 'review';
 
 export interface QuizSessionState {
   phase: QuizPhase;
@@ -18,6 +29,8 @@ export interface QuizSessionState {
   error: string | null;
   flow: QuizFlowState | null;
   attempt: QuizAttempt | null;
+  /** The attempt-history list and the review it can open. */
+  history: QuizHistoryState;
 }
 
 export interface QuizSessionActions {
@@ -32,6 +45,14 @@ export interface QuizSessionActions {
   retakeSame(): void;
   /** Asks the provider for a fresh set of questions and saves it, then restarts the Quiz. */
   retakeNew(): void;
+  /** Opens the Book's attempt-history list, reloading it from the store. */
+  openHistory(): void;
+  /** Leaves the history list back to the setup screen. */
+  backFromHistory(): void;
+  /** Opens the review of one attempt's missed questions. */
+  beginReview(attempt: QuizAttempt): void;
+  /** Leaves the review back to the attempt-history list. */
+  closeReview(): void;
   close(): void;
 }
 
@@ -51,6 +72,7 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
   const [flow, setFlow] = useState<QuizFlowState | null>(null);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [history, setHistory] = useState<QuizHistoryState>(initialHistory);
 
   // True only for a Retake with new questions: the same scope and size, but the
   // provider is asked for a fresh set instead of reusing the saved questions.
@@ -116,6 +138,29 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
     })();
   }, [phase, flow, quiz, file.hash]);
 
+  // Loads the Book's attempt list whenever the history screen is opened. The
+  // status guard means the fetch runs once per open (`openHistory()` resets it
+  // to loading so the list is always fresh after a new attempt; landing here
+  // from a review that was started on the score screen leaves it idle).
+  useEffect(() => {
+    if (phase !== 'history' || (history.status !== 'loading' && history.status !== 'idle')) return;
+    void (async () => {
+      const result = await window.api.listQuizAttempts(file.hash);
+      setHistory(isOk(result) ? historyReady(history, result.data) : historyFailed(history, result.error));
+    })();
+  }, [phase, history, file.hash]);
+
+  // Loads the attempt's Quiz when a review is opened, then derives the missed
+  // questions from it in core (`missedQuestions`).
+  useEffect(() => {
+    if (phase !== 'review' || !history.review || history.review.status !== 'loading') return;
+    const attempt = history.review.attempt;
+    void (async () => {
+      const result = await window.api.getQuiz(attempt.quizId);
+      setHistory(isOk(result) ? reviewReady(history, result.data) : reviewFailed(history, result.error));
+    })();
+  }, [phase, history, file.hash]);
+
   const actions = useMemo<QuizSessionActions>(
     () => ({
       setSize(size) {
@@ -174,10 +219,25 @@ export function useQuizSession(file: BookFile, onClose: () => void): [QuizSessio
         setExtractRange({ start: scope.startPage, end: scope.endPage });
         setPhase('generating');
       },
+      openHistory() {
+        setHistory(historyLoading(initialHistory()));
+        setPhase('history');
+      },
+      backFromHistory() {
+        setPhase('setup');
+      },
+      beginReview(attemptToReview) {
+        setHistory((current) => beginReview(current, attemptToReview));
+        setPhase('review');
+      },
+      closeReview() {
+        setHistory((current) => closeReview(current));
+        setPhase('history');
+      },
       close: onClose,
     }),
     [lastPage, scope, quiz, onClose],
   );
 
-  return [{ phase, scope, size, error, flow, attempt }, actions];
+  return [{ phase, scope, size, error, flow, attempt, history }, actions];
 }

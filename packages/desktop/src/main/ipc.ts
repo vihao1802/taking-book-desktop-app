@@ -14,6 +14,7 @@ import {
   getFileZoom,
   getLastPosition,
   getLiveFileByHash,
+  getQuiz,
   getReadingMinutesByBook,
   getNotesSidebarWidth,
   getSidebarWidth,
@@ -459,6 +460,11 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('quiz:list', (_event, fileHash: string): Promise<Result<Quiz[]>> =>
     listQuizzesForBook(db, fileHash),
   );
+
+  ipcMain.handle('quiz:get', (_event, quizId: unknown): Promise<Result<Quiz>> => {
+    if (typeof quizId !== 'number') return Promise.resolve({ ok: false, error: 'Malformed Quiz request.' });
+    return getQuiz(db, quizId);
+  });
 
   ipcMain.handle(
     'quiz:attempt:save',

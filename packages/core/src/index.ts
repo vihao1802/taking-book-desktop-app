@@ -270,6 +270,7 @@ export {
 export { validateQuizQuestions } from './quiz/validateQuizQuestions';
 export { GEMINI_MODEL, GEMINI_TIMEOUT_MS, createGeminiProvider, type FetchLike } from './quiz/geminiProvider';
 export { scoreAnswers, totalCorrect } from './quiz/quizScoring';
+export { missedQuestions, type QuizMissedQuestion } from './quiz/quizReview';
 export {
   createQuiz,
   findQuizForRequest,

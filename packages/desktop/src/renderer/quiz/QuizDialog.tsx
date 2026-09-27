@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { currentQuestion, isFinished } from './quizFlow';
+import { attemptKey, formatAttemptTime } from './quizHistory';
 import { quizSizeOptions } from './quizSizeChoice';
 import { useQuizSession } from './useQuizSession';
 
@@ -42,6 +43,8 @@ export function QuizDialog({ file, onOpenChange }: { file: BookFile; onOpenChang
         )}
         {state.phase === 'submitting' && <GeneratingScreen label="Saving your score…" />}
         {state.phase === 'score' && <ScoreScreen state={state} actions={actions} />}
+        {state.phase === 'history' && <HistoryScreen file={file} state={state} actions={actions} />}
+        {state.phase === 'review' && <ReviewScreen state={state} actions={actions} />}
       </DialogContent>
     </Dialog>
   );
@@ -102,6 +105,9 @@ function SetupScreen({
         </div>
       </div>
       <DialogFooter>
+        <Button variant="ghost" onClick={actions.openHistory}>
+          Past attempts
+        </Button>
         <Button variant="outline" onClick={actions.close}>
           Cancel
         </Button>
@@ -222,6 +228,24 @@ function ScoreScreen({
             : (state.error ?? 'Your attempt could not be saved.')}
         </DialogDescription>
       </DialogHeader>
+      <div className="flex flex-col items-start gap-1">
+        {attempt != null && attempt.score < attempt.total && (
+          <Button
+            variant="ghost"
+            className="text-muted-foreground hover:text-primary h-auto px-0 text-xs"
+            onClick={() => actions.beginReview(attempt)}
+          >
+            Review the questions you got wrong
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          className="text-muted-foreground hover:text-primary h-auto px-0 text-xs"
+          onClick={actions.openHistory}
+        >
+          See past attempts
+        </Button>
+      </div>
       <p className="text-muted-foreground text-xs">
         Same questions reuses what you’ve already got, free and offline. New questions asks the AI to
         write a fresh set.
@@ -234,6 +258,126 @@ function ScoreScreen({
           Same questions
         </Button>
         <Button onClick={actions.retakeNew}>New questions</Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function HistoryScreen({
+  file,
+  state,
+  actions,
+}: {
+  file: BookFile;
+  state: ReturnType<typeof useQuizSession>[0];
+  actions: ReturnType<typeof useQuizSession>[1];
+}) {
+  const history = state.history;
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Past attempts</DialogTitle>
+        <DialogDescription>
+          Your Quiz attempts for “{file.title}”, newest first. Review an attempt to see the
+          questions you got wrong.
+        </DialogDescription>
+      </DialogHeader>
+      {history.status === 'loading' && <GeneratingScreen label="Loading your attempts…" />}
+      {history.status === 'error' && <p className="text-destructive text-sm">{history.error}</p>}
+      {history.status === 'ready' && history.attempts.length === 0 && (
+        <p className="text-muted-foreground text-sm">No past attempts for this book yet.</p>
+      )}
+      {history.status === 'ready' && history.attempts.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {history.attempts.map((attempt) => (
+            <li key={attemptKey(attempt)} className="flex items-center justify-between gap-3 rounded-md border px-3.5 py-2.5">
+              <span className="flex flex-col">
+                <span className="text-sm font-medium">
+                  {attempt.score} / {attempt.total}
+                </span>
+                <span className="text-muted-foreground text-xs">{formatAttemptTime(attempt.completedAt)}</span>
+              </span>
+              {attempt.score < attempt.total && (
+                <Button variant="outline" size="sm" onClick={() => actions.beginReview(attempt)}>
+                  Review
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <DialogFooter>
+        <Button variant="outline" onClick={actions.backFromHistory}>
+          Back
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function ReviewScreen({
+  state,
+  actions,
+}: {
+  state: ReturnType<typeof useQuizSession>[0];
+  actions: ReturnType<typeof useQuizSession>[1];
+}) {
+  const review = state.history.review;
+  if (!review) return null;
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Missed questions</DialogTitle>
+        <DialogDescription>
+          From the attempt where you scored {review.attempt.score} out of {review.attempt.total}. Each
+          shows the right answer, why it is right, and the page it came from.
+        </DialogDescription>
+      </DialogHeader>
+      {review.status === 'loading' && <GeneratingScreen label="Loading the questions…" />}
+      {review.status === 'error' && <p className="text-destructive text-sm">{review.error}</p>}
+      {review.status === 'ready' && review.missed.length === 0 && (
+        <p className="text-muted-foreground text-sm">
+          Nothing missed on this attempt — you got every question right.
+        </p>
+      )}
+      {review.status === 'ready' && review.missed.length > 0 && (
+        <ul className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
+          {review.missed.map((question, index) => (
+            <li key={question.questionId} className="flex flex-col gap-1.5 rounded-md border p-3.5">
+              <p className="text-sm font-medium">
+                {index + 1}. {question.prompt}
+              </p>
+              <ul className="flex flex-col gap-0.5">
+                {question.options.map((option, optionIndex) => {
+                  const isCorrect = optionIndex === question.correctIndex;
+                  const isPicked = optionIndex === question.selectedIndex;
+                  return (
+                    <li
+                      key={optionIndex}
+                      className={cn(
+                        'text-sm',
+                        isCorrect && 'text-emerald-600',
+                        isPicked && !isCorrect && 'text-destructive',
+                      )}
+                    >
+                      {option}
+                      {isCorrect && ' — correct answer'}
+                      {isPicked && !isCorrect && ' — your answer'}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-muted-foreground text-sm">
+                {question.explanation} <span className="whitespace-nowrap">(page {question.sourcePage})</span>
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <DialogFooter>
+        <Button variant="outline" onClick={actions.closeReview}>
+          Back
+        </Button>
       </DialogFooter>
     </>
   );
