@@ -228,3 +228,15 @@ export {
   type RejectedCustomSound,
 } from './addCustomSounds';
 export { crossfadeLoop } from './loop-crossfade';
+export {
+  checkForUpdate,
+  compareVersions,
+  findAvailableUpdate,
+  parseLatestRelease,
+  pickDownloadAsset,
+  type AvailableUpdate,
+  type CheckForUpdateOptions,
+  type LatestRelease,
+  type ReleaseAsset,
+  type UpdateTarget,
+} from './updates';

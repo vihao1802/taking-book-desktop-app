@@ -4,6 +4,7 @@ import { AddPdfFab } from './components/AddPdfFab';
 import { DropOverlay } from './components/DropOverlay';
 import { ImportNotice } from './components/ImportNotice';
 import { NavRail, type View } from './components/NavRail';
+import { UpdateNotice } from './components/UpdateNotice';
 import { Favorites } from './favorites/Favorites';
 import { FocusProvider } from './focus/FocusProvider';
 import { Home } from './home/Home';
@@ -14,12 +15,15 @@ import { Reader } from './reader/Reader';
 import { Settings } from './settings/Settings';
 import { Statistics } from './statistics/Statistics';
 import { ThemeProvider } from './theme';
+import { useUpdateCheck } from './updates/useUpdateCheck';
 
 export function App() {
   const [file, setFile] = useState<BookFile | null>(null);
   // A Note chosen in the Notes view, which the reader opens the book at; null for every other way of opening a book.
   const [noteToOpen, setNoteToOpen] = useState<Annotation | null>(null);
   const [view, setView] = useState<View>('home');
+  // Checked here, above the Reader branch, so opening and closing a Book neither re-checks nor brings back a dismissed notice.
+  const updateCheck = useUpdateCheck();
 
   const navigate = (next: View) => {
     setView(next);
@@ -62,6 +66,7 @@ export function App() {
                 )}
                 <AddPdfFab onOpen={setFile} />
                 <ImportNotice onOpen={setFile} />
+                <UpdateNotice {...updateCheck} />
                 <DropOverlay />
               </main>
             </div>

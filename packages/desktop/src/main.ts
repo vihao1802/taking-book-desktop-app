@@ -10,6 +10,7 @@ import { getDriver } from './main/db';
 import { registerIpc } from './main/ipc';
 import { guardAgainstNavigation } from './main/navigationGuard';
 import { startBackgroundSync } from './main/syncScheduler';
+import { registerUpdateIpc } from './main/updateCheck';
 import { toSystemLocaleArgument } from './shared/system-locale';
 
 if (started) {
@@ -127,6 +128,7 @@ app.whenReady().then(async () => {
   registerFileProtocol();
   const db = await getDriver();
   registerIpc(db);
+  registerUpdateIpc();
   Menu.setApplicationMenu(buildApplicationMenu());
   createWindow();
   // Pull cloud changes on launch and periodically while the app runs; safe to

@@ -1,4 +1,4 @@
-import type { AddCustomSoundsSummary, Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
+import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
@@ -75,6 +75,10 @@ export interface ReaderApi {
   connectCloud(): Promise<Result<CloudAccount>>;
   disconnectCloud(): Promise<Result<void>>;
   runSync(): Promise<Result<SyncSummary>>;
+  /** A newer release to offer, or null when this is the latest version. */
+  checkForUpdate(): Promise<Result<AvailableUpdate | null>>;
+  /** Opens a release download in the browser; only this app's GitHub release links are accepted. */
+  openUpdateDownload(url: string): Promise<Result<void>>;
   isFullScreen(): Promise<Result<boolean>>;
   toggleFullScreen(): Promise<Result<boolean>>;
   /** Subscribes to full-screen changes (including menu/F11); returns an unsubscribe function. */
