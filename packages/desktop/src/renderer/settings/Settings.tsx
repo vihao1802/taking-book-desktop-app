@@ -3,6 +3,7 @@ import type { Theme } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from '../theme';
+import { AboutSettings } from './AboutSettings';
 import { AiSettings } from './AiSettings';
 import { CustomSoundsSettings } from './CustomSoundsSettings';
 import { TranslationSettings } from './TranslationSettings';
@@ -59,17 +60,7 @@ export function Settings() {
 
       <CustomSoundsSettings />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>About</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-sm">
-          <p className="text-muted-foreground">
-            Taking Book is a local-first reading app. Your library and reading
-            progress live on this device and sync to your cloud drive.
-          </p>
-        </CardContent>
-      </Card>
+      <AboutSettings />
     </div>
   );
 }

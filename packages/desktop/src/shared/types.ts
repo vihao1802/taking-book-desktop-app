@@ -85,6 +85,10 @@ export interface ReaderApi {
   checkForUpdate(): Promise<Result<AvailableUpdate | null>>;
   /** Opens a release download in the browser; only this app's GitHub release links are accepted. */
   openUpdateDownload(url: string): Promise<Result<void>>;
+  /** Opens the list of all releases in the browser. */
+  openReleasesPage(): Promise<Result<void>>;
+  /** The version of the running app, e.g. "1.3.1". */
+  getAppVersion(): Promise<Result<string>>;
   isFullScreen(): Promise<Result<boolean>>;
   toggleFullScreen(): Promise<Result<boolean>>;
   /** Subscribes to full-screen changes (including menu/F11); returns an unsubscribe function. */

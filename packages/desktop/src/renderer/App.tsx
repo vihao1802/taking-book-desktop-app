@@ -66,7 +66,8 @@ export function App() {
                 )}
                 <AddPdfFab onOpen={setFile} />
                 <ImportNotice onOpen={setFile} />
-                <UpdateNotice {...updateCheck} />
+                {/* Settings has its own About & updates section, which the floating notice would cover. */}
+                {view !== 'settings' && <UpdateNotice {...updateCheck} />}
                 <DropOverlay />
               </main>
             </div>
