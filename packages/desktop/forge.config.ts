@@ -28,6 +28,10 @@ const bundledIcon = [path.join(__dirname, 'build', 'icon.png')];
 // rebuild), and the pdf.js font/wasm dirs that `appfile://` serves.
 const requireFromDesktop = createRequire(__filename);
 
+const APP_DISPLAY_NAME = 'Taking Book';
+const APP_EXECUTABLE_NAME = 'taking-book-desktop-app';
+const appVersion: string = requireFromDesktop('./package.json').version;
+
 function runtimeModuleFiles(platform: string, arch: string): Record<string, string[]> {
   return {
     'better-sqlite3': ['package.json', 'lib', `prebuilds/${platform}-${arch}.node`],
@@ -53,6 +57,13 @@ const config: ForgeConfig = {
     },
   },
   packagerConfig: {
+    // `name` is what users see (macOS app bundle, Windows Start menu and
+    // installer). The executable, and the productName in package.json, stay
+    // `taking-book-desktop-app` because Electron derives the userData folder
+    // (the library) and the safeStorage key (saved Google login) from them;
+    // renaming those would strand existing users' data.
+    name: APP_DISPLAY_NAME,
+    executableName: APP_EXECUTABLE_NAME,
     asar: true,
     extraResource: [...bundledEnv, ...bundledIcon],
     icon: path.join(__dirname, 'build', 'icon'),
@@ -61,20 +72,26 @@ const config: ForgeConfig = {
   makers: [
     // The npm package name is scoped (@taking-book/desktop) and Squirrel
     // derives the nuspec/installer file names from it unless pinned, which
-    // produces invalid paths like `@taking_book/desktop.nuspec`. Pin to the
-    // productName from package.json.
+    // produces invalid paths like `@taking_book/desktop.nuspec`. Pin them to
+    // the executable name so download file names stay stable.
     new MakerSquirrel({
-      name: 'taking-book-desktop-app',
+      name: APP_EXECUTABLE_NAME,
+      setupExe: `${APP_EXECUTABLE_NAME}-${appVersion} Setup.exe`,
     }),
     new MakerZIP({}, ['darwin']),
     // The npm package name is scoped (@taking-book/desktop) but the packaged
     // binary is named from productName; the deb maker defaults its bin to the
     // package name, so pin it to the real binary or packaging fails. Without an
-    // explicit icon the launcher entry shows Electron's default icon.
+    // explicit icon the launcher entry shows Electron's default icon. The
+    // custom template adds StartupWMClass so GNOME matches the running window
+    // (class = executable name) to this entry's name and icon in the dock.
     new MakerDeb({
       options: {
-        bin: 'taking-book-desktop-app',
+        bin: APP_EXECUTABLE_NAME,
+        productName: APP_DISPLAY_NAME,
+        genericName: APP_DISPLAY_NAME,
         icon: path.join(__dirname, 'build', 'icon.png'),
+        desktopTemplate: path.join(__dirname, 'assets', 'linux-desktop-entry.ejs'),
       },
     }),
   ],
