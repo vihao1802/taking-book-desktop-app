@@ -1,11 +1,11 @@
-import { Download, Loader2, X } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import type { UpdateCheck } from '@/updates/useUpdateCheck';
 
 /**
  * Tells the reader a newer version is out, with a Download button for their
  * OS. Shown in the library views only, never over an open Book.
  */
-export function UpdateNotice({ update, downloading, downloadError, download, dismiss }: UpdateCheck) {
+export function UpdateNotice({ update, downloadError, download, dismiss }: UpdateCheck) {
   if (!update) return null;
 
   return (
@@ -20,18 +20,16 @@ export function UpdateNotice({ update, downloading, downloadError, download, dis
       <button
         type="button"
         onClick={() => void download()}
-        disabled={downloading}
-        className="text-primary hover:bg-accent flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 font-medium disabled:cursor-default disabled:opacity-70"
+        className="text-primary hover:bg-accent flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 font-medium"
       >
-        {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-        {downloading ? 'Downloading…' : 'Download'}
+        <Download className="size-4" />
+        Download
       </button>
       <button
         type="button"
         onClick={dismiss}
-        disabled={downloading}
         aria-label="Dismiss"
-        className="text-muted-foreground hover:bg-accent hover:text-foreground shrink-0 cursor-pointer rounded-md p-1 disabled:cursor-default disabled:opacity-70"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground shrink-0 cursor-pointer rounded-md p-1"
       >
         <X className="size-4" />
       </button>

@@ -83,12 +83,8 @@ export interface ReaderApi {
   runSync(): Promise<Result<SyncSummary>>;
   /** A newer release to offer, or null when this is the latest version. */
   checkForUpdate(): Promise<Result<AvailableUpdate | null>>;
-  /**
-   * Downloads the update's installer asset and opens it (or the release page
-   * when there is no matching asset); only this app's GitHub release links are
-   * accepted. Quits the app once the installer has taken over (ADR-0008).
-   */
-  openUpdateDownload(update: AvailableUpdate): Promise<Result<void>>;
+  /** Opens a release download in the browser; only this app's GitHub release links are accepted. */
+  openUpdateDownload(url: string): Promise<Result<void>>;
   /** Opens the list of all releases in the browser. */
   openReleasesPage(): Promise<Result<void>>;
   /** The version of the running app, e.g. "1.3.1". */

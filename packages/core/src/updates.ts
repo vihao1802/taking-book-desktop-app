@@ -17,10 +17,8 @@ export interface LatestRelease {
 /** A newer version the reader can install, with where to get it for this device. */
 export interface AvailableUpdate {
   version: string;
-  /** The installer asset for this OS and CPU, or null when the release published none. */
-  asset: ReleaseAsset | null;
-  /** The release's page; opened directly when there is no matching asset. */
-  pageUrl: string;
+  /** The installer for this OS and CPU, or the release page when none matches. */
+  downloadUrl: string;
 }
 
 /** The device the update is for, as Node reports it (`process.platform`, `process.arch`). */
@@ -76,7 +74,7 @@ export function parseLatestRelease(json: unknown): Result<LatestRelease> {
 export function findAvailableUpdate(release: LatestRelease, target: UpdateTarget): AvailableUpdate | null {
   if (compareVersions(release.version, target.currentVersion) <= 0) return null;
   const asset = pickDownloadAsset(release.assets, target.platform, target.arch);
-  return { version: release.version, asset, pageUrl: release.pageUrl };
+  return { version: release.version, downloadUrl: asset?.downloadUrl ?? release.pageUrl };
 }
 
 /**

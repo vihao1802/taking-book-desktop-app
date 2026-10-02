@@ -5,10 +5,10 @@ export interface ManualUpdateCheck {
   /** The running version, or null until the main process answers. */
   currentVersion: string | null;
   status: UpdateStatus;
-  /** Why a link could not be opened, or the update could not be downloaded; null otherwise. */
+  /** Why a link could not be opened in the browser; null otherwise. */
   linkError: string | null;
   check: () => Promise<void>;
-  /** Downloads and opens this device's installer for the available update. */
+  /** Opens this device's installer for the available update. */
   download: () => Promise<void>;
   openAllReleases: () => Promise<void>;
 }
@@ -40,17 +40,8 @@ export function useManualUpdateCheck(): ManualUpdateCheck {
 
   const download = useCallback(async (): Promise<void> => {
     if (status.kind !== 'available') return;
-    const { update } = status;
-    // Only the asset path is an actual download; the page-open fallback is instant.
-    if (update.asset) setStatus({ kind: 'downloading', update });
-    setLinkError(null);
-    const res = await window.api.openUpdateDownload(update);
-    if (!res.ok) {
-      setLinkError(res.error);
-      // A Check for updates click may have moved status on while this awaited;
-      // only fall back to 'available' if we're still the one driving it.
-      setStatus((current) => (current.kind === 'downloading' && current.update === update ? { kind: 'available', update } : current));
-    }
+    const res = await window.api.openUpdateDownload(status.update.downloadUrl);
+    setLinkError(res.ok ? null : res.error);
   }, [status]);
 
   const openAllReleases = useCallback(async (): Promise<void> => {

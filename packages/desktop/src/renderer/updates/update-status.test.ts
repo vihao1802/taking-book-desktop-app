@@ -7,13 +7,8 @@ describe('describeUpdateStatus', () => {
   });
 
   it('names the newer version when one is available', () => {
-    const update = { version: '1.4.0', asset: { name: 'a.deb', downloadUrl: 'https://example.test/a.deb' }, pageUrl: 'https://example.test/tag' };
+    const update = { version: '1.4.0', downloadUrl: 'https://example.test/a.deb' };
     expect(describeUpdateStatus({ kind: 'available', update })).toBe('Taking Book 1.4.0 is available.');
-  });
-
-  it('says it is downloading', () => {
-    const update = { version: '1.4.0', asset: { name: 'a.deb', downloadUrl: 'https://example.test/a.deb' }, pageUrl: 'https://example.test/tag' };
-    expect(describeUpdateStatus({ kind: 'downloading', update })).toBe('Downloading the update…');
   });
 
   it('tells the reader when they are up to date, checking, or offline', () => {

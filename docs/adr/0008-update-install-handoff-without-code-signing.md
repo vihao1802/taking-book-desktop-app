@@ -1,6 +1,10 @@
 # ADR-0008: Update installs are downloaded in-app, then handed to the OS — no silent background update
 
-Status: accepted
+Status: reverted
+
+## Reverted
+
+Shipped in v1.4.0, hit a real deadlock in practice on Linux: `shell.openPath`'s promise can stay pending until the launched handler itself exits, and the launched package-install GUI (GNOME Software/gdebi) was itself waiting for this app to quit first — so the app sat open until the reader closed it by hand, which is worse than the plain browser-download behavior this decision replaced. A v1.4.1 patch (racing the open against a timeout) fixed that specific deadlock, but the reader asked to drop the whole in-app download/install flow and go back to opening the browser, rather than keep carrying the platform-specific installer-launch code (Setup.exe, `.deb` GUI handoff, macOS unzip-and-reveal) for a benefit that, in practice, did not pay for its own risk. Reverted in v1.4.2. Left here, instead of deleted, as a record of what was tried, why it broke, and why it was not worth re-fixing — a full `electron-updater`-based silent update (see Alternatives below) remains the likelier next attempt if this is revisited.
 
 ## Context
 
