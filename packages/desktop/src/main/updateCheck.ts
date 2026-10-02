@@ -116,12 +116,27 @@ async function downloadFile(url: string, filePath: string): Promise<void> {
 
 async function openDownloadedInstaller(filePath: string): Promise<Result<void>> {
   if (process.platform === 'darwin') return revealExtractedApp(filePath);
-  const openError = await shell.openPath(filePath);
-  if (openError) {
-    console.error(`update: could not open ${filePath}: ${openError}`);
+  return openWithSystemHandler(filePath);
+}
+
+// On Linux, `shell.openPath`'s promise can stay pending until the launched
+// handler itself exits rather than resolving once it has launched (a known
+// Electron/xdg-open quirk) — and a package-install GUI (GNOME Software,
+// gdebi, …) may itself be waiting for this app to quit before it proceeds,
+// which deadlocks the two. Race it against a short timeout: once the handler
+// has had time to launch, treat a still-pending openPath as a launch that
+// succeeded, so quitting is never blocked on an installer window closing.
+const OPEN_INSTALLER_TIMEOUT_MS = 3_000;
+
+export async function openWithSystemHandler(filePath: string): Promise<Result<void>> {
+  const opened = shell.openPath(filePath).then((openError): Result<void> => (openError ? err(openError) : ok(undefined)));
+  const launched = new Promise<Result<void>>((resolve) => setTimeout(() => resolve(ok(undefined)), OPEN_INSTALLER_TIMEOUT_MS));
+  const result = await Promise.race([opened, launched]);
+  if (!result.ok) {
+    console.error(`update: could not open ${filePath}: ${result.error}`);
     return err('Could not open the downloaded installer.');
   }
-  return ok(undefined);
+  return result;
 }
 
 /**

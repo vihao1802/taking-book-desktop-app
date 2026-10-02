@@ -1,10 +1,12 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
-import { findAppBundle, isAvailableUpdate, isReleaseDownloadUrl, selectDownloadAction } from './updateCheck';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { shell } from 'electron';
+import { err, ok } from '@taking-book/core';
+import { findAppBundle, isAvailableUpdate, isReleaseDownloadUrl, openWithSystemHandler, selectDownloadAction } from './updateCheck';
 
-vi.mock('electron', () => ({ app: {}, ipcMain: {}, net: {}, shell: {} }));
+vi.mock('electron', () => ({ app: {}, ipcMain: {}, net: {}, shell: { openPath: vi.fn() } }));
 
 describe('isReleaseDownloadUrl', () => {
   it.each([
@@ -78,6 +80,37 @@ describe('selectDownloadAction', () => {
   it('rejects a page URL outside this app’s releases', () => {
     const update = { version: '1.3.0', pageUrl: 'https://evil.test/tag/v1.3.0', asset: null };
     expect(selectDownloadAction(update).kind).toBe('rejected');
+  });
+});
+
+describe('openWithSystemHandler', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.mocked(shell.openPath).mockReset();
+  });
+
+  it('succeeds once shell.openPath resolves with no error', async () => {
+    vi.mocked(shell.openPath).mockResolvedValue('');
+    await expect(openWithSystemHandler('/tmp/a.deb')).resolves.toEqual(ok(undefined));
+  });
+
+  it('fails when shell.openPath resolves with an error before the timeout', async () => {
+    vi.mocked(shell.openPath).mockResolvedValue('no handler for this file');
+    await expect(openWithSystemHandler('/tmp/a.deb')).resolves.toEqual(err('Could not open the downloaded installer.'));
+  });
+
+  it('treats a handler that has launched but not yet exited as success', async () => {
+    // A package-install GUI (GNOME Software, gdebi, …) can hold shell.openPath's
+    // promise pending until it closes, which may itself be waiting on this app
+    // to quit — the race against a timeout is what breaks that deadlock.
+    vi.mocked(shell.openPath).mockReturnValue(new Promise(() => {}));
+    const result = openWithSystemHandler('/tmp/a.deb');
+    await vi.advanceTimersByTimeAsync(3_000);
+    await expect(result).resolves.toEqual(ok(undefined));
   });
 });
 
