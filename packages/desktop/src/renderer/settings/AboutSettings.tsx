@@ -31,10 +31,10 @@ export function AboutSettings() {
             {checking ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             Check for updates
           </Button>
-          {status.kind === 'available' && (
-            <Button onClick={() => void download()}>
-              <Download />
-              Download {status.update.version}
+          {(status.kind === 'available' || status.kind === 'downloading') && (
+            <Button onClick={() => void download()} disabled={status.kind === 'downloading'}>
+              {status.kind === 'downloading' ? <Loader2 className="animate-spin" /> : <Download />}
+              {status.kind === 'downloading' ? 'Downloading…' : `Download ${status.update.version}`}
             </Button>
           )}
           <Button variant="link" onClick={() => void openAllReleases()}>

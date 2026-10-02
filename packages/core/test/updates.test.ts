@@ -88,13 +88,15 @@ describe('findAvailableUpdate', () => {
   it('offers a newer release with the installer for this device', () => {
     expect(findAvailableUpdate(release, { currentVersion: '1.2.2', platform: 'linux', arch: 'x64' })).toEqual({
       version: '1.3.0',
-      downloadUrl: 'https://example.test/taking-book-desktop_1.3.0_amd64.deb',
+      asset: { name: 'taking-book-desktop_1.3.0_amd64.deb', downloadUrl: 'https://example.test/taking-book-desktop_1.3.0_amd64.deb' },
+      pageUrl: PAGE_URL,
     });
   });
 
-  it('falls back to the release page when no installer matches', () => {
+  it('offers the release page with no asset when no installer matches', () => {
     const update = findAvailableUpdate(release, { currentVersion: '1.2.2', platform: 'darwin', arch: 'x64' });
-    expect(update?.downloadUrl).toBe(PAGE_URL);
+    expect(update?.asset).toBeNull();
+    expect(update?.pageUrl).toBe(PAGE_URL);
   });
 
   it('offers nothing when the running version is the same or newer', () => {
@@ -108,7 +110,13 @@ describe('checkForUpdate', () => {
 
   it('returns the update found in the fetched release', async () => {
     const result = await checkForUpdate({ ...target, fetchLatestRelease: async () => ok(githubJson) });
-    expect(result).toEqual(ok({ version: '1.3.0', downloadUrl: 'https://example.test/taking-book-desktop-app-1.3.0.Setup.exe' }));
+    expect(result).toEqual(
+      ok({
+        version: '1.3.0',
+        asset: { name: 'taking-book-desktop-app-1.3.0.Setup.exe', downloadUrl: 'https://example.test/taking-book-desktop-app-1.3.0.Setup.exe' },
+        pageUrl: PAGE_URL,
+      }),
+    );
   });
 
   it('passes a fetch failure through', async () => {
