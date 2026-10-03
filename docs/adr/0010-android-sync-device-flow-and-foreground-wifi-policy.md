@@ -1,6 +1,6 @@
 # ADR-0010: Android signs in to Google Drive with the device flow and syncs only while the app is open
 
-Status: accepted (the Drive folder visibility across OAuth clients is still to be verified; see Open question).
+Status: accepted for the device flow and the sync policy; the shared-folder question was answered NO (see Verified result) and a follow-up decision is open.
 
 ## Context
 
@@ -18,9 +18,11 @@ Core sync (`syncLibrary`) merges a manifest of records and then eagerly copies e
 4. A Book whose PDF is not on the device for any of these reasons is a **Remote-only Book** (see `CONTEXT.md`).
 5. Device-local on mobile, as on desktop: Reading sessions, covers, the reflow cache and settings. Conflicts stay last-write-wins per record.
 
-## Open question
+## Verified result: the folder is not shared across OAuth clients
 
-Whether the `Taking Book/` folder created by the desktop client is visible to the new Android-side client under `drive.file` is not documented (the grant may be per client id or per Cloud project). A task ticket verifies it with real clients. If the folder is not shared, the fallback is a one-time migration of the folder to a scope both clients can read, which would affect existing desktop users, so it must be settled before any build.
+On 2026-10-03 the device flow was run with a new client of type "TVs and Limited Input devices" (scope `drive.file`, signed in as the same Google account the desktop syncs with). The device flow itself worked and issued a refresh token, but the `Taking Book` folder created by the desktop's client was **not visible** to the new client: zero folders found, while the folder was confirmed to exist in that account's Drive. So under `drive.file`, a folder is visible only to the OAuth client that created it. (The new client was created in the desktop client's Cloud project, as instructed; if it was in another project that would be a different cause, but the effect for us is the same.)
+
+This means Android cannot read the folder the existing desktop clients use. Which of the options (one OAuth client for every platform, or another) to take is a separate open decision, and it affects existing desktop users.
 
 ## Consequences
 
