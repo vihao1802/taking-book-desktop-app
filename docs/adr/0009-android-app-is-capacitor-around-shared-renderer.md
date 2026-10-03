@@ -1,6 +1,6 @@
 # ADR-0009: The Android app is a Capacitor shell around a shared React renderer
 
-Status: provisional — to be confirmed or reopened by the Reader prototype on a real phone and tablet.
+Status: provisional — the Reader prototype passed on a real phone (see Prototype result); the tablet check is still open.
 
 ## Context
 
@@ -19,6 +19,15 @@ The desktop renderer (about 4,200 lines of React DOM in the reader alone, with R
 ## Exit criteria
 
 Reopen this decision if the Reader prototype shows touch text selection over the pdf.js text layer is unusable, or a large PDF cannot be browsed within the memory of a mid-range tablet. The fallback is a React Native shell hosting the Reader in a WebView.
+
+## Prototype result
+
+A throwaway pdf.js-in-Capacitor reader (branch `prototype/android-reader`) was run on Android 15 emulators and on the reader's real phone, with a 491-page, 4.2 MB book.
+
+- **Passed on a real phone:** scrolling the long book was smooth on a mid-range-or-better phone; only a handful of pages are rendered at once (heap about 10 MB on the emulators). Touch selection works: long-press selects a word, our toolbar sits below the native handles, tapping it keeps the selection and Highlight paints it, and no native context menu appears.
+- **Defect found:** dragging the start handle up across a 5-6 line passage makes it jump to the left edge of the PDF. Cause unknown (possibly the pdf.js text layer or normal start-of-line behaviour); to be investigated during the build, not a reason to reopen the stack.
+- **Not yet verified:** any real tablet (memory on a mid-range tablet is still an exit criterion), real-GPU smoothness on a tablet, and the real WebView version on a device without Google Play.
+- Found by the prototype and handled outside this ADR: a landscape phone counts as the expanded size class by width alone, and pages must re-fit on resize.
 
 ## Consequences
 
