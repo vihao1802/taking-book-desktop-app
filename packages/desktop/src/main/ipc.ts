@@ -5,15 +5,13 @@ import {
   computeReadingStats,
   createAnnotation,
   createGeminiProvider,
+  createLibraryService,
   deleteAnnotation,
-  deleteFile,
   deleteNote,
   generateQuiz,
   getDailyReadingMinutes,
   getEffectiveTargetLanguage,
   getFocusPreferences,
-  getFileZoom,
-  getLastPosition,
   getLiveFileByHash,
   getQuiz,
   getQuizPrivacyNoticeAcknowledged,
@@ -24,26 +22,16 @@ import {
   importBooks,
   isOk,
   listAnnotations,
-  listFiles,
   listLibraryAnnotations,
   listQuizAttemptsForBook,
   listQuizzesForBook,
-  parseReflowCache,
   recordReadingSession,
-  saveLastPosition,
   saveNoteDraft,
   saveNoteText,
   savePageNote,
-  serializeReflowCache,
   setAnnotationColor,
   setAnnotationPageAnchor,
   setAnnotationReflowAnchor,
-  setFileFavorite,
-  setFilePageCount,
-  setFileStatus,
-  setFileZoom,
-  setFileTags,
-  setFileTitle,
   setNotesSidebarWidth,
   setSidebarWidth,
   setFocusPreferences,
@@ -55,8 +43,9 @@ import {
 } from '@taking-book/core';
 import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, FocusPreferences, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizScopePage, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
 import { join } from 'node:path';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
+import { createHashedFileStore } from './hashedFileStore';
 import { createApiKeyStore } from './apiKeyStore';
 import { googleTranslateEngine } from './googleTranslateEngine';
 import { registerCustomSoundsIpc } from './customSounds';
@@ -79,6 +68,12 @@ export function registerIpc(db: SqlDriver): void {
   registerCustomSoundsIpc(db);
   const apiKeyStore = createApiKeyStore(db);
   const quizEngine = createGeminiProvider();
+  const library = createLibraryService(db, {
+    getDeviceId: () => getDeviceId(db),
+    coverStore: createHashedFileStore({ dir: join(userDataDir, 'covers'), extension: 'jpg', label: 'cover', encoding: 'base64' }),
+    reflowStore: createHashedFileStore({ dir: join(userDataDir, 'reflow'), extension: 'json', label: 'reflow text', encoding: 'utf8' }),
+    log: (message) => console.error(message),
+  });
   async function stamp(): Promise<SyncStamp> {
     return { updatedAt: Date.now(), updatedBy: await getDeviceId(db) };
   }
@@ -134,23 +129,6 @@ export function registerIpc(db: SqlDriver): void {
     return importFromPaths(paths, event.sender);
   });
 
-  ipcMain.handle('files:delete', async (_event, id: number) => {
-    const result = await deleteFile(db, id, await stamp());
-    if (!isOk(result)) return result;
-    // Sync in the background: a slow or offline cloud must never delay or
-    // fail the local delete; the next successful sync reconciles the
-    // tombstone. No provider configured is a normal local-only setup.
-    void (async () => {
-      const provider = await cloudProvider();
-      if (!isOk(provider)) return;
-      const summary = await runSync(db, userDataDir, provider.data);
-      if (!isOk(summary)) {
-        console.error(`Background sync after deleting file ${id} failed: ${summary.error}`);
-      }
-    })();
-    return { ok: true, data: undefined };
-  });
-
   // A book's stored path can stop working (the local copy was moved or removed
   // outside the app), and the reader only finds out when pdf.js fails to load
   // it. Callers that must not navigate into a broken reader ask first.
@@ -165,103 +143,61 @@ export function registerIpc(db: SqlDriver): void {
     }
   });
 
-  ipcMain.handle('files:last-position:get', (_event, id: number) => getLastPosition(db, id));
+  ipcMain.handle('files:delete', async (_event, id: number) => {
+    const result = await library.deleteBook(id);
+    if (!isOk(result)) return result;
+    // Sync in the background: a slow or offline cloud must never delay or
+    // fail the local delete; the next successful sync reconciles the
+    // tombstone. No provider configured is a normal local-only setup.
+    void (async () => {
+      const provider = await cloudProvider();
+      if (!isOk(provider)) return;
+      const summary = await runSync(db, userDataDir, provider.data);
+      if (!isOk(summary)) {
+        console.error(`Background sync after deleting file ${id} failed: ${summary.error}`);
+      }
+    })();
+    return result;
+  });
+
+  ipcMain.handle('files:last-position:get', (_event, id: number) => library.getLastPosition(id));
 
   ipcMain.handle(
     'files:last-position:set',
-    async (_event, id: number, page: number, position: number, mode: ReadMode) =>
-      saveLastPosition(db, id, { page, position, mode }, await stamp()),
+    (_event, id: number, page: number, position: number, mode: ReadMode) =>
+      library.saveLastPosition(id, { page, position, mode }),
   );
 
-  ipcMain.handle('files:page-count:set', async (_event, id: number, pageCount: number) =>
-    setFilePageCount(db, id, pageCount, await stamp()),
+  ipcMain.handle('files:page-count:set', (_event, id: number, pageCount: number) =>
+    library.setPageCount(id, pageCount),
   );
 
-  ipcMain.handle('files:zoom:get', (_event, id: number, mode: ReadMode) => getFileZoom(db, id, mode));
+  ipcMain.handle('files:zoom:get', (_event, id: number, mode: ReadMode) => library.getZoom(id, mode));
 
-  ipcMain.handle('files:zoom:set', async (_event, id: number, zoom: number, mode: ReadMode) =>
-    setFileZoom(db, id, zoom, { mode, stamp: await stamp() }),
+  ipcMain.handle('files:zoom:set', (_event, id: number, zoom: number, mode: ReadMode) =>
+    library.setZoom(id, zoom, mode),
   );
 
-  // Cover thumbnails are cached as JPEG files keyed by content hash so the
-  // renderer can show them instantly on later launches instead of re-rendering
-  // the PDF's first page every time.
+  ipcMain.handle('covers:get', (_event, hash: string) => library.getCover(hash));
 
-  const coverFile = (hash: string) => join(app.getPath('userData'), 'covers', `${hash}.jpg`);
+  ipcMain.handle('covers:save', (_event, hash: string, dataUrl: string) => library.saveCover(hash, dataUrl));
 
-  ipcMain.handle('covers:get', async (_event, hash: string): Promise<Result<string | null>> => {
-    try {
-      const bytes = await readFile(coverFile(hash));
-      return { ok: true, data: `data:image/jpeg;base64,${bytes.toString('base64')}` };
-    } catch {
-      return { ok: true, data: null };
-    }
-  });
+  ipcMain.handle('reflow:get', (_event, hash: string) => library.getReflowCache(hash));
 
-  ipcMain.handle('covers:save', async (_event, hash: string, dataUrl: string): Promise<Result<void>> => {
-    try {
-      const base64 = dataUrl.split(',')[1];
-      if (!base64) return { ok: true, data: undefined };
-      await mkdir(join(app.getPath('userData'), 'covers'), { recursive: true });
-      await writeFile(coverFile(hash), Buffer.from(base64, 'base64'));
-      return { ok: true, data: undefined };
-    } catch (error) {
-      return { ok: false, error: `Failed to cache cover: ${errorMessage(error)}` };
-    }
-  });
-
-  // Extracting a whole document for reflow costs one pdf.js round-trip per
-  // page, so the finished result is cached as JSON keyed by content hash and
-  // later opens skip extraction entirely. The cache is local-only (never
-  // synced) and disposable: any read problem just means re-extracting.
-
-  const reflowCacheFile = (hash: string) => join(app.getPath('userData'), 'reflow', `${hash}.json`);
-
-  ipcMain.handle('reflow:get', async (_event, hash: string): Promise<Result<ReflowCacheEntry | null>> => {
-    let json: string;
-    try {
-      json = await readFile(reflowCacheFile(hash), 'utf8');
-    } catch (error) {
-      if (isFileMissing(error)) return { ok: true, data: null };
-      return { ok: false, error: `Failed to read reflow cache for ${hash}: ${errorMessage(error)}` };
-    }
-    const parsed = parseReflowCache(json);
-    if (!isOk(parsed)) {
-      console.error(`Discarding reflow cache for ${hash}: ${parsed.error}`);
-      return { ok: true, data: null };
-    }
-    return parsed;
-  });
-
-  ipcMain.handle(
-    'reflow:save',
-    async (_event, hash: string, entry: ReflowCacheEntry): Promise<Result<void>> => {
-      try {
-        await mkdir(join(app.getPath('userData'), 'reflow'), { recursive: true });
-        await writeFile(reflowCacheFile(hash), serializeReflowCache(entry));
-        return { ok: true, data: undefined };
-      } catch (error) {
-        return { ok: false, error: `Failed to cache reflow text for ${hash}: ${errorMessage(error)}` };
-      }
-    },
+  ipcMain.handle('reflow:save', (_event, hash: string, entry: ReflowCacheEntry) =>
+    library.saveReflowCache(hash, entry),
   );
 
-  ipcMain.handle('files:list', () => listFiles(db));
+  ipcMain.handle('files:list', () => library.listBooks());
 
-  ipcMain.handle('files:status:set', async (_event, id: number, status: BookStatus) =>
-    setFileStatus(db, id, status, await stamp()),
-  );
+  ipcMain.handle('files:status:set', (_event, id: number, status: BookStatus) => library.setStatus(id, status));
 
-  ipcMain.handle('files:tags:set', async (_event, id: number, tags: string[]) =>
-    setFileTags(db, id, tags, await stamp()),
-  );
+  ipcMain.handle('files:tags:set', (_event, id: number, tags: string[]) => library.setTags(id, tags));
 
-  ipcMain.handle('files:title:set', async (_event, id: number, title: string) =>
-    setFileTitle(db, id, title, await stamp()),
-  );
+  ipcMain.handle('files:title:set', (_event, id: number, title: string) => library.setTitle(id, title));
 
-  ipcMain.handle('files:favorite:set', async (_event, id: number, favorite: boolean) =>
-    setFileFavorite(db, id, favorite, await stamp()),
+  ipcMain.handle('files:favorite:set', (_event, id: number, favorite: boolean) =>
+    library.setFavorite(id, favorite),
   );
 
   ipcMain.handle('annotations:list', (_event, fileHash: string) => listAnnotations(db, fileHash));
