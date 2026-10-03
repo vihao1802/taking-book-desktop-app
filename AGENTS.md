@@ -5,8 +5,8 @@ This file defines conventions any coding agent (or contributor) must follow when
 ## Project Structure Rules
 
 - `/packages/core` contains **only** platform-agnostic logic: data models, SQLite query functions, sync/conflict logic, business rules, pure utility functions. No `import` of Electron, Capacitor, `react-dom`, or `react-native` is allowed here — if a function needs a platform API, it takes that API as a parameter/interface (dependency injection), not a direct import.
-- `/packages/renderer` (planned, ADR-0009) holds the shared React UI and the `ReaderApi` interface the UI talks through. It imports from `/packages/core` only; platform differences go behind `ReaderApi` and its capability flags, never `electron` or Capacitor imports.
-- `/packages/desktop` (Electron) and `/packages/mobile` (Capacitor) contain **only** platform glue: they implement `ReaderApi` and mount the renderer. They import from `/packages/core` and `/packages/renderer`, never the other way around, and never from each other. Until `/packages/renderer` exists, the renderer still lives in `/packages/desktop`.
+- `/packages/renderer` (ADR-0009) holds the shared React UI and the `ReaderApi` interface the UI talks through. It imports from `/packages/core` only; platform differences go behind `ReaderApi` and its capability flags, never `electron` or Capacitor imports.
+- `/packages/desktop` (Electron) and `/packages/mobile` (Capacitor) contain **only** platform glue: they implement `ReaderApi` and mount the renderer. They import from `/packages/core` and `/packages/renderer`, never the other way around, and never from each other.
 - Do not duplicate a function that already exists in `/core` into a platform package "for convenience." If it needs platform-specific behavior, split it into a shared interface + two platform implementations.
 
 ## TypeScript Rules
@@ -64,11 +64,11 @@ This file defines conventions any coding agent (or contributor) must follow when
 - npm workspaces at the repo root. All commands run from the root; the desktop app is run from `packages/desktop`.
 - `@taking-book/core` is consumed by platforms as a **built** package (it must be `npm run build`-ed before platform typecheck/start). The desktop `start`/`package`/`make` scripts build core first automatically.
 - Verification commands (from repo root): `npm run build` → `npm run typecheck` → `npm run lint` → `npm test`. Run all of these before finishing a task.
-- Vitest runs in `/core` and `/desktop` (`npm test` from the root runs both); `/mobile` has no test runner unless one is added explicitly.
+- Vitest runs in `/core`, `/renderer` and `/desktop` (`npm test` from the root runs all three); `/mobile` has no test runner unless one is added explicitly.
 - Environment quirks:
   - Containers/VMs with no GPU: run the desktop app as `TB_DISABLE_GPU=1 npm start`.
   - Forge's system check trips on this shell's `npm_config_user_agent=npm/undefined`; `~/.skip-forge-system-check` is the workaround — do not delete it.
-- UI check: a change under `packages/desktop/src/renderer` is verified in the running app by following `docs/agents/ui-check.md` (Claude Code: the `ui-check` skill) before finishing the task and in every code review of it. It drives the real app from a throwaway profile, so it never touches the user's library, with the window pinned at the top-left of the screen.
+- UI check: a change under `packages/renderer/src` is verified in the running app by following `docs/agents/ui-check.md` (Claude Code: the `ui-check` skill) before finishing the task and in every code review of it. It drives the real app from a throwaway profile, so it never touches the user's library, with the window pinned at the top-left of the screen.
 - Smoke tests: end-to-end verification in this environment is done by temporarily instrumenting `packages/desktop/src/main.ts` with a `TB_SMOKE_EXIT_MS` hook that exercises IPC/core and then exits. The hook is removed before committing; never leave it in.
 
 ## Auto-Approved Commands

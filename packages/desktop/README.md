@@ -34,24 +34,13 @@ src/
       ipc.ts                IPC handlers (open, position, theme, sync)
       sync.ts               device id + sync-folder glue for the core engine
       syncStorage.ts        folder-backed SyncStorage (atomic writes)
-    renderer/
-      App.tsx               Library <-> Reader state routing
-      theme.tsx             light / dark / sepia / system theme context
-      library/
-        Library.tsx         grid view: status, tags, search, sync bar
-        useLibrary.ts       library data hook (list, add, status, tags, sync)
-      reader/
-        Reader.tsx          chrome-less reader + auto-hiding overlay
-        PdfPages.tsx        windowed scroll renderer (fit-to-width)
-        PageCanvas.tsx      single-page pdf.js rasterization
-        ReflowReader.tsx    flowing reflow view (figures + page separators)
-        ReflowFigure.tsx    lazy figure block (IntersectionObserver + URL cache)
-        useReflowDocument.ts pdf.js getTextContent/operator-list → core reflow pipeline
-        reflowImages.ts     operator-list image scan, decoder interface, LRU cache
-        Overlay.tsx         thin control overlay (back, page/reflow toggle, theme)
-        pdf.ts              pdf.js setup, hooks, page layout math
-    shared/types.ts         ReaderApi (window.api) contract
+    shared/
+      system-locale.ts      OS locale handed to the renderer through the preload
 ```
+
+The React renderer and the `ReaderApi` (`window.api`) contract live in
+`packages/renderer`; this package compiles them from source through its own
+Vite build and implements `ReaderApi` in `src/preload.ts`.
 
 Data access (upsert file, positions, theme) is delegated to the core
 repositories (`filesRepository`, `settingsRepository`) — this package contains
