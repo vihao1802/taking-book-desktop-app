@@ -1,0 +1,21 @@
+{
+  "name": "tb-android-reader-prototype",
+  "private": true,
+  "version": "0.0.0",
+  "description": "PROTOTYPE, THROWAWAY. Answers: does pdf.js in a Capacitor WebView feel right on phone + tablet? (ADR-0009 exit criteria). Not part of the workspace build.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "sync": "vite build && cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "pdfjs-dist": "6.2.108"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.0.0"
+  }
+}

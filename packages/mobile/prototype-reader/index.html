@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>PROTOTYPE Reader</title>
+  </head>
+  <body>
+    <header id="bar-top" class="bar"><button id="pick">Open PDF</button><button id="notes-btn">Notes</button><span id="info"></span></header>
+    <div id="layout">
+      <div id="scroller"><div id="pages"></div></div>
+      <aside id="notes"><h3>Notes sidebar (demo)</h3><p>Pushes the page at expanded, covers it as a sheet otherwise.</p></aside>
+    </div>
+    <div id="toolbar" hidden><button>Highlight</button><button>Note</button><button>Translate</button></div>
+    <footer id="bar-bottom" class="bar"><span id="page-info"></span></footer>
+    <pre id="debug"></pre>
+    <input id="file" type="file" accept="application/pdf" hidden />
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
