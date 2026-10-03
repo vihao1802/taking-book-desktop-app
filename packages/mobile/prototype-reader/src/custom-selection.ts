@@ -17,7 +17,7 @@ export interface CustomSelection {
   clear(): void;
   /** True for a short while after a tap cleared a selection, so that tap is not also read as "toggle the chrome". */
   justCleared(): boolean;
-  /** True while a finger is down on the page or on a handle (the toolbar stays hidden then). */
+  /** True while the finger that made the selection is still down, or a handle is being dragged (the toolbar stays hidden). */
   isInteracting(): boolean;
 }
 
@@ -129,7 +129,7 @@ export function installCustomSelection(options: { scroller: HTMLElement; onChang
   const { scroller, onChange } = options;
   let range: Range | null = null;
   let clearedAt = -Infinity;
-  let touching = false;
+  let holding = false; // finger still down after a long press selected a word
   let dragging = false;
 
   const layer = document.createElement('div');
@@ -266,34 +266,52 @@ export function installCustomSelection(options: { scroller: HTMLElement; onChang
     magnifier.hidden = true;
   }
 
-  function setTouching(value: boolean): void {
-    if (touching === value) return;
-    touching = value;
-    onChange();
-  }
-
-  // Long press on the text layer selects a word; any other press clears the selection.
+  // Long press on the text layer selects a word. A selection is cleared only by a tap, never by a scroll: a press
+  // that moves (a scroll or a fling) leaves it alone, and the toolbar and handles follow the content.
   let press: { x: number; y: number; timer: number } | null = null;
+  let tapCandidate = false;
   const cancelPress = (): void => {
     if (press !== null) clearTimeout(press.timer);
     press = null;
   };
+  const endHolding = (): void => {
+    if (!holding) return;
+    holding = false;
+    onChange();
+  };
   scroller.addEventListener('pointerdown', (event) => {
     cancelPress();
-    if (range !== null) clear();
-    setTouching(true);
+    tapCandidate = true;
     const { clientX: x, clientY: y } = event;
-    press = { x, y, timer: window.setTimeout(() => { press = null; selectWordAt(x, y); }, LONG_PRESS_MS) };
+    press = {
+      x,
+      y,
+      timer: window.setTimeout(() => {
+        press = null;
+        tapCandidate = false;
+        holding = true; // the toolbar stays hidden until the finger lifts
+        selectWordAt(x, y);
+      }, LONG_PRESS_MS),
+    };
   });
   scroller.addEventListener('pointermove', (event) => {
-    if (press !== null && Math.hypot(event.clientX - press.x, event.clientY - press.y) > MOVE_SLOP_PX) cancelPress();
-  });
-  for (const type of ['pointerup', 'pointercancel'] as const) {
-    scroller.addEventListener(type, () => {
+    if (press !== null && Math.hypot(event.clientX - press.x, event.clientY - press.y) > MOVE_SLOP_PX) {
       cancelPress();
-      if (!dragging) setTouching(false);
-    });
-  }
+      tapCandidate = false;
+    }
+  });
+  scroller.addEventListener('pointerup', () => {
+    cancelPress();
+    if (tapCandidate && range !== null) clear();
+    tapCandidate = false;
+    endHolding();
+  });
+  scroller.addEventListener('pointercancel', () => {
+    // The browser takes the gesture over when it starts scrolling: not a tap.
+    cancelPress();
+    tapCandidate = false;
+    endHolding();
+  });
 
   // Dragging a handle: the other end stays fixed, the dragged end follows the caret computed from geometry.
   let autoScrollFrame = 0;
@@ -341,7 +359,7 @@ export function installCustomSelection(options: { scroller: HTMLElement; onChang
       const page = pageOf(moving.node);
       if (page === null) return;
       dragging = true;
-      setTouching(true);
+      onChange();
       drag = {
         fixed: movingIsStart ? both.end : both.start,
         page,
@@ -368,7 +386,7 @@ export function installCustomSelection(options: { scroller: HTMLElement; onChang
         dragging = false;
         cancelAnimationFrame(autoScrollFrame);
         hideMagnifier();
-        setTouching(false);
+        onChange();
       });
     }
   }
@@ -383,6 +401,6 @@ export function installCustomSelection(options: { scroller: HTMLElement; onChang
     getRange: () => range,
     clear,
     justCleared: () => performance.now() - clearedAt < 500,
-    isInteracting: () => touching || dragging,
+    isInteracting: () => holding || dragging,
   };
 }

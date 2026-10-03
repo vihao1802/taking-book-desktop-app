@@ -152,20 +152,28 @@ function clearSelection(): void {
 }
 function updateToolbar(): void {
   const range = getSelectedRange();
-  // Hidden while a finger is down (dragging a handle or still pressing); it shows once the finger lifts.
+  // Hidden while the finger that made the selection is still down or a handle is dragged; it shows once the finger
+  // lifts, and then follows the content when the reader scrolls.
   if (!range || customSelection?.isInteracting()) {
     if (!range && !toolbar.hidden) selectionClearedAt = performance.now();
     toolbar.hidden = true;
     return;
   }
   const rect = range.getBoundingClientRect();
+  // Scrolled completely out of view: nothing to attach the toolbar to.
+  if (rect.bottom < 0 || rect.top > window.innerHeight) {
+    toolbar.hidden = true;
+    return;
+  }
   const wasHidden = toolbar.hidden;
   toolbar.hidden = false;
-  // Below the selection and its teardrop handles (28px tall); flipped above when there is no room underneath.
+  // Below the selection and its teardrop handles (28px tall); flipped above when there is no room underneath, and
+  // kept between the top and bottom bars while the selection is only partly on screen.
   const gap = customSelection ? 44 : 28;
   const height = toolbar.offsetHeight || 64;
   let top = rect.bottom + gap;
-  if (top + height > window.innerHeight - 70) top = Math.max(84, rect.top - height - 12);
+  if (top + height > window.innerHeight - 70) top = rect.top - height - 12;
+  top = Math.max(84, Math.min(top, window.innerHeight - 70 - height));
   toolbar.style.top = `${top}px`;
   toolbar.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - toolbar.offsetWidth - 8))}px`;
   if (wasHidden) {
@@ -230,6 +238,7 @@ scroller.addEventListener('scroll', () => {
   const mid = scroller.scrollTop + scroller.clientHeight / 2;
   const cur = holders.find((h) => h.offsetTop + h.offsetHeight > mid);
   $('page-info').textContent = cur ? `page ${cur.dataset.page}/${holders.length}` : '';
+  if (cur) console.log(`TBPAGE ${cur.dataset.page}`);
 });
 window.addEventListener('resize', refreshDebug);
 setInterval(refreshDebug, 2000);
