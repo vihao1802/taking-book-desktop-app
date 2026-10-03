@@ -4,6 +4,7 @@ import { clampZoomPercent } from '@taking-book/core';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { useCapabilities } from '@/lib/useCapabilities';
 import { cn } from '@/lib/utils';
 import { FocusControls } from '@/focus/FocusControls';
 import { ZoomControl } from './ZoomControl';
@@ -84,6 +85,7 @@ export function Overlay({
   onToggleNotes,
 }: OverlayProps) {
   // At most one top-bar menu is open: the sidebar menu or the Focus controls.
+  const { fullScreen: canFullScreen } = useCapabilities();
   const [openMenu, setOpenMenu] = useState<OverlayMenu | null>(null);
   const sidebarMenuOpen = openMenu === 'sidebar';
   const closeMenu = () => setOpenMenu(null);
@@ -237,16 +239,18 @@ export function Overlay({
               <NotebookText className="size-4" />
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onToggleFullScreen}
-            aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}
-            aria-pressed={fullScreen}
-            title={fullScreen ? 'Exit full screen' : 'Full screen'}
-          >
-            {fullScreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
-          </Button>
+          {canFullScreen && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleFullScreen}
+              aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}
+              aria-pressed={fullScreen}
+              title={fullScreen ? 'Exit full screen' : 'Full screen'}
+            >
+              {fullScreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
+            </Button>
+          )}
         </div>
       </div>
       <div className={cn('overlay overlay-bottom', !visible && 'overlay-hidden')}>

@@ -1,6 +1,7 @@
 import { Timer } from 'lucide-react';
 import { formatFocusTimeLeft } from '@taking-book/core';
 import { Button } from '@/components/ui/button';
+import { hasFocusControls, useCapabilities } from '@/lib/useCapabilities';
 import { cn } from '@/lib/utils';
 import { FocusControlsPanel } from './FocusControlsPanel';
 import { useFocus } from './useFocus';
@@ -17,6 +18,9 @@ interface FocusControlsProps {
  */
 export function FocusControls({ open, onOpenChange }: FocusControlsProps) {
   const { timer, timeLeftMs } = useFocus();
+  const capabilities = useCapabilities();
+
+  if (!hasFocusControls(capabilities)) return null;
 
   return (
     <div className="relative">

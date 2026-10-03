@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { initials } from '@/lib/initials';
+import { useCapabilities } from '@/lib/useCapabilities';
 import { readingProgressPercent } from '@/lib/progress';
 import { STATUS_OPTIONS, statusBadgeVariant } from '@/lib/status';
 import { cn } from '@/lib/utils';
@@ -51,6 +52,7 @@ export function Library({
   const [tagFilter, setTagFilter] = useState<string>('all');
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<BookFile | null>(null);
+  const { quiz: quizEnabled } = useCapabilities();
   const [quizFile, setQuizFile] = useState<BookFile | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -266,7 +268,7 @@ export function Library({
               onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
               onRemove={() => setPendingRemove(file)}
               onRename={(title) => setTitle(file.id, title)}
-              onQuiz={() => setQuizFile(file)}
+              onQuiz={quizEnabled ? () => setQuizFile(file) : null}
             />
           ))}
         </ul>
@@ -282,13 +284,13 @@ export function Library({
               onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
               onRemove={() => setPendingRemove(file)}
               onRename={(title) => setTitle(file.id, title)}
-              onQuiz={() => setQuizFile(file)}
+              onQuiz={quizEnabled ? () => setQuizFile(file) : null}
             />
           ))}
         </ul>
       )}
 
-      {quizFile && (
+      {quizEnabled && quizFile && (
         <QuizDialog
           file={quizFile}
           onOpenChange={(open) => !open && setQuizFile(null)}
@@ -336,7 +338,7 @@ function BookCard({
   onToggleFavorite: () => void;
   onRemove: () => void;
   onRename: (title: string) => void;
-  onQuiz: () => void;
+  onQuiz: (() => void) | null;
 }) {
   const [draftTag, setDraftTag] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -450,7 +452,7 @@ function BookCard({
               Added {new Date(file.createdAt.replace(' ', 'T') + 'Z').toLocaleDateString()}
             </p>
             <div className="flex items-center gap-2">
-              {file.lastPage != null && file.lastPage > 0 && (
+              {onQuiz && file.lastPage != null && file.lastPage > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -582,7 +584,7 @@ function BookRow({
   onToggleFavorite: () => void;
   onRemove: () => void;
   onRename: (title: string) => void;
-  onQuiz: () => void;
+  onQuiz: (() => void) | null;
 }) {
   const [draftTag, setDraftTag] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -690,7 +692,7 @@ function BookRow({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {file.lastPage != null && file.lastPage > 0 && (
+            {onQuiz && file.lastPage != null && file.lastPage > 0 && (
               <Button
                 variant="ghost"
                 size="sm"

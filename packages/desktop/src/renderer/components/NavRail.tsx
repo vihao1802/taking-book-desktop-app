@@ -7,6 +7,7 @@ import {
   Star,
 } from 'lucide-react';
 import { FocusIndicator } from '@/focus/FocusIndicator';
+import { useCapabilities } from '@/lib/useCapabilities';
 
 export type View = 'home' | 'library' | 'favorites' | 'notes' | 'statistics' | 'settings';
 
@@ -26,11 +27,14 @@ export function NavRail({
   current: View;
   onNavigate: (view: View) => void;
 }) {
+  const { statistics } = useCapabilities();
+  const items = NAV_ITEMS.filter((item) => item.id !== 'statistics' || statistics);
+
   return (
     <nav className="bg-nav flex w-20 shrink-0 flex-col items-center justify-between border-r border-border py-6" aria-label="Primary">
       <div className="flex flex-col items-center gap-8">
         <ul className="flex flex-col items-center gap-6">
-          {NAV_ITEMS.map((item) => (
+          {items.map((item) => (
             <li key={item.id}>
               <button
                 className="text-muted-foreground hover:bg-card flex size-10 cursor-pointer items-center justify-center rounded-lg transition-colors [&[aria-current='page']]:bg-card [&[aria-current='page']]:text-ink [&[aria-current='page']]:shadow-sm"

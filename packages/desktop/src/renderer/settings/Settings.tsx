@@ -2,6 +2,7 @@ import { MonitorCog, Moon, Palette, Sun } from 'lucide-react';
 import type { Theme } from '../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useCapabilities } from '@/lib/useCapabilities';
 import { useTheme } from '../theme';
 import { AboutSettings } from './AboutSettings';
 import { AiSettings } from './AiSettings';
@@ -17,6 +18,7 @@ const THEME_OPTIONS: Array<{ value: Theme; label: string; icon: typeof Sun; desc
 
 export function Settings() {
   const { theme, setTheme } = useTheme();
+  const { quiz, ambientSound } = useCapabilities();
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-6 sm:p-8">
@@ -56,9 +58,9 @@ export function Settings() {
 
       <TranslationSettings />
 
-      <AiSettings />
+      {quiz && <AiSettings />}
 
-      <CustomSoundsSettings />
+      {ambientSound && <CustomSoundsSettings />}
 
       <AboutSettings />
     </div>

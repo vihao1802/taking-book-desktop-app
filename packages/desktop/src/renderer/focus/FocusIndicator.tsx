@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Timer } from 'lucide-react';
 import { formatFocusTimeLeft, isFocusActive } from '@taking-book/core';
+import { hasFocusControls, useCapabilities } from '@/lib/useCapabilities';
 import { cn } from '@/lib/utils';
 import { FocusControlsPanel } from './FocusControlsPanel';
 import { useFocus } from './useFocus';
@@ -14,6 +15,7 @@ import { useFocus } from './useFocus';
 export function FocusIndicator(): ReactElement | null {
   const { timer, sound, timeLeftMs } = useFocus();
   const [open, setOpen] = useState(false);
+  const capabilities = useCapabilities();
   const active = isFocusActive({ timer, sound });
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export function FocusIndicator(): ReactElement | null {
     if (!active) setOpen(false);
   }, [active]);
 
-  if (!active) return null;
+  if (!active || !hasFocusControls(capabilities)) return null;
 
   return (
     <div className="relative">

@@ -1,7 +1,25 @@
 import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
+/**
+ * Which optional features a platform supports. The renderer hides the
+ * navigation entries and buttons of any feature whose flag is off. Translate
+ * and update checks are deliberately not behind flags.
+ */
+export interface ReaderCapabilities {
+  /** Quizzes, including the AI provider key in Settings. */
+  quiz: boolean;
+  focusTimer: boolean;
+  ambientSound: boolean;
+  statistics: boolean;
+  /** Adding Books by dragging files onto the window. */
+  dropImport: boolean;
+  fullScreen: boolean;
+}
+
 /** Contract exposed on window.api by the preload bridge. */
 export interface ReaderApi {
+  /** The optional features this platform supports; desktop turns all of them on. */
+  capabilities: ReaderCapabilities;
   /** The OS regional-format locale (e.g. `en-GB`) for showing dates and times; null when unknown. */
   systemLocale: string | null;
   /** Shows the Add PDF dialog and imports the chosen files; null when the dialog was cancelled. */

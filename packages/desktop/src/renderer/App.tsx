@@ -15,9 +15,11 @@ import { Reader } from './reader/Reader';
 import { Settings } from './settings/Settings';
 import { Statistics } from './statistics/Statistics';
 import { ThemeProvider } from './theme';
+import { useCapabilities } from './lib/useCapabilities';
 import { useUpdateCheck } from './updates/useUpdateCheck';
 
 export function App() {
+  const { dropImport } = useCapabilities();
   const [file, setFile] = useState<BookFile | null>(null);
   // A Note chosen in the Notes view, which the reader opens the book at; null for every other way of opening a book.
   const [noteToOpen, setNoteToOpen] = useState<Annotation | null>(null);
@@ -75,7 +77,7 @@ export function App() {
                 <ImportNotice onOpen={setFile} />
                 {/* Settings has its own About & updates section, which the floating notice would cover. */}
                 {view !== 'settings' && <UpdateNotice {...updateCheck} />}
-                <DropOverlay />
+                {dropImport && <DropOverlay />}
               </main>
             </div>
           </LibraryProvider>

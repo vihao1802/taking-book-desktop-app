@@ -3,6 +3,14 @@ import { readSystemLocaleArgument } from './shared/system-locale';
 import type { ImportProgress, ReaderApi } from './shared/types';
 
 const api: ReaderApi = {
+  capabilities: {
+    quiz: true,
+    focusTimer: true,
+    ambientSound: true,
+    statistics: true,
+    dropImport: true,
+    fullScreen: true,
+  },
   systemLocale: readSystemLocaleArgument(process.argv),
   openFile: () => ipcRenderer.invoke('files:open'),
   importPaths: (paths) => ipcRenderer.invoke('files:import', paths),
