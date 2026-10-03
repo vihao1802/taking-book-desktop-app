@@ -25,3 +25,15 @@ body.notes-open #notes { display: block; }
 #toolbar button { border: 0; border-radius: 6px; background: #2b2b2b; color: #fff; padding: 0 14px; }
 .hl { position: absolute; background: rgba(255, 214, 0, .4); mix-blend-mode: multiply; pointer-events: none; }
 .toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); z-index: 20; background: #000; color: #fff; padding: 10px 16px; border-radius: 8px; }
+
+/* custom selection variant */
+.custom-sel .textLayer, .custom-sel .textLayer * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.sel-layer { position: fixed; inset: 0; pointer-events: none; z-index: 8; }
+.sel-rect { position: fixed; background: rgba(66, 133, 244, .35); }
+.sel-handle { position: fixed; width: 30px; height: 30px; border-radius: 50%; pointer-events: auto; touch-action: none; }
+.sel-handle[hidden] { display: none; }
+.sel-start { background: #1e88e5; }
+.sel-end { background: #ff6d00; }
+
+/* keep the top bar below the Android status bar so its buttons are tappable */
+#bar-top { padding-top: 30px; height: calc(var(--bar-h) + 30px); }
