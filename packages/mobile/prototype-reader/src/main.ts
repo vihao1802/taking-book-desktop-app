@@ -113,6 +113,39 @@ document.addEventListener('selectionchange', () => {
   toolbar.style.top = `${Math.min(rect.bottom + 28, window.innerHeight - 64)}px`; // 28px clears the native handles
   toolbar.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - toolbar.offsetWidth - 8))}px`;
 });
+// Toolbar actions: wired only to prove a tap on our toolbar neither loses the selection nor gets swallowed.
+function toast(text: string): void {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = text;
+  document.body.append(el);
+  setTimeout(() => el.remove(), 2200);
+}
+function highlightSelection(): void {
+  const sel = getSelection();
+  if (!sel || sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  const node = range.commonAncestorContainer;
+  const holder = (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>('.page');
+  if (!holder) return toast('Select text inside a page');
+  const origin = holder.getBoundingClientRect();
+  for (const r of range.getClientRects()) {
+    const mark = document.createElement('div');
+    mark.className = 'hl';
+    mark.style.cssText = `left:${r.left - origin.left}px;top:${r.top - origin.top}px;width:${r.width}px;height:${r.height}px`;
+    holder.append(mark);
+  }
+  sel.removeAllRanges();
+}
+toolbar.querySelectorAll('button').forEach((button) => {
+  button.addEventListener('pointerdown', (e) => e.preventDefault()); // keep the selection alive while tapping
+  button.addEventListener('click', () => {
+    const text = getSelection()?.toString().trim() ?? '';
+    if (button.textContent === 'Highlight') highlightSelection();
+    else toast(`${button.textContent}: "${text.slice(0, 40)}"`);
+  });
+});
+
 document.addEventListener('contextmenu', (e) => e.preventDefault()); // try to suppress the native menu
 
 // 2. tap the middle of the page to toggle chrome
