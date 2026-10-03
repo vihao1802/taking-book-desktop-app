@@ -1,11 +1,12 @@
 # AGENTS.md — Coding Rules for This Project
 
-This file defines conventions any coding agent (or contributor) must follow when working in this repo. The project is a monorepo: shared core logic + Electron desktop app + React Native mobile app, backed by SQLite and cloud-drive sync.
+This file defines conventions any coding agent (or contributor) must follow when working in this repo. The project is a monorepo: shared core logic + shared React renderer + Electron desktop app + Capacitor Android app (ADR-0009, provisional), backed by SQLite and cloud-drive sync.
 
 ## Project Structure Rules
 
-- `/packages/core` contains **only** platform-agnostic logic: data models, SQLite query functions, sync/conflict logic, business rules, pure utility functions. No `import` of Electron, `react-dom`, or `react-native` is allowed here — if a function needs a platform API, it takes that API as a parameter/interface (dependency injection), not a direct import.
-- `/packages/desktop` and `/packages/mobile` contain **only** UI and platform glue. They import from `/packages/core`, never the other way around, and never from each other.
+- `/packages/core` contains **only** platform-agnostic logic: data models, SQLite query functions, sync/conflict logic, business rules, pure utility functions. No `import` of Electron, Capacitor, `react-dom`, or `react-native` is allowed here — if a function needs a platform API, it takes that API as a parameter/interface (dependency injection), not a direct import.
+- `/packages/renderer` (planned, ADR-0009) holds the shared React UI and the `ReaderApi` interface the UI talks through. It imports from `/packages/core` only; platform differences go behind `ReaderApi` and its capability flags, never `electron` or Capacitor imports.
+- `/packages/desktop` (Electron) and `/packages/mobile` (Capacitor) contain **only** platform glue: they implement `ReaderApi` and mount the renderer. They import from `/packages/core` and `/packages/renderer`, never the other way around, and never from each other. Until `/packages/renderer` exists, the renderer still lives in `/packages/desktop`.
 - Do not duplicate a function that already exists in `/core` into a platform package "for convenience." If it needs platform-specific behavior, split it into a shared interface + two platform implementations.
 
 ## TypeScript Rules
