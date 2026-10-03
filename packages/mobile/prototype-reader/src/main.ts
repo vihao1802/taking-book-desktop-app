@@ -152,17 +152,28 @@ function clearSelection(): void {
 }
 function updateToolbar(): void {
   const range = getSelectedRange();
-  if (!range) {
-    if (!toolbar.hidden) selectionClearedAt = performance.now();
+  // Hidden while a finger is down (dragging a handle or still pressing); it shows once the finger lifts.
+  if (!range || customSelection?.isInteracting()) {
+    if (!range && !toolbar.hidden) selectionClearedAt = performance.now();
     toolbar.hidden = true;
     return;
   }
   const rect = range.getBoundingClientRect();
+  const wasHidden = toolbar.hidden;
   toolbar.hidden = false;
-  // 28px clears the native handles; in the custom variant the handles hang about 29px below the line, so keep more room.
-  const gap = customSelection ? 52 : 28;
-  toolbar.style.top = `${Math.min(rect.bottom + gap, window.innerHeight - 64)}px`;
+  // Below the selection and its teardrop handles (28px tall); flipped above when there is no room underneath.
+  const gap = customSelection ? 44 : 28;
+  const height = toolbar.offsetHeight || 64;
+  let top = rect.bottom + gap;
+  if (top + height > window.innerHeight - 70) top = Math.max(84, rect.top - height - 12);
+  toolbar.style.top = `${top}px`;
   toolbar.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - toolbar.offsetWidth - 8))}px`;
+  if (wasHidden) {
+    // Slide up from below: start offset and transparent, then let the transition run.
+    toolbar.classList.add('enter');
+    void toolbar.offsetWidth;
+    toolbar.classList.remove('enter');
+  }
 }
 document.addEventListener('selectionchange', () => { if (!customSelection) updateToolbar(); });
 // Toolbar actions: wired only to prove a tap on our toolbar neither loses the selection nor gets swallowed.

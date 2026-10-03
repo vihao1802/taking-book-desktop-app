@@ -30,10 +30,18 @@ body.notes-open #notes { display: block; }
 .custom-sel .textLayer, .custom-sel .textLayer * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .sel-layer { position: fixed; inset: 0; pointer-events: none; z-index: 8; }
 .sel-rect { position: fixed; background: rgba(66, 133, 244, .35); }
-.sel-handle { position: fixed; width: 30px; height: 30px; border-radius: 50%; pointer-events: auto; touch-action: none; }
+/* teardrop handles: the tip (the square corner) touches the caret, the body hangs outward */
+.sel-handle { position: fixed; width: 28px; height: 28px; background: #1e88e5; pointer-events: auto; touch-action: none; }
+.sel-handle.hang-left { border-radius: 50% 0 50% 50%; }
+.sel-handle.hang-right { border-radius: 0 50% 50% 50%; }
 .sel-handle[hidden] { display: none; }
-.sel-start { background: #1e88e5; }
-.sel-end { background: #ff6d00; }
+/* magnifier: a wide rounded rectangle with a soft shadow */
+.magnifier { position: fixed; width: 168px; height: 58px; border-radius: 14px; overflow: hidden; background: #fff; border: 1px solid rgba(0, 0, 0, .08); box-shadow: 0 6px 18px rgba(0, 0, 0, .35), 0 1px 4px rgba(0, 0, 0, .25); pointer-events: none; }
+.magnifier canvas { width: 100%; height: 100%; display: block; }
+.magnifier[hidden] { display: none; }
+/* the action toolbar slides up from below when it appears */
+#toolbar { transition: transform .2s ease-out, opacity .2s ease-out; }
+#toolbar.enter { transform: translateY(28px); opacity: 0; transition: none; }
 
 /* keep the top bar below the Android status bar so its buttons are tappable */
 #bar-top { padding-top: 30px; height: calc(var(--bar-h) + 30px); }
