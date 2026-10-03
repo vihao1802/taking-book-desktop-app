@@ -53,3 +53,8 @@ opencode.json
 
 # Local Claude config
 .claude/
+
+# Signing keys must never be committed (ADR-0011)
+*.p12
+*.jks
+*.keystore
