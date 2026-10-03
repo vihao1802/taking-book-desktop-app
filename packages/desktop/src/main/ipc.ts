@@ -6,32 +6,25 @@ import {
   createGeminiProvider,
   createAnnotationService,
   createLibraryService,
+  createSettingsService,
+  formatLocalDay,
   generateQuiz,
   getDailyReadingMinutes,
-  getEffectiveTargetLanguage,
   getFocusPreferences,
   getLiveFileByHash,
   getQuiz,
   getQuizPrivacyNoticeAcknowledged,
   getReadingMinutesByBook,
-  getNotesSidebarWidth,
-  getSidebarWidth,
-  getTheme,
   importBooks,
   isOk,
   listQuizAttemptsForBook,
   listQuizzesForBook,
-  recordReadingSession,
-  setNotesSidebarWidth,
-  setSidebarWidth,
   setFocusPreferences,
-  setTargetLanguage,
-  setTheme,
   submitQuizAttempt,
   TRANSLATION_FAILED_MESSAGE,
   translateText,
 } from '@taking-book/core';
-import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, FocusPreferences, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizScopePage, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
+import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, FocusPreferences, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizScopePage, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Theme, Translation } from '@taking-book/core';
 import { join } from 'node:path';
 import { access, mkdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -59,6 +52,7 @@ export function registerIpc(db: SqlDriver): void {
   const apiKeyStore = createApiKeyStore(db);
   const quizEngine = createGeminiProvider();
   const annotations = createAnnotationService(db, { getDeviceId: () => getDeviceId(db), generateUid: randomUUID });
+  const settings = createSettingsService(db, { getSystemLocale: () => app.getSystemLocale() });
   const library = createLibraryService(db, {
     getDeviceId: () => getDeviceId(db),
     coverStore: createHashedFileStore({ dir: join(userDataDir, 'covers'), extension: 'jpg', label: 'cover', encoding: 'base64' }),
@@ -223,11 +217,11 @@ export function registerIpc(db: SqlDriver): void {
   ipcMain.handle('annotations:delete', (_event, id: number) => annotations.delete(id));
 
   ipcMain.handle('sessions:record', (_event, fileId: number, minutes: number) =>
-    recordReadingSession(db, fileId, localDay(new Date()), minutes),
+    settings.recordReadingSession(fileId, minutes),
   );
 
   ipcMain.handle('stats:get', async () => {
-    const today = localDay(new Date());
+    const today = formatLocalDay(new Date());
     const days = 30;
     const daily = await getDailyReadingMinutes(db, days, today);
     if (!isOk(daily)) return daily;
@@ -236,32 +230,32 @@ export function registerIpc(db: SqlDriver): void {
     return { ok: true, data: computeReadingStats(daily.data, days, today, books.data) };
   });
 
-  ipcMain.handle('settings:theme:get', () => getTheme(db));
+  ipcMain.handle('settings:theme:get', () => settings.getTheme());
 
-  ipcMain.handle('settings:theme:set', (_event, theme: Parameters<typeof setTheme>[1]) =>
-    setTheme(db, theme),
+  ipcMain.handle('settings:theme:set', (_event, theme: Theme) =>
+    settings.setTheme(theme),
   );
 
-  ipcMain.handle('settings:sidebarWidth:get', () => getSidebarWidth(db));
+  ipcMain.handle('settings:sidebarWidth:get', () => settings.getSidebarWidth());
 
   ipcMain.handle('settings:sidebarWidth:set', (_event, width: number) =>
-    setSidebarWidth(db, width),
+    settings.setSidebarWidth(width),
   );
 
-  ipcMain.handle('settings:notesSidebarWidth:get', () => getNotesSidebarWidth(db));
+  ipcMain.handle('settings:notesSidebarWidth:get', () => settings.getNotesSidebarWidth());
 
   ipcMain.handle('settings:notesSidebarWidth:set', (_event, width: number) =>
-    setNotesSidebarWidth(db, width),
+    settings.setNotesSidebarWidth(width),
   );
 
   // Returns the language in effect, so Settings shows a defaulted choice too.
   ipcMain.handle('settings:targetLanguage:get', () =>
-    getEffectiveTargetLanguage(db, app.getSystemLocale()),
+    settings.getTargetLanguage(),
   );
 
   ipcMain.handle('settings:targetLanguage:set', (_event, code: unknown): Promise<Result<void>> => {
     if (typeof code !== 'string') return Promise.resolve({ ok: false, error: 'Target language must be a string.' });
-    return setTargetLanguage(db, code);
+    return settings.setTargetLanguage(code);
   });
 
   ipcMain.handle('settings:focus:get', () => getFocusPreferences(db));
@@ -292,7 +286,7 @@ export function registerIpc(db: SqlDriver): void {
   // here so a compromised renderer cannot pick anything but a supported one.
   ipcMain.handle('translate:text', async (_event, text: unknown): Promise<Result<Translation>> => {
     if (typeof text !== 'string') return { ok: false, error: 'Only text can be translated.' };
-    const targetLanguage = await getEffectiveTargetLanguage(db, app.getSystemLocale());
+    const targetLanguage = await settings.getTargetLanguage();
     if (!isOk(targetLanguage)) {
       console.error(`translate: could not read the Target language: ${targetLanguage.error}`);
       return { ok: false, error: TRANSLATION_FAILED_MESSAGE };
@@ -482,9 +476,3 @@ function isFileMissing(error: unknown): boolean {
 }
 
 /** Returns the local calendar day as YYYY-MM-DD for a given date. */
-function localDay(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
