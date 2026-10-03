@@ -12,8 +12,11 @@
     "noImplicitAny": true,
     "sourceMap": true,
     "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["src", "forge.config.ts", "forge.env.d.ts", "vite.main.config.ts", "vite.preload.config.ts", "vite.renderer.config.ts"]
+  "include": ["src", "vitest.config.ts"]
 }

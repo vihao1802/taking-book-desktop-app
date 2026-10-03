@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { readSystemLocaleArgument } from './shared/system-locale';
-import type { ImportProgress, ReaderApi } from './shared/types';
+import type { ImportProgress, ReaderApi } from '@taking-book/renderer';
 
 const api: ReaderApi = {
   capabilities: {

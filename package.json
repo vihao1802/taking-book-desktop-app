@@ -5,14 +5,15 @@
   "private": true,
   "workspaces": [
     "packages/core",
+    "packages/renderer",
     "packages/desktop",
     "packages/mobile"
   ],
   "scripts": {
     "build": "npm run build --workspace @taking-book/core",
-    "test": "npm run test --workspace @taking-book/core && npm run test --workspace @taking-book/desktop",
-    "typecheck": "npm run typecheck --workspace @taking-book/core && npm run typecheck --workspace @taking-book/desktop",
-    "lint": "npm run lint --workspace @taking-book/desktop"
+    "test": "npm run test --workspace @taking-book/core && npm run test --workspace @taking-book/renderer && npm run test --workspace @taking-book/desktop",
+    "typecheck": "npm run typecheck --workspace @taking-book/core && npm run typecheck --workspace @taking-book/renderer && npm run typecheck --workspace @taking-book/desktop",
+    "lint": "npm run lint --workspace @taking-book/renderer && npm run lint --workspace @taking-book/desktop"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",

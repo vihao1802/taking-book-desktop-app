@@ -1,0 +1,48 @@
+{
+  "name": "@taking-book/renderer",
+  "version": "0.1.0",
+  "description": "Shared React renderer and the ReaderApi contract every platform implements.",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./main": "./src/main.tsx"
+  },
+  "scripts": {
+    "lint": "eslint --ext .ts,.tsx .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@taking-book/core": "0.1.0",
+    "pdfjs-dist": "^6.2.108",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-label": "^2.1.15",
+    "@radix-ui/react-progress": "^1.1.16",
+    "@radix-ui/react-select": "^2.3.7",
+    "@radix-ui/react-separator": "^1.1.15",
+    "@radix-ui/react-slider": "^1.4.7",
+    "@radix-ui/react-slot": "^1.3.3",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "eslint": "^8.57.1",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.32.0",
+    "lucide-react": "^1.31.0",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.3",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

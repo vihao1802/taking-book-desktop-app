@@ -1,0 +1,398 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* The CSS is compiled by the platform package's build, whose project root is not this package. */
+@source './';
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------- Theme tokens (light default, dark via .dark, sepia ready) ---------- */
+
+:root {
+  --radius: 0.75rem;
+  --scrollbar-width: 10px;
+
+  --bg: #faf9f7;
+  --fg: #1a1a1a;
+  --muted-text: #8a8680;
+  --brand: #0a6cff;
+  --btn-bg: rgba(0, 0, 0, 0.06);
+  /* Lightness band (OKLCH) syntax colors from a PDF are held to, so they stay
+     readable on this theme's code background whatever page they were made for. */
+  --code-ink-min: 0.25;
+  --code-ink-max: 0.5;
+  --btn-hover: rgba(0, 0, 0, 0.1);
+  --overlay-bg: rgba(250, 249, 247, 0.92);
+  --overlay-fg: #1a1a1a;
+  /* Reflow reads as a printed page (warm paper, serif) so it can't be mistaken
+     for the PDF page view; each theme tints its own background. */
+  --reflow-bg: #f1ece1;
+  /* Find-bar matches: translucent so they read on the white page canvas and on
+     every reader theme; the current match is stronger than the rest. */
+  --search-match: rgba(250, 204, 21, 0.45);
+  --search-match-active: rgba(249, 115, 22, 0.6);
+
+  --dash-bg: #f8f4e9;
+  --dash-rail: #fffefa;
+  --dash-panel: #ffffff;
+  --dash-border: #e2e3e4;
+  --dash-ink: #161616;
+  --dash-muted: #727577;
+  --dash-btn-fg: #f8f8f8;
+  --dash-avatar-a: #fee685;
+  --dash-avatar-b: #cad5e2;
+  --dash-track: rgba(22, 22, 22, 0.2);
+  --dash-alert: #fb2c36;
+  --dash-success: #1f9d61;
+  --dash-success-fg: #ffffff;
+
+  /* Covers read as books on a shelf: a faint edge keeps a white first page
+     from merging into a white card, and a soft shadow lifts it off the page. */
+  --cover-edge: rgba(22, 22, 22, 0.1);
+  --cover-shadow: 0 1px 2px rgba(22, 22, 22, 0.08), 0 4px 12px rgba(22, 22, 22, 0.1);
+
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--dash-panel);
+  --card-foreground: var(--fg);
+  --popover: var(--dash-panel);
+  --popover-foreground: var(--fg);
+  --primary: var(--brand);
+  --primary-foreground: #ffffff;
+  --secondary: var(--btn-bg);
+  --secondary-foreground: var(--fg);
+  --muted: var(--btn-bg);
+  --muted-foreground: var(--muted-text);
+  --accent: var(--btn-hover);
+  --accent-foreground: var(--fg);
+  --destructive: var(--dash-alert);
+  --destructive-foreground: #ffffff;
+  --border: var(--dash-border);
+  --input: var(--btn-bg);
+  --ring: var(--brand);
+
+  --nav-bg: var(--dash-bg);
+  --rail: var(--dash-rail);
+  --ink: var(--dash-ink);
+  --btn-fg: var(--dash-btn-fg);
+  --track: var(--dash-track);
+  --avatar-a: var(--dash-avatar-a);
+  --avatar-b: var(--dash-avatar-b);
+}
+
+.dark {
+  --bg: #131313;
+  --fg: #e8e6e3;
+  --muted-text: #8b8b8b;
+  --brand: #4da3ff;
+  --btn-bg: rgba(255, 255, 255, 0.08);
+  --btn-hover: rgba(255, 255, 255, 0.14);
+  --overlay-bg: rgba(19, 19, 19, 0.92);
+  --overlay-fg: #e8e6e3;
+  --reflow-bg: #1b1a18;
+  --code-ink-min: 0.72;
+  --code-ink-max: 0.92;
+
+  --dash-bg: #171512;
+  --dash-rail: #1c1a16;
+  --dash-panel: #211e19;
+  --dash-border: #35302a;
+  --dash-ink: #f0ece4;
+  --dash-muted: #a8a29a;
+  --dash-btn-fg: #171512;
+  --dash-avatar-a: #8a7420;
+  --dash-avatar-b: #3d4c5e;
+  --dash-track: rgba(240, 236, 228, 0.2);
+  --dash-alert: #fb2c36;
+  --dash-success: #2ebd78;
+  --dash-success-fg: #0d2218;
+
+  --cover-edge: rgba(240, 236, 228, 0.12);
+  --cover-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='sepia'] {
+  --bg: #f4ecd8;
+  --fg: #5b4636;
+  --muted-text: #9b8b72;
+  --brand: #9a6b2f;
+  --btn-bg: rgba(91, 70, 54, 0.08);
+  --btn-hover: rgba(91, 70, 54, 0.14);
+  --overlay-bg: rgba(244, 236, 216, 0.94);
+  --overlay-fg: #5b4636;
+  --reflow-bg: #ede2c6;
+  --code-ink-min: 0.25;
+  --code-ink-max: 0.48;
+
+  --dash-bg: #f0e7d1;
+  --dash-rail: #f5eede;
+  --dash-panel: #fbf6ea;
+  --dash-border: #d9cdb2;
+  --dash-ink: #5b4636;
+  --dash-muted: #8a7560;
+  --dash-btn-fg: #f4ecd8;
+  --dash-avatar-a: #d9bf6a;
+  --dash-avatar-b: #a9b6c4;
+  --dash-track: rgba(91, 70, 54, 0.2);
+  --dash-alert: #c0392b;
+  --dash-success: #7d9c45;
+  --dash-success-fg: #f4ecd8;
+
+  --cover-edge: rgba(91, 70, 54, 0.14);
+  --cover-shadow: 0 1px 2px rgba(91, 70, 54, 0.12), 0 4px 12px rgba(91, 70, 54, 0.14);
+}
+
+/* A syntax-highlighted code span: keeps the PDF's hue and saturation but takes
+   its lightness from the theme, since the PDF chose it for its own background. */
+.code-ink {
+  color: oklch(from var(--code-ink) clamp(var(--code-ink-min), l, var(--code-ink-max)) c h);
+}
+
+@theme inline {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--dash-success);
+  --color-success-foreground: var(--dash-success-fg);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-overlay: var(--overlay-bg);
+  --color-reflow: var(--reflow-bg);
+  --font-reflow: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
+  --color-nav: var(--nav-bg);
+  --color-rail: var(--rail);
+  --color-ink: var(--ink);
+  --color-btn-fg: var(--btn-fg);
+  --color-track: var(--track);
+  --color-avatar-a: var(--avatar-a);
+  --color-avatar-b: var(--avatar-b);
+  --color-cover-edge: var(--cover-edge);
+  --shadow-cover: var(--cover-shadow);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  ::selection {
+    @apply bg-primary text-primary-foreground;
+  }
+
+  ::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--muted-text);
+    border-radius: 5px;
+    border: 2px solid var(--bg);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--dash-muted);
+  }
+}
+
+/* ---------- Reader overlay transitions ---------- */
+
+/* The reading views scroll full-screen, so their scrollbar runs under the top
+   and bottom bars. Stopping the bars short of the scrollbar column keeps its
+   ends visible and reachable while the bars are showing. */
+.overlay {
+  position: absolute;
+  left: 0;
+  right: var(--scrollbar-width);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.overlay-top {
+  top: 0;
+}
+
+.overlay-bottom {
+  bottom: 0;
+}
+
+.overlay-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.overlay-top.overlay-hidden {
+  transform: translateY(-12px);
+}
+
+.overlay-bottom.overlay-hidden {
+  transform: translateY(12px);
+}
+
+/* The Notes sidebar slides in from the right; the page is narrowed at once
+   rather than animated, since re-laying-out every page per frame would stutter. */
+@keyframes notes-sidebar-in {
+  from {
+    transform: translateX(calc(100% + 0.5rem));
+  }
+  to {
+    transform: none;
+  }
+}
+
+.notes-sidebar {
+  animation: notes-sidebar-in 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notes-sidebar {
+    animation: none;
+  }
+}
+
+/* Jumping to a Note flashes its highlight for a second (see flashHighlight.ts):
+   a ring and a stronger tint that both fade back to the highlight's normal look. */
+@keyframes tb-note-flash {
+  0%,
+  55% {
+    box-shadow: 0 0 0 3px var(--primary);
+    filter: saturate(2) brightness(0.85);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+    filter: none;
+  }
+}
+
+.tb-note-flash {
+  animation: tb-note-flash 1s ease-out;
+}
+
+/* ---------- Home entrance (first Home after launch only, see useHomeEntrance.ts) ---------- */
+
+:root {
+  --home-entrance-duration: 200ms;
+  --home-entrance-rise: 8px;
+  /* How far each section lags the one above, so the shelves follow the
+     Featured book instead of arriving with it. */
+  --home-entrance-stagger: 80ms;
+}
+
+@keyframes home-entrance-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--home-entrance-rise));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* `both` keeps a section hidden while it waits for its turn. */
+.home-entrance > * {
+  animation: home-entrance-in var(--home-entrance-duration) ease-out both;
+}
+
+.home-entrance > * + * {
+  animation-delay: var(--home-entrance-stagger);
+}
+
+.home-entrance > * + * + * {
+  animation-delay: calc(var(--home-entrance-stagger) * 2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-entrance > * {
+    animation: none;
+  }
+}
+
+/* ---------- Find-bar matches (CSS Custom Highlight API, see searchHighlights.ts) ---------- */
+
+::highlight(tb-search) {
+  background-color: var(--search-match);
+}
+
+::highlight(tb-search-active) {
+  background-color: var(--search-match-active);
+}
+
+/* ---------- pdf.js text layer over the page canvas ---------- */
+
+.tb-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 1;
+  line-height: 1;
+  text-size-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 10;
+  /* --total-scale-factor is set inline per page (the viewport scale) and
+     --min-font-size is set by pdf.js TextLayer; mirrors pdf_viewer.css. */
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+  user-select: text;
+}
+
+.tb-text-layer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+
+.tb-text-layer > :not(.markedContent),
+.tb-text-layer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.tb-text-layer ::selection {
+  background: rgba(0, 102, 255, 0.35);
+  /* The canvas already shows the text; keep the overlay glyphs invisible. */
+  color: transparent;
+}
