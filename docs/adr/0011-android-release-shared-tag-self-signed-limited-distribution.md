@@ -1,6 +1,6 @@
 # ADR-0011: The Android APK ships on the shared release tag, self-signed, and registered as limited distribution
 
-Status: accepted (the exact limited-distribution mechanics are still to be learned; see Open question).
+Status: accepted. The package `dev.takingbook.app` is registered and its signing key is verified in the Android Developer Console (see Registration result); the device-declaration mechanics are still to be confirmed.
 
 ## Context
 
@@ -21,6 +21,10 @@ Research against Google's pages found:
 4. **Updates.** The update check gets an `android` branch in `pickDownloadAsset` that picks the `.apk`; the notice opens the download URL in the browser. There is no in-app installer (ADR-0008).
 5. **Install guide.** A section in the README and `docs/releasing.md` explains turning on installs from unknown sources, the Play Protect prompt, and the advanced flow; release notes carry one link to it.
 6. **Build parameters.** `minSdk` 29 (ADR-0009), `targetSdk` the latest allowed.
+
+## Registration result
+
+The reader registered `dev.takingbook.app` ("Taking Book App") in the Android Developer Console; the console shows the package as Registered and the signing certificate SHA-256 (`16:FF:C3:3D:D5:53:A5:32:BD:B0:69:37:48:6E:0A:E0:FE:D1:26:26:AB:03:3B:83:05:30:87:76:0B:FA:B3:75`) as Verified. The release keystore is kept outside the repository and is git-ignored. The application id of the Android app is therefore `dev.takingbook.app` and cannot change.
 
 ## Open question
 
