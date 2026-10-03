@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import Database from 'better-sqlite3';
-import { annotationsSchema, customSoundsSchema, filesSchema, migrateAnnotationsSchema, migrateFilesSchema, quizSchema, readingSessionsSchema, settingsSchema } from '@taking-book/core';
+import { startDatabase } from '@taking-book/core';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { SqlDriver } from '@taking-book/core';
@@ -9,9 +9,9 @@ import { createSqlDriver } from './sqliteDriver';
 let driver: SqlDriver | null = null;
 
 /**
- * Opens (or reuses) the app database and applies any schema migration for the
- * sync columns. Must resolve before IPC handlers register so the library table
- * is ready for sync stamps.
+ * Opens (or reuses) the app database and brings its schema up to date. Must
+ * resolve before IPC handlers register so the library table is ready for sync
+ * stamps.
  */
 export async function getDriver(): Promise<SqlDriver> {
   if (driver) return driver;
@@ -20,10 +20,10 @@ export async function getDriver(): Promise<SqlDriver> {
   const db = new Database(path.join(dir, 'taking-book.db'));
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
-  db.exec(`${filesSchema()} ${settingsSchema()} ${readingSessionsSchema()} ${annotationsSchema()} ${customSoundsSchema()} ${quizSchema()}`);
-  driver = createSqlDriver(db);
-  await migrateFilesSchema(driver);
-  const migratedAnnotations = await migrateAnnotationsSchema(driver);
-  if (!migratedAnnotations.ok) console.error(`Annotation uid migration failed; new annotations cannot be saved until it succeeds: ${migratedAnnotations.error}`);
+  const opened = createSqlDriver(db);
+  const started = await startDatabase(opened);
+  if (!started.ok) throw new Error(started.error);
+  for (const failure of started.data) console.error(`Database migration failed; some features may not work until it succeeds: ${failure}`);
+  driver = opened;
   return driver;
 }
