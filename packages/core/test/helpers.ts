@@ -17,6 +17,22 @@ export function createMemoryDriver(): SqlDriver {
     return { lastInsertRowid: Number(info.lastInsertRowid), changes: info.changes };
   }
 
+  // db.transaction() is synchronous and would commit before awaited work runs, so use explicit
+  // BEGIN/COMMIT behind a queue, matching the SqlDriver contract.
+  let transactionQueue: Promise<unknown> = Promise.resolve();
+
+  async function runInTransaction<T>(fn: () => Promise<T>): Promise<T> {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = await fn();
+      db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
   return {
     async exec(sql) {
       db.exec(sql);
@@ -34,7 +50,9 @@ export function createMemoryDriver(): SqlDriver {
       return rows.map(normalizeRow);
     },
     async transaction<T>(fn: () => Promise<T>): Promise<T> {
-      return db.transaction(fn)();
+      const result = transactionQueue.then(() => runInTransaction(fn));
+      transactionQueue = result.catch(() => undefined);
+      return result;
     },
   };
 }
