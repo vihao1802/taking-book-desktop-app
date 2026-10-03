@@ -150,6 +150,13 @@ function clearSelection(): void {
   if (customSelection) customSelection.clear();
   else getSelection()?.removeAllRanges();
 }
+let lastToolbarState = '';
+function logToolbar(state: string): void {
+  if (state !== lastToolbarState) {
+    lastToolbarState = state;
+    console.log(`TBTOOL ${state}`);
+  }
+}
 function updateToolbar(): void {
   const range = getSelectedRange();
   // Hidden while the finger that made the selection is still down or a handle is dragged; it shows once the finger
@@ -157,14 +164,17 @@ function updateToolbar(): void {
   if (!range || customSelection?.isInteracting()) {
     if (!range && !toolbar.hidden) selectionClearedAt = performance.now();
     toolbar.hidden = true;
+    logToolbar(range ? 'hidden-interacting' : 'hidden-no-selection');
     return;
   }
   const rect = range.getBoundingClientRect();
   // Scrolled completely out of view: nothing to attach the toolbar to.
   if (rect.bottom < 0 || rect.top > window.innerHeight) {
     toolbar.hidden = true;
+    logToolbar('hidden-offscreen');
     return;
   }
+  logToolbar('shown');
   const wasHidden = toolbar.hidden;
   toolbar.hidden = false;
   // Below the selection and its teardrop handles (28px tall); flipped above when there is no room underneath, and

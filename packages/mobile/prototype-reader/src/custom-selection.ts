@@ -125,9 +125,47 @@ function snapToWord(caret: Caret, forward: boolean): Caret {
   return { node: caret.node, offset };
 }
 
+/** A selection stored as a page and character offsets within that page, so it survives the page being unloaded. */
+interface LogicalSelection {
+  page: string;
+  start: number;
+  end: number;
+}
+
+function indexIn(nodes: Text[], node: Text, offset: number): number {
+  let total = 0;
+  for (const candidate of nodes) {
+    if (candidate === node) return total + offset;
+    total += candidate.length;
+  }
+  return -1;
+}
+
+/** The caret at a character index; on a boundary between two pieces a start prefers the next piece, an end the previous. */
+function pointAt(nodes: Text[], index: number, atStart: boolean): Caret | null {
+  let total = 0;
+  for (const node of nodes) {
+    if (atStart ? index < total + node.length : index <= total + node.length) return { node, offset: index - total };
+    total += node.length;
+  }
+  const last = nodes[nodes.length - 1];
+  return last !== undefined && index === total ? { node: last, offset: last.length } : null;
+}
+
+function logicalFrom(range: Range): LogicalSelection | null {
+  const page = pageOf(range.startContainer);
+  const { startContainer, endContainer } = range;
+  if (page === null || !(startContainer instanceof Text) || !(endContainer instanceof Text)) return null;
+  const nodes = leafTextNodes(page);
+  const start = indexIn(nodes, startContainer, range.startOffset);
+  const end = indexIn(nodes, endContainer, range.endOffset);
+  return start < 0 || end < 0 || !page.dataset.page ? null : { page: page.dataset.page, start, end };
+}
+
 export function installCustomSelection(options: { scroller: HTMLElement; onChange: () => void }): CustomSelection {
   const { scroller, onChange } = options;
   let range: Range | null = null;
+  let logical: LogicalSelection | null = null;
   let clearedAt = -Infinity;
   let holding = false; // finger still down after a long press selected a word
   let dragging = false;
@@ -200,18 +238,41 @@ export function installCustomSelection(options: { scroller: HTMLElement; onChang
     next.setStart(first.node, first.offset);
     next.setEnd(second.node, second.offset);
     range = next;
+    logical = logicalFrom(next);
     render();
     onChange();
     return toIsStart;
   }
 
   function clear(): void {
-    if (range === null) return;
+    if (range === null && logical === null) return;
     range = null;
+    logical = null;
     clearedAt = performance.now();
     hideMagnifier();
     render();
     onChange();
+  }
+
+  /** Re-creates the range when its page was unloaded and has since been drawn again; null while it is unloaded. */
+  function refresh(): void {
+    if (logical === null) return;
+    // When a page is unloaded the browser does not detach a Range: it collapses it onto a surviving parent element.
+    // So "alive" means non-empty and still anchored in text nodes that are in the document.
+    const { startContainer, endContainer } = range ?? {};
+    const alive = range !== null && !range.collapsed && startContainer instanceof Text && startContainer.isConnected && endContainer instanceof Text && endContainer.isConnected;
+    if (alive) return;
+    range = null;
+    const page = scroller.querySelector<HTMLElement>(`.page[data-page="${logical.page}"]`);
+    if (!page) return;
+    const nodes = leafTextNodes(page);
+    const start = pointAt(nodes, logical.start, true);
+    const end = pointAt(nodes, logical.end, false);
+    if (!start || !end) return;
+    const restored = document.createRange();
+    restored.setStart(start.node, start.offset);
+    restored.setEnd(end.node, end.offset);
+    range = restored;
   }
 
   function selectWordAt(x: number, y: number): void {
@@ -302,7 +363,7 @@ export function installCustomSelection(options: { scroller: HTMLElement; onChang
   });
   scroller.addEventListener('pointerup', () => {
     cancelPress();
-    if (tapCandidate && range !== null) clear();
+    if (tapCandidate && (range !== null || logical !== null)) clear();
     tapCandidate = false;
     endHolding();
   });
@@ -392,10 +453,17 @@ export function installCustomSelection(options: { scroller: HTMLElement; onChang
   }
 
   let frame = 0;
-  scroller.addEventListener('scroll', () => {
+  const update = (): void => {
     cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => { render(); onChange(); });
-  });
+    frame = requestAnimationFrame(() => {
+      refresh();
+      render();
+      onChange();
+    });
+  };
+  scroller.addEventListener('scroll', update);
+  // A page that was unloaded and is drawn again brings the selection back.
+  new MutationObserver(() => { if (logical !== null) update(); }).observe(scroller, { childList: true, subtree: true });
 
   return {
     getRange: () => range,
