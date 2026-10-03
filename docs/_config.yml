@@ -1,0 +1,6 @@
+title: Taking Book
+description: A free, local-first PDF reading app.
+theme: jekyll-theme-minimal
+# Agent working notes are not part of the public site.
+exclude:
+  - agents
