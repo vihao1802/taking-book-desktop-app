@@ -1,5 +1,6 @@
 export type { BookFile, Annotation, AnnotationColor, BookMinutes, BookStatus, CreateAnnotationInput, DayMinutes, LastPosition, ReadMode, ReadingStats, Theme } from './models';
 export { startDatabase } from './startDatabase';
+export { createAnnotationService, type AnnotationService, type AnnotationServiceOptions } from './annotationService';
 export { createLibraryService, type HashedTextStore, type LibraryService, type LibraryServiceOptions } from './libraryService';
 export { err, isErr, isOk, ok, unwrapOr, type Result } from './result';
 export type { SqlDriver, SqlRunResult, SqlValue } from './sql';

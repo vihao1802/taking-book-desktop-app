@@ -3,11 +3,9 @@ import { randomUUID } from 'node:crypto';
 import {
   acknowledgeQuizPrivacyNotice,
   computeReadingStats,
-  createAnnotation,
   createGeminiProvider,
+  createAnnotationService,
   createLibraryService,
-  deleteAnnotation,
-  deleteNote,
   generateQuiz,
   getDailyReadingMinutes,
   getEffectiveTargetLanguage,
@@ -21,17 +19,9 @@ import {
   getTheme,
   importBooks,
   isOk,
-  listAnnotations,
-  listLibraryAnnotations,
   listQuizAttemptsForBook,
   listQuizzesForBook,
   recordReadingSession,
-  saveNoteDraft,
-  saveNoteText,
-  savePageNote,
-  setAnnotationColor,
-  setAnnotationPageAnchor,
-  setAnnotationReflowAnchor,
   setNotesSidebarWidth,
   setSidebarWidth,
   setFocusPreferences,
@@ -41,7 +31,7 @@ import {
   TRANSLATION_FAILED_MESSAGE,
   translateText,
 } from '@taking-book/core';
-import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, CreateAnnotationOptions, FocusPreferences, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizScopePage, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
+import type { AnnotationColor, BookStatus, CloudAccount, CreateAnnotationInput, FocusPreferences, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizScopePage, ReadMode, ReflowAnchor, ReflowCacheEntry, Result, SqlDriver, SyncStamp, Translation } from '@taking-book/core';
 import { join } from 'node:path';
 import { access, mkdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -68,6 +58,7 @@ export function registerIpc(db: SqlDriver): void {
   registerCustomSoundsIpc(db);
   const apiKeyStore = createApiKeyStore(db);
   const quizEngine = createGeminiProvider();
+  const annotations = createAnnotationService(db, { getDeviceId: () => getDeviceId(db), generateUid: randomUUID });
   const library = createLibraryService(db, {
     getDeviceId: () => getDeviceId(db),
     coverStore: createHashedFileStore({ dir: join(userDataDir, 'covers'), extension: 'jpg', label: 'cover', encoding: 'base64' }),
@@ -76,9 +67,6 @@ export function registerIpc(db: SqlDriver): void {
   });
   async function stamp(): Promise<SyncStamp> {
     return { updatedAt: Date.now(), updatedBy: await getDeviceId(db) };
-  }
-  async function createAnnotationOptions(): Promise<CreateAnnotationOptions> {
-    return { stamp: await stamp(), generateUid: randomUUID };
   }
 
   async function cloudProvider(): Promise<Result<ReturnType<typeof createCloudProvider>>> {
@@ -200,45 +188,39 @@ export function registerIpc(db: SqlDriver): void {
     library.setFavorite(id, favorite),
   );
 
-  ipcMain.handle('annotations:list', (_event, fileHash: string) => listAnnotations(db, fileHash));
+  ipcMain.handle('annotations:list', (_event, fileHash: string) => annotations.list(fileHash));
 
-  ipcMain.handle('annotations:listLibrary', () => listLibraryAnnotations(db));
+  ipcMain.handle('annotations:listLibrary', () => annotations.listLibrary());
 
-  ipcMain.handle('annotations:create', async (_event, fileHash: string, input: CreateAnnotationInput) =>
-    createAnnotation(db, fileHash, input, await createAnnotationOptions()),
+  ipcMain.handle('annotations:create', (_event, fileHash: string, input: CreateAnnotationInput) =>
+    annotations.create(fileHash, input),
   );
 
-  ipcMain.handle('annotations:draft:save', async (_event, fileHash: string, draft: NoteDraft) =>
-    saveNoteDraft(db, fileHash, draft, await createAnnotationOptions()),
+  ipcMain.handle('annotations:draft:save', (_event, fileHash: string, draft: NoteDraft) =>
+    annotations.saveDraft(fileHash, draft),
   );
 
-  ipcMain.handle('annotations:pageNote:save', async (_event, fileHash: string, input: PageNoteInput) =>
-    savePageNote(db, fileHash, input, await createAnnotationOptions()),
+  ipcMain.handle('annotations:pageNote:save', (_event, fileHash: string, input: PageNoteInput) =>
+    annotations.savePageNote(fileHash, input),
   );
 
-  ipcMain.handle('annotations:note:save', async (_event, id: number, text: string) =>
-    saveNoteText(db, id, text, await stamp()),
-  );
+  ipcMain.handle('annotations:note:save', (_event, id: number, text: string) => annotations.saveNote(id, text));
 
-  ipcMain.handle('annotations:note:delete', async (_event, id: number) =>
-    deleteNote(db, id, await stamp()),
-  );
+  ipcMain.handle('annotations:note:delete', (_event, id: number) => annotations.deleteNote(id));
 
-  ipcMain.handle('annotations:color:set', async (_event, id: number, color: AnnotationColor) =>
-    setAnnotationColor(db, id, color, await stamp()),
+  ipcMain.handle('annotations:color:set', (_event, id: number, color: AnnotationColor) =>
+    annotations.setColor(id, color),
   );
 
   ipcMain.handle('annotations:pageAnchor:set', (_event, id: number, anchor: PageAnchor) =>
-    setAnnotationPageAnchor(db, id, anchor),
+    annotations.setPageAnchor(id, anchor),
   );
 
   ipcMain.handle('annotations:reflowAnchor:set', (_event, id: number, anchor: ReflowAnchor) =>
-    setAnnotationReflowAnchor(db, id, anchor),
+    annotations.setReflowAnchor(id, anchor),
   );
 
-  ipcMain.handle('annotations:delete', async (_event, id: number) =>
-    deleteAnnotation(db, id, await stamp()),
-  );
+  ipcMain.handle('annotations:delete', (_event, id: number) => annotations.delete(id));
 
   ipcMain.handle('sessions:record', (_event, fileId: number, minutes: number) =>
     recordReadingSession(db, fileId, localDay(new Date()), minutes),
