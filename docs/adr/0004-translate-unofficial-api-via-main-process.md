@@ -13,7 +13,7 @@ That endpoint sends no CORS headers, so the library is blocked from an ordinary 
 ## Decision
 
 1. Translation is performed with `google-translate-api-x`, not an official vendor API.
-2. On desktop, the call is made from Electron's **main** process, never the renderer, and reaches the renderer over IPC like the app's other main-process capabilities: a `translate:<action>` channel wired through `preload.ts`, `ReaderApi` in `shared/types.ts`, and `main/ipc.ts`, returning the app's standard `Result<T>` shape.
+2. On desktop, the call is made from Electron's **main** process, never the renderer, and reaches the renderer over IPC like the app's other main-process capabilities: a `translate:<action>` channel wired through `preload.ts`, `ReaderApi` in `packages/renderer/src/reader-api.ts`, and `main/ipc.ts`, returning the app's standard `Result<T>` shape.
 3. `/packages/core` defines a platform-agnostic `Translator` interface (the same DI shape as the existing `SqlDriver`), so mobile can later supply its own implementation — calling the library directly, since React Native isn't CORS-restricted — without needing the desktop main-process/IPC wiring.
 
 ## Consequences
