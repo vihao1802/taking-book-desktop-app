@@ -1,6 +1,6 @@
 # ADR-0009: The Android app is a Capacitor shell around a shared React renderer
 
-Status: provisional — the Reader prototype passed on a real phone (see Prototype result); the tablet check is still open.
+Status: provisional — the Reader prototype passed scrolling on a real phone and tablet, but touch selection handles are unreliable on both (see Prototype result); a follow-up prototype must settle that.
 
 ## Context
 
@@ -25,8 +25,9 @@ Reopen this decision if the Reader prototype shows touch text selection over the
 A throwaway pdf.js-in-Capacitor reader (branch `prototype/android-reader`) was run on Android 15 emulators and on the reader's real phone, with a 491-page, 4.2 MB book.
 
 - **Passed on a real phone:** scrolling the long book was smooth on a mid-range-or-better phone; only a handful of pages are rendered at once (heap about 10 MB on the emulators). Touch selection works: long-press selects a word, our toolbar sits below the native handles, tapping it keeps the selection and Highlight paints it, and no native context menu appears.
-- **Defect found:** dragging the start handle up across a 5-6 line passage makes it jump to the left edge of the PDF. Cause unknown (possibly the pdf.js text layer or normal start-of-line behaviour); to be investigated during the build, not a reason to reopen the stack.
-- **Not yet verified:** any real tablet (memory on a mid-range tablet is still an exit criterion), real-GPU smoothness on a tablet, and the real WebView version on a device without Google Play.
+- **Real tablet (Lenovo Idea Tab, Android 16):** scrolling the long book was smooth and without jank, and rotating between portrait and landscape worked. Opening the demo sidebar left the page shifted to one side and partly covered, because the prototype does not re-fit pages to the new width.
+- **Selection handles are unreliable on both devices.** On the phone, dragging the start handle up across a 5-6 line passage made it jump to the left edge of the PDF. On the tablet, dragging a handle up often made it jump back down, and dragging it down slid it down a stretch too far. Long-press selecting a word, our toolbar and Highlight worked. Cause unknown (possibly how the pdf.js text layer's absolutely positioned spans interact with Android's selection handles). This is the weak point of the exit criterion "touch text selection is unusable"; a follow-up prototype decides whether it can be fixed or the stack must be reconsidered.
+- **Not yet verified:** the real WebView version on a device without Google Play, and smoothness on a low-end tablet.
 - Found by the prototype and handled outside this ADR: a landscape phone counts as the expanded size class by width alone, and pages must re-fit on resize.
 
 ## Consequences
