@@ -26,3 +26,9 @@ That endpoint sends no CORS headers, so the library is blocked from an ordinary 
 
 - **Official vendor API (Google Cloud Translation / DeepL / Azure) with a small backend proxy to hold the key.** Rejected: adds a server this client-only, non-commercial app doesn't otherwise need, purely to protect a secret.
 - **Self-hosted LibreTranslate.** Rejected for v1: genuinely free and offline-capable, but requires the user to run and keep a server process alive, which is new operational surface the app doesn't otherwise have. Left as a documented alternative in `docs/translate-selection-research.md` if the unofficial library's reliability becomes a problem.
+
+## Update: Android uses Capacitor's native HTTP (ADR-0009)
+
+Decision point 3 assumed a React Native mobile app that is not CORS-restricted. The Android app is a Capacitor shell around a WebView (ADR-0009), and a WebView is subject to CORS again: the endpoint sends no `Access-Control-*` headers, so a direct `fetch` from the WebView is blocked. Capacitor's native HTTP (`CapacitorHttp`) makes the request from Java instead of the WebView, so CORS does not apply.
+
+The mobile `TranslationEngine` is built on the library's `requestFunction` hook, calling `CapacitorHttp.request()` directly rather than relying on Capacitor's patched global `fetch`, because that patch drops `signal` on POST requests (so `AbortSignal.timeout` would do nothing) and native network errors are not `TypeError`s (so the desktop failure classifier would report `other`). The mobile engine therefore needs its own timeout and its own error classification. Rate-limit risk is the same as on desktop. Details and what is still unverified on a real device are in `docs/research/android-translate-http.md` (branch `research/android-translate-http`).
