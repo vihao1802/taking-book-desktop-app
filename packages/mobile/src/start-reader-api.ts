@@ -1,5 +1,8 @@
+import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { err, getDeviceId, ok, type Result } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
+import { createAppUpdates, fetchLatestRelease } from './app-updates';
 import { createBookFiles } from './book-files';
 import { checkBookReadable, createCapacitorBookStorage, createDocumentUrlResolver } from './capacitor-book-storage';
 import { createFilesystemTextStore } from './filesystem-text-store';
@@ -11,6 +14,16 @@ async function openStream(webPath: string): Promise<ReadableStream<Uint8Array>> 
   const response = await fetch(webPath);
   if (!response.ok || !response.body) throw new Error(`The file could not be read (status ${response.status})`);
   return response.body;
+}
+
+async function openInBrowser(url: string): Promise<Result<void>> {
+  try {
+    await Browser.open({ url });
+    return ok(undefined);
+  } catch (error) {
+    console.error(`update: could not open ${url}: ${String(error)}`);
+    return err('Could not open the link in your browser.');
+  }
 }
 
 /**
@@ -46,5 +59,11 @@ export async function startReaderApi(): Promise<Result<ReaderApi>> {
     getDocumentUrl: documentUrl.data,
     log,
   });
-  return ok(createMobileReaderApi(services, bookFiles));
+  const updates = createAppUpdates({
+    getAppVersion: async () => (await App.getInfo()).version,
+    fetchLatestRelease,
+    openUrl: openInBrowser,
+    log,
+  });
+  return ok(createMobileReaderApi(services, bookFiles, updates));
 }

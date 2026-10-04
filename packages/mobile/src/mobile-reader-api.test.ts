@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { startDatabase, upsertFile, type SqlDriver } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
+import type { AppUpdates } from './app-updates';
 import type { BookFiles } from './book-files';
 import { createCapacitorSqlDriver } from './capacitor-sql-driver';
 import { createFakeConnection } from './fake-sqlite-connection';
@@ -26,7 +27,13 @@ function createApi(db: SqlDriver): ReaderApi {
     checkReadable: async () => ({ ok: true, data: undefined }),
     getDocumentUrl: (storedPath) => `http://localhost/_capacitor_file_/data/${storedPath}`,
   };
-  return createMobileReaderApi(services, bookFiles);
+  const updates: AppUpdates = {
+    checkForUpdate: async () => ({ ok: true, data: { version: '1.3.0', downloadUrl: 'https://example.test/a.apk' } }),
+    openUpdateDownload: async () => ({ ok: true, data: undefined }),
+    openReleasesPage: async () => ({ ok: true, data: undefined }),
+    getAppVersion: async () => ({ ok: true, data: '1.2.0' }),
+  };
+  return createMobileReaderApi(services, bookFiles, updates);
 }
 
 describe('createMobileReaderApi', () => {
@@ -40,6 +47,11 @@ describe('createMobileReaderApi', () => {
 
   it('keeps every capability off', () => {
     expect(Object.values(api.capabilities).every((enabled) => !enabled)).toBe(true);
+  });
+
+  it('checks for updates through the update service', async () => {
+    expect(await api.checkForUpdate()).toEqual({ ok: true, data: { version: '1.3.0', downloadUrl: 'https://example.test/a.apk' } });
+    expect(await api.getAppVersion()).toEqual({ ok: true, data: '1.2.0' });
   });
 
   it('opens the picker, serves stored Books by URL and checks they are readable', async () => {

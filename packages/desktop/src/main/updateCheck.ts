@@ -1,10 +1,16 @@
 import { app, ipcMain, net, shell } from 'electron';
-import { checkForUpdate, err, ok, type AvailableUpdate, type Result } from '@taking-book/core';
+import {
+  checkForUpdate,
+  err,
+  isReleaseDownloadUrl,
+  LATEST_RELEASE_API_URL,
+  ok,
+  RELEASES_PAGE_URL,
+  type AvailableUpdate,
+  type Result,
+} from '@taking-book/core';
 
-const REPOSITORY = 'vihao1802/taking-book-desktop-app';
-const LATEST_RELEASE_API_URL = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
-const RELEASES_PAGE_URL = `https://github.com/${REPOSITORY}/releases`;
-const RELEASES_URL_PREFIX = `${RELEASES_PAGE_URL}/`;
+export { isReleaseDownloadUrl };
 
 // A launch-time check must never hang; the reader can live without the notice.
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -45,14 +51,6 @@ async function openInBrowser(url: string): Promise<Result<void>> {
     console.error(`update: could not open ${url}: ${String(error)}`);
     return err('Could not open the link in your browser.');
   }
-}
-
-/**
- * True only for links into this app's GitHub releases, so a compromised
- * renderer cannot use the download action to open arbitrary URLs.
- */
-export function isReleaseDownloadUrl(url: unknown): url is string {
-  return typeof url === 'string' && url.startsWith(RELEASES_URL_PREFIX) && !url.includes('..');
 }
 
 async function fetchLatestRelease(): Promise<Result<unknown>> {
