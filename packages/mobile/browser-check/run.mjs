@@ -15,7 +15,15 @@ import { writeFixturePdf } from '../../../scripts/ui-check/fixture-pdf.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TOUCH_TARGETS = readFileSync(resolve(HERE, '../../../scripts/ui-check/touch-targets.js'), 'utf8');
 const SETTLE_MS = 600;
+// Saving the position is debounced, so a read right after a move waits this many settles.
+const SETTLE_PAUSES = 2;
 const OVERLAY_HIDE_MS = 3200;
+const REFLOW_TEXT_TIMEOUT_MS = 15000;
+const PAGE_CANVAS_TIMEOUT_MS = 10000;
+const ZOOM_SAVE_WAIT_MS = 1000;
+// Far enough from the end that Page mode, whose three short pages barely scroll on a phone, does not clamp the spot it is handed.
+const REFLOW_SCROLL_FRACTION = 0.3;
+const MAX_DEPTH_DRIFT = 0.25;
 const CLASSES = [
   { name: 'compact', width: 390, height: 844 },
   { name: 'medium', width: 700, height: 900 },
@@ -253,8 +261,8 @@ async function setReaderMode(page, sizeClass, mode) {
   await showOverlay(page, sizeClass);
   const pressed = (await page.getAttribute(reflowToggle, 'aria-pressed')) === 'true';
   if (pressed !== (mode === 'reflow')) await tap(page, reflowToggle);
-  if (mode === 'reflow') await page.waitForSelector('[data-reflow-page]', { timeout: 15000 });
-  else await page.waitForSelector('canvas', { timeout: 10000 });
+  if (mode === 'reflow') await page.waitForSelector('[data-reflow-page]', { timeout: REFLOW_TEXT_TIMEOUT_MS });
+  else await page.waitForSelector('canvas', { timeout: PAGE_CANVAS_TIMEOUT_MS });
   await page.waitForTimeout(OVERLAY_HIDE_MS);
 }
 
@@ -268,40 +276,46 @@ async function checkReflow(page, sizeClass) {
     return text.includes('query optimizer') ? '' : 'the reflow text is missing';
   });
   await check(name, 'Reflow: switching modes keeps the place in both directions', async () => {
-    // Far enough from the end that Page mode, whose three short pages barely
-    // scroll on a phone, does not clamp the spot it is handed.
-    await page.evaluate(() => {
+    await page.evaluate((fraction) => {
       const el = document.querySelector('[data-reader-view]');
-      el.scrollTop = (el.scrollHeight - el.clientHeight) * 0.3;
-    });
-    await page.waitForTimeout(SETTLE_MS * 2);
+      el.scrollTop = (el.scrollHeight - el.clientHeight) * fraction;
+    }, REFLOW_SCROLL_FRACTION);
+    await page.waitForTimeout(SETTLE_MS * SETTLE_PAUSES);
     const reflowPlace = await savedPosition(page);
     await setReaderMode(page, sizeClass, 'page');
-    await page.waitForTimeout(SETTLE_MS * 2);
+    await page.waitForTimeout(SETTLE_MS * SETTLE_PAUSES);
     const pagePlace = await savedPosition(page);
     await setReaderMode(page, sizeClass, 'reflow');
-    await page.waitForTimeout(SETTLE_MS * 2);
+    await page.waitForTimeout(SETTLE_MS * SETTLE_PAUSES);
     const backPlace = await savedPosition(page);
     const samePage = reflowPlace.page === pagePlace.page && pagePlace.page === backPlace.page;
     const drift = Math.abs(reflowPlace.position - backPlace.position);
     if (!samePage) return `page ${reflowPlace.page} -> ${pagePlace.page} -> ${backPlace.page}`;
-    return drift < 0.25 ? '' : `position ${reflowPlace.position} -> page mode ${pagePlace.position} -> ${backPlace.position}`;
+    return drift < MAX_DEPTH_DRIFT ? '' : `position ${reflowPlace.position} -> page mode ${pagePlace.position} -> ${backPlace.position}`;
   });
   await check(name, 'Reflow: the last-read position records the mode it was left in', async () => {
     const reflow = await savedPosition(page);
     await setReaderMode(page, sizeClass, 'page');
-    await page.waitForTimeout(SETTLE_MS * 2);
+    await page.waitForTimeout(SETTLE_MS * SETTLE_PAUSES);
     const pageMode = await savedPosition(page);
     await setReaderMode(page, sizeClass, 'reflow');
     return reflow.mode === 'reflow' && pageMode.mode === 'page' ? '' : `saved ${reflow.mode}, then ${pageMode.mode}`;
   });
-  await check(name, 'Reflow: the zoom is kept apart from the page zoom', async () => {
+  await check(name, 'Reflow: each mode keeps its own zoom', async () => {
     const zooms = () => page.evaluate(() => Promise.all(['page', 'reflow'].map((m) => window.api.getFileZoom(1, m).then((r) => r.data))));
-    await showOverlay(page, sizeClass);
-    await tap(page, 'button[aria-label="Zoom in"]');
-    await page.waitForTimeout(1000);
-    const [pageZoom, reflowZoom] = await zooms();
-    return pageZoom === null && reflowZoom > 1 ? '' : `page ${pageZoom}, reflow ${reflowZoom}`;
+    const zoomIn = async () => {
+      await showOverlay(page, sizeClass);
+      await tap(page, 'button[aria-label="Zoom in"]');
+      await page.waitForTimeout(ZOOM_SAVE_WAIT_MS);
+    };
+    await zoomIn();
+    const [pageAfterReflow, reflowAfterReflow] = await zooms();
+    await setReaderMode(page, sizeClass, 'page');
+    await zoomIn();
+    const [pageAfterPage, reflowAfterPage] = await zooms();
+    const reflowZoomedOnly = pageAfterReflow === null && reflowAfterReflow > 1;
+    const pageZoomedOnly = pageAfterPage > 1 && reflowAfterPage === reflowAfterReflow;
+    return reflowZoomedOnly && pageZoomedOnly ? '' : JSON.stringify({ pageAfterReflow, reflowAfterReflow, pageAfterPage, reflowAfterPage });
   });
   await setReaderMode(page, sizeClass, 'page');
 }
