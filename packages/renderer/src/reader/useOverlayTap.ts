@@ -1,9 +1,9 @@
-import { useRef, type MouseEvent } from 'react';
-import { isMiddleTap, shouldToggleOverlay } from './overlay-tap';
+import { useRef, type MouseEvent, type PointerEvent } from 'react';
+import { isTapMovement, shouldToggleOverlay } from './overlay-tap';
 
 interface OverlayTapHandlers {
-  /** Remembers whether a selection was there before the press, since the press itself clears it. */
-  onPointerDownCapture: () => void;
+  /** Remembers where the press began and whether a selection was there, since the press itself clears it. */
+  onPointerDownCapture: (event: PointerEvent<HTMLElement>) => void;
   onClick: (event: MouseEvent<HTMLElement>) => void;
 }
 
@@ -12,27 +12,27 @@ function hasSelection(): boolean {
 }
 
 /**
- * Click handlers for a reading area that toggle the Overlay on a tap in its
- * middle, so the reading view needs no control of its own for it. A tap that
- * clears a selection, or a gesture that makes one, leaves the Overlay alone.
+ * Click handlers for a reading area that toggle the Overlay on a tap, so the
+ * reading view needs no control of its own for it. Scrolling or dragging, a
+ * tap that clears a selection, and a gesture that makes one leave it alone.
  *
  * @param onToggle - Shows the Overlay if it is hidden and hides it otherwise.
  */
 export function useOverlayTap(onToggle: () => void): OverlayTapHandlers {
-  const selectionBeforeRef = useRef(false);
+  const pressRef = useRef({ x: 0, y: 0, selectionBefore: false });
 
-  const onPointerDownCapture = () => {
-    selectionBeforeRef.current = hasSelection();
+  const onPointerDownCapture = (event: PointerEvent<HTMLElement>) => {
+    pressRef.current = { x: event.clientX, y: event.clientY, selectionBefore: hasSelection() };
   };
 
   const onClick = (event: MouseEvent<HTMLElement>) => {
-    const area = event.currentTarget.getBoundingClientRect();
+    const press = pressRef.current;
     const toggle = shouldToggleOverlay({
-      middle: isMiddleTap({ x: event.clientX, y: event.clientY }, area),
-      selectionBefore: selectionBeforeRef.current,
+      moved: !isTapMovement(press, { x: event.clientX, y: event.clientY }),
+      selectionBefore: press.selectionBefore,
       selectionNow: hasSelection(),
     });
-    selectionBeforeRef.current = false;
+    pressRef.current = { ...press, selectionBefore: false };
     if (toggle) onToggle();
   };
 

@@ -1,32 +1,22 @@
-/** Share of the reading area, from each edge, that does not count as the middle. */
-const EDGE_SHARE = 0.2;
+/** How far, in dp, a press may travel and still count as a tap; a drag or a scroll goes further. */
+export const TAP_SLOP_DP = 10;
 
-interface Area {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
+interface Point {
+  x: number;
+  y: number;
+}
+
+/** Whether a press that started at `start` and ended at `end` stayed put enough to be a tap. */
+export function isTapMovement(start: Point, end: Point): boolean {
+  return Math.hypot(end.x - start.x, end.y - start.y) <= TAP_SLOP_DP;
 }
 
 /**
- * Whether a tap landed in the middle of the reading area, the only place that
- * toggles the Overlay: the edges are left to the bars and the sidebars.
- *
- * @param point - The tap in viewport coordinates.
- * @param area - The reading area's bounding rect.
+ * Decides whether a click on the page toggles the Overlay. A tap anywhere on
+ * the page does, so the reading view needs no control of its own for it. A
+ * press that moved (a scroll or a drag), a tap that clears a selection, and a
+ * gesture that makes one are not taps and leave the Overlay alone.
  */
-export function isMiddleTap(point: { x: number; y: number }, area: Area): boolean {
-  const fromLeft = (point.x - area.left) / area.width;
-  const fromTop = (point.y - area.top) / area.height;
-  return (
-    fromLeft >= EDGE_SHARE && fromLeft <= 1 - EDGE_SHARE && fromTop >= EDGE_SHARE && fromTop <= 1 - EDGE_SHARE
-  );
-}
-
-/**
- * Decides whether a click on the page toggles the Overlay. A tap that clears a
- * selection, or a gesture that makes one, is about the selection, not the Overlay.
- */
-export function shouldToggleOverlay(tap: { middle: boolean; selectionBefore: boolean; selectionNow: boolean }): boolean {
-  return tap.middle && !tap.selectionBefore && !tap.selectionNow;
+export function shouldToggleOverlay(tap: { moved: boolean; selectionBefore: boolean; selectionNow: boolean }): boolean {
+  return !tap.moved && !tap.selectionBefore && !tap.selectionNow;
 }

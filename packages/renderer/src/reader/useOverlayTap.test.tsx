@@ -1,12 +1,10 @@
-import type { MouseEvent } from 'react';
+import type { MouseEvent, PointerEvent } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useOverlayTap } from './useOverlayTap';
 
-const AREA = { left: 0, top: 0, width: 1000, height: 600 };
-
 /** Renders the hook once so its handlers can be called the way React would. */
-function setUp(): { toggle: ReturnType<typeof vi.fn>; press: () => void; click: (x: number, y: number) => void } {
+function setUp(): { toggle: ReturnType<typeof vi.fn>; press: (x?: number, y?: number) => void; click: (x?: number, y?: number) => void } {
   const toggle = vi.fn();
   let handlers: ReturnType<typeof useOverlayTap> | null = null;
   function Probe() {
@@ -16,13 +14,8 @@ function setUp(): { toggle: ReturnType<typeof vi.fn>; press: () => void; click: 
   renderToStaticMarkup(<Probe />);
   return {
     toggle,
-    press: () => handlers?.onPointerDownCapture(),
-    click: (x, y) =>
-      handlers?.onClick({
-        clientX: x,
-        clientY: y,
-        currentTarget: { getBoundingClientRect: () => AREA },
-      } as unknown as MouseEvent<HTMLElement>),
+    press: (x = 100, y = 100) => handlers?.onPointerDownCapture({ clientX: x, clientY: y } as unknown as PointerEvent<HTMLElement>),
+    click: (x = 100, y = 100) => handlers?.onClick({ clientX: x, clientY: y } as unknown as MouseEvent<HTMLElement>),
   };
 }
 
@@ -39,19 +32,19 @@ afterEach(() => {
 });
 
 describe('useOverlayTap', () => {
-  it('toggles the Overlay on a tap in the middle with no selection', () => {
+  it('toggles the Overlay on a tap with no selection', () => {
     setSelection(true);
     const { toggle, press, click } = setUp();
     press();
-    click(500, 300);
+    click();
     expect(toggle).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves the Overlay alone for a tap near the edge', () => {
+  it('does not toggle when the press travelled, as in a scroll', () => {
     setSelection(true);
     const { toggle, press, click } = setUp();
-    press();
-    click(20, 300);
+    press(100, 400);
+    click(100, 200);
     expect(toggle).not.toHaveBeenCalled();
   });
 
@@ -61,7 +54,7 @@ describe('useOverlayTap', () => {
     press();
     // The press collapses the selection before the click arrives.
     setSelection(true);
-    click(500, 300);
+    click();
     expect(toggle).not.toHaveBeenCalled();
   });
 
@@ -70,7 +63,7 @@ describe('useOverlayTap', () => {
     const { toggle, press, click } = setUp();
     press();
     setSelection(false);
-    click(500, 300);
+    click();
     expect(toggle).not.toHaveBeenCalled();
   });
 
@@ -79,9 +72,9 @@ describe('useOverlayTap', () => {
     const { toggle, press, click } = setUp();
     press();
     setSelection(true);
-    click(500, 300);
+    click();
     press();
-    click(500, 300);
+    click();
     expect(toggle).toHaveBeenCalledTimes(1);
   });
 });
