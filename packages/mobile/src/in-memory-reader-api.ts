@@ -12,10 +12,10 @@ function done<T>(data: T): Promise<Result<T>> {
 }
 
 /**
- * A temporary reader API that keeps nothing on disk: the Library is empty and
- * only the Theme and sidebar widths are remembered, until the app restarts.
- * It exists so the Android shell can show the shared renderer before the
- * SQLite-backed adapter replaces it.
+ * The reader API for everything the Android app does not do yet: the Library is
+ * empty and only the Theme, sidebar widths and Target language are remembered,
+ * until the app restarts. The SQLite-backed adapter spreads this and overrides
+ * what the core services cover, so each later ticket replaces stubs here.
  *
  * @returns A reader API with every capability off.
  */

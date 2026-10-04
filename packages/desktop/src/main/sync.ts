@@ -2,12 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CloudProvider, Result, SqlDriver, SyncSummary } from '@taking-book/core';
-import { err, isOk, ok, syncLibrary, getSetting, setSetting, listFiles } from '@taking-book/core';
+import { err, getDeviceId as getCoreDeviceId, isOk, ok, syncLibrary, getSetting, listFiles } from '@taking-book/core';
 import { createGoogleDriveProvider } from './cloud/googleDrive';
 import { createCloudTokenStore } from './cloud/tokenStore';
 import { createFolderSyncStorage } from './syncStorage';
 
-const DEVICE_KEY = 'deviceId';
 const CLIENT_ID_KEY = 'googleDriveClientId';
 
 /**
@@ -19,11 +18,9 @@ const CLIENT_ID_KEY = 'googleDriveClientId';
 
 /** Returns the persisted device id, creating one the first time. */
 export async function getDeviceId(db: SqlDriver): Promise<string> {
-  const existing = await getSetting(db, DEVICE_KEY);
-  if (isOk(existing) && existing.data) return existing.data;
-  const id = randomUUID();
-  await setSetting(db, DEVICE_KEY, id);
-  return id;
+  const id = await getCoreDeviceId(db, randomUUID);
+  if (!isOk(id)) throw new Error(id.error);
+  return id.data;
 }
 
 /** Returns the Google OAuth client id, or null when none is configured. */

@@ -5,6 +5,9 @@ export { createSettingsService, formatLocalDay, type SettingsService, type Setti
 export { createLibraryService, type HashedTextStore, type LibraryService, type LibraryServiceOptions } from './libraryService';
 export { err, isErr, isOk, ok, unwrapOr, type Result } from './result';
 export type { SqlDriver, SqlRunResult, SqlValue } from './sql';
+export { describeSqlDriverContract } from './sqlDriverContract';
+export type { SqlDriverContractHarness } from './sqlDriverContract';
+export { getDeviceId } from './deviceId';
 export { deleteFile, filesSchema, getFileZoom, getLastPosition, getLiveFileByHash, listFiles, saveLastPosition, setFileFavorite, setFilePageCount, setFileStatus, setFileTags, setFileTitle, setFileZoom, upsertFile, type UpsertFileInput } from './filesRepository';
 export { importBooks, type ImportBooksOptions, type ImportFileSystem, type ImportProgress, type ImportSummary, type SkippedImport, type SkipReason } from './importBooks';
 export {

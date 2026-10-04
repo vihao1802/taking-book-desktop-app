@@ -35,3 +35,11 @@ On a machine without a GPU, start the emulator with
 `assets/icon.png` and `assets/adaptive-icon.png` are the canonical 1024px icons
 from the designer's pack. The generated launcher icons under `android/` are still
 Capacitor's defaults.
+
+## Data
+
+The app database is `taking-bookSQLite.db` in the app's private storage, opened
+through `@capacitor-community/sqlite`. `createCapacitorSqlDriver` implements
+core's `SqlDriver` over it with a write mutex, and runs the same transaction
+tests as the desktop driver (`describeSqlDriverContract`). Covers and reflow
+text are files under the app's private data directory.

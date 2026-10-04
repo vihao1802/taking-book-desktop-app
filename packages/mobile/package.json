@@ -14,8 +14,10 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.1",
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.4",
     "@taking-book/core": "0.1.0",
     "@taking-book/renderer": "0.1.0",
     "react": "^19.2.8",
@@ -24,10 +26,12 @@
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.1.2",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "better-sqlite3": "^13.0.3",
     "eslint": "^8.57.1",
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-import": "^2.32.0",
