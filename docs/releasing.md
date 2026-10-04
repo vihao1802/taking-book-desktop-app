@@ -63,8 +63,8 @@ it, so keep the anchor `#install-on-android` stable. In short:
    an install or update, use the advanced flow: turn on developer mode, open the
    developer verification setting, pass the coaching check, restart, wait one day,
    then confirm with biometrics or PIN and allow unverified installs. The app is
-   registered as `dev.takingbook.app`, so this applies only if the registration
-   or the device list (ADR-0011) does not cover the device.
+   registered as `dev.takingbook.app` (ADR-0011), but how Limited Distribution
+   declares devices is still an open question there, so keep this flow documented.
 
 ## Notes
 
