@@ -192,6 +192,8 @@ jobs:
             echo "## What's changed"
             echo
             git log "$range" --no-merges --pretty='- %s'
+            echo
+            echo "**Installing on Android**: see the [install guide](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/README.md#install-on-android) (unknown sources, Play Protect, developer verification)."
             if [ -n "$previous_tag" ]; then
               echo
               echo "**Full changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${previous_tag}...${GITHUB_REF_NAME}"

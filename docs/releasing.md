@@ -47,6 +47,25 @@ The workflow decodes the keystore to a runner temp file and deletes it after the
 build, then prints the APK's signing certificate; compare its SHA-256 with the
 one registered in the Android Developer Console.
 
+## Installing the APK
+
+Readers sideload the APK. The full guide, including Android developer
+verification and its advanced flow, is the README section
+[Install on Android](../README.md#install-on-android); the release notes link to
+it, so keep the anchor `#install-on-android` stable. In short:
+
+1. Download `taking-book-<version>.apk` from the release on the phone.
+2. Open it, allow the browser or file manager to install unknown apps (**Settings
+   → Allow from this source**), then tap **Install**.
+3. If Play Protect says the app is blocked or unsafe, it only means the developer
+   is not known to Play: tap **More details**, then **Install anyway**.
+4. If Android developer verification is enforced on the device and still refuses
+   an install or update, use the advanced flow: turn on developer mode, open the
+   developer verification setting, pass the coaching check, restart, wait one day,
+   then confirm with biometrics or PIN and allow unverified installs. The app is
+   registered as `dev.takingbook.app` (ADR-0011), but how Limited Distribution
+   declares devices is still an open question there, so keep this flow documented.
+
 ## Notes
 
 - **Google OAuth credentials** are injected from the `TB_GDRIVE_CLIENT_ID` /
