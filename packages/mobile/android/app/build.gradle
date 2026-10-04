@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// Release inputs come from the release workflow (ADR-0011): the version from the
+// tag, the signing key from decoded repository secrets. Local builds omit them
+// and get a placeholder version and an unsigned release variant.
+def releaseVersionCode = (project.findProperty('versionCode') ?: '1') as int
+def releaseVersionName = project.findProperty('versionName') ?: '1.0'
+def releaseKeystorePath = System.getenv('TB_KEYSTORE_PATH')
+
 android {
     namespace = "dev.takingbook.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +14,8 @@ android {
         applicationId "dev.takingbook.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode releaseVersionCode
+        versionName releaseVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +23,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (releaseKeystorePath) {
+                storeFile file(releaseKeystorePath)
+                storePassword System.getenv('TB_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('TB_KEY_ALIAS')
+                keyPassword System.getenv('TB_KEYSTORE_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseKeystorePath) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

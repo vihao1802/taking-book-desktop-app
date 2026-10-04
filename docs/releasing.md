@@ -3,7 +3,7 @@
 End users download the app from the **GitHub Releases** page of this (public)
 repo. A tag pushed here triggers a GitHub Actions workflow
 (`.github/workflows/release.yml`) that builds a `.deb` (Linux), a `.exe`
-(Windows) and a `.zip` (macOS) and attaches them to the release. The app's
+(Windows), a `.zip` (macOS) and a signed Android `.apk` and attaches them to the release. The app's
 update notice reads the same Releases page, so readers are told about the new
 version on their next launch.
 
@@ -27,6 +27,25 @@ Steps:
 
    The workflow builds all three platforms and publishes the release.
 3. Verify the release at `https://github.com/vihao1802/taking-book-desktop-app/releases`.
+
+## Android APK
+
+The `android` job builds `taking-book-<version>.apk` from the same tag (ADR-0011).
+`versionCode` is `major*10000 + minor*100 + patch`, so minor and patch must stay
+at or below 99. The tag must equal the version in `packages/desktop/package.json`.
+A manual run builds the APK without publishing; without the signing secrets it
+produces `taking-book-<version>-unsigned.apk`, while a tag push fails instead of
+publishing an unsigned build.
+
+Repository secrets (the keystore itself is never committed):
+
+- `TB_ANDROID_KEYSTORE_BASE64`: the PKCS12 keystore, `base64 -w0 release.p12`.
+- `TB_ANDROID_KEYSTORE_PASSWORD`: its password (also used for the key).
+- `TB_ANDROID_KEY_ALIAS`: the key alias.
+
+The workflow decodes the keystore to a runner temp file and deletes it after the
+build, then prints the APK's signing certificate; compare its SHA-256 with the
+one registered in the Android Developer Console.
 
 ## Notes
 
