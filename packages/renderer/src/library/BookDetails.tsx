@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Play, Star, Trash2, X } from 'lucide-react';
-import type { BookFile, BookStatus } from '@/reader-api';
+import type { BookFile, BookStatus, RemoteOnlyBook } from '@/reader-api';
 import { badgeVariants } from '@/components/ui/badge';
 import { BookCover } from '@/components/BookCover';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,15 @@ import { initials } from '@/lib/initials';
 import { progressLine, readingProgressPercent } from '@/lib/progress';
 import { STATUS_OPTIONS } from '@/lib/status';
 import { cn } from '@/lib/utils';
+import { RemoteOnlyNotice } from './RemoteOnlyNotice';
 
 interface BookDetailsProps {
   file: BookFile;
   onOpen: () => void;
+  /** Set when the Book's PDF is not on this device: the reason is shown and Open gives way to Download now. */
+  remoteOnly?: RemoteOnlyBook | null;
+  downloading?: boolean;
+  onDownloadNow?: () => void;
   onSetStatus: (status: BookStatus) => void;
   onSetTags: (tags: string[]) => void;
   onToggleFavorite: () => void;
@@ -34,6 +39,9 @@ interface BookDetailsProps {
 export function BookDetails({
   file,
   onOpen,
+  remoteOnly = null,
+  downloading = false,
+  onDownloadNow,
   onSetStatus,
   onSetTags,
   onToggleFavorite,
@@ -170,11 +178,15 @@ export function BookDetails({
         </form>
       </div>
 
+      {remoteOnly && <RemoteOnlyNotice remoteOnly={remoteOnly} downloading={downloading} onDownloadNow={() => onDownloadNow?.()} />}
+
       <div className="flex flex-wrap items-center gap-2 pt-2">
-        <Button onClick={onOpen} aria-label={`Open ${file.title}`}>
-          <Play />
-          Open
-        </Button>
+        {!remoteOnly && (
+          <Button onClick={onOpen} aria-label={`Open ${file.title}`}>
+            <Play />
+            Open
+          </Button>
+        )}
         {onQuiz && file.lastPage != null && file.lastPage > 0 && (
           <Button variant="outline" onClick={onQuiz} aria-label={`Take a Quiz on ${file.title}`}>
             Quiz

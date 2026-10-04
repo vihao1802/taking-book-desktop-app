@@ -70,7 +70,22 @@ export async function checkBookReadable(storedPath: string): Promise<Result<void
     return ok(undefined);
   } catch (error) {
     console.error(`Could not read the stored book ${storedPath}: ${errorMessage(error)}`);
-    return err('This book’s file is no longer on this device.');
+    return err('This book’s PDF is not on this device. Open its details in the Library to see why and download it.');
+  }
+}
+
+/**
+ * Whether a Book's PDF is on this device. Unlike {@link checkBookReadable} it
+ * says nothing when the file is missing, since a Remote-only Book is normal.
+ *
+ * @param storedPath The Book's path inside the app data folder.
+ */
+export async function isBookOnDevice(storedPath: string): Promise<boolean> {
+  try {
+    await Filesystem.stat({ path: storedPath, directory: Directory.Data });
+    return true;
+  } catch {
+    return false;
   }
 }
 

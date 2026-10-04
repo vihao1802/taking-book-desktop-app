@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { isOk, type DeviceCodePrompt, type ImportProgress, type ImportSummary, type Result } from '@taking-book/core';
-import type { BookFile, BookStatus, CloudAccount } from '@/reader-api';
+import type { BookFile, BookStatus, CloudAccount, RemoteOnlyBook } from '@/reader-api';
 import {
   LibraryContext,
   type LibraryContextValue,
@@ -12,6 +12,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<BookFile[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remoteOnly, setRemoteOnly] = useState<ReadonlyMap<string, RemoteOnlyBook>>(new Map());
+  const [downloadingHash, setDownloadingHash] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [importNotice, setImportNotice] = useState<ImportSummary | null>(null);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
@@ -24,6 +26,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     const result = await window.api.listFiles();
     if (isOk(result)) setFiles(result.data);
     else setError(result.error);
+    const missing = await window.api.getRemoteOnlyBooks();
+    if (isOk(missing)) setRemoteOnly(new Map(missing.data.map((book) => [book.hash, book])));
     setLoaded(true);
   }, []);
 
@@ -111,6 +115,21 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     }
   }, [refresh]);
 
+  const downloadNow = useCallback(
+    async (file: BookFile) => {
+      setDownloadingHash(file.hash);
+      setError(null);
+      try {
+        const result = await window.api.downloadBookNow(file.hash);
+        if (!isOk(result)) setError(`Couldn't download “${file.title}”. ${result.error}`);
+        await refresh();
+      } finally {
+        setDownloadingHash(null);
+      }
+    },
+    [refresh],
+  );
+
   const disconnectCloud = useCallback(async () => {
     const result = await window.api.disconnectCloud();
     if (isOk(result)) {
@@ -181,6 +200,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     files,
     loaded,
     error,
+    remoteOnly,
+    downloadingHash,
+    downloadNow,
     busy,
     account,
     connecting,

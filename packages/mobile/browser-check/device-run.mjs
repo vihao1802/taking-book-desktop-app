@@ -281,6 +281,10 @@ await check('Sync: the native Storage and Network plugins answer', async () => {
   return answers.freeBytes > 0 && typeof answers.connectionType === 'string' ? '' : JSON.stringify(answers);
 });
 await checkReflowOnDevice();
+await check('Remote-only: the Library has no Book missing its PDF after the fixture was added here', async () => {
+  const missing = await page.evaluate(async () => (await window.api.getRemoteOnlyBooks()).data);
+  return Array.isArray(missing) && missing.length === 0 ? '' : JSON.stringify(missing);
+});
 if (errors.length > 0) record('No uncaught page errors', false, errors[0]);
 
 for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.check}${r.ok ? '' : `  -> ${r.detail}`}`);

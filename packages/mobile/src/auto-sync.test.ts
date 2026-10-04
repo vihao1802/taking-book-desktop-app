@@ -30,6 +30,8 @@ describe('createAutoSync', () => {
       connectCloud: async () => err('unused'),
       disconnectCloud: async () => ok(undefined),
       runSync,
+      getRemoteOnlyBooks: async () => ok([]),
+      downloadBookNow: async () => ok(undefined),
       onDeviceCode: () => () => undefined,
     };
     autoSync = createAutoSync({

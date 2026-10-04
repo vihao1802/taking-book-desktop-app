@@ -26,6 +26,7 @@ import {
 import { QuizDialog } from '../quiz/QuizDialog';
 import { BookDetails } from './BookDetails';
 import { DeviceCodeNotice } from './DeviceCodeNotice';
+import { RemoteOnlyBadge } from './RemoteOnlyBadge';
 import { describeSkippedDownloads } from './skipped-downloads';
 import { getBookDetailsPresentation } from './book-details-presentation';
 import { useAddPdf } from './useAddPdf';
@@ -40,6 +41,9 @@ export function Library({
   const {
     files,
     error,
+    remoteOnly,
+    downloadingHash,
+    downloadNow,
     busy,
     account,
     connecting,
@@ -101,6 +105,9 @@ export function Library({
         setDetailsId(null);
         onOpen(file);
       }}
+      remoteOnly={remoteOnly.get(file.hash) ?? null}
+      downloading={downloadingHash === file.hash}
+      onDownloadNow={() => downloadNow(file)}
       onSetStatus={(status) => setStatus(file.id, status)}
       onSetTags={(tags) => setTags(file.id, tags)}
       onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
@@ -120,6 +127,12 @@ export function Library({
       onClose={inPane ? () => setDetailsId(null) : undefined}
     />
   );
+
+  // A Book without its PDF cannot be read, so tapping it shows why instead of opening an empty reader.
+  const openOrExplain = (file: BookFile) => {
+    if (remoteOnly.has(file.hash)) setDetailsId(file.id);
+    else onOpen(file);
+  };
 
   const confirmRemove = async () => {
     if (!pendingRemove) return;
@@ -312,7 +325,8 @@ export function Library({
             <BookCard
               key={file.id}
               file={file}
-              onOpen={() => onOpen(file)}
+              onOpen={() => openOrExplain(file)}
+              remoteOnly={remoteOnly.has(file.hash)}
               onSetStatus={(status) => setStatus(file.id, status)}
               onSetTags={(tags) => setTags(file.id, tags)}
               onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
@@ -330,7 +344,8 @@ export function Library({
               <BookRow
                 key={file.id}
                 file={file}
-                onOpen={() => onOpen(file)}
+                onOpen={() => openOrExplain(file)}
+                remoteOnly={remoteOnly.has(file.hash)}
                 onSetStatus={(status) => setStatus(file.id, status)}
                 onSetTags={(tags) => setTags(file.id, tags)}
                 onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
@@ -389,6 +404,7 @@ export function Library({
 function BookCard({
   file,
   onOpen,
+  remoteOnly,
   onSetStatus,
   onSetTags,
   onToggleFavorite,
@@ -399,6 +415,7 @@ function BookCard({
 }: {
   file: BookFile;
   onOpen: () => void;
+  remoteOnly: boolean;
   onSetStatus: (status: BookStatus) => void;
   onSetTags: (tags: string[]) => void;
   onToggleFavorite: () => void;
@@ -465,6 +482,7 @@ function BookCard({
           >
             {file.title}
           </button>
+          {remoteOnly && <RemoteOnlyBadge />}
 
           {file.status === 'reading' && progress != null && (
             <Progress value={progress} aria-label={`Reading progress for ${file.title}`} />
@@ -649,6 +667,7 @@ function RenameDialog({
 function BookRow({
   file,
   onOpen,
+  remoteOnly,
   onSetStatus,
   onSetTags,
   onToggleFavorite,
@@ -659,6 +678,7 @@ function BookRow({
 }: {
   file: BookFile;
   onOpen: () => void;
+  remoteOnly: boolean;
   onSetStatus: (status: BookStatus) => void;
   onSetTags: (tags: string[]) => void;
   onToggleFavorite: () => void;
@@ -696,6 +716,7 @@ function BookRow({
             >
               {file.title}
             </button>
+            {remoteOnly && <RemoteOnlyBadge />}
             <button
               onClick={(e) => {
                 e.stopPropagation();

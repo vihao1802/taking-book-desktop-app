@@ -65,6 +65,9 @@ const api: ReaderApi = {
   // A computer has no mobile connection, so the setting is hidden and never read.
   getDownloadOverMobileData: () => Promise.resolve({ ok: true, data: false }),
   setDownloadOverMobileData: () => Promise.resolve({ ok: false, error: 'This setting is only for phones.' }),
+  // Desktop downloads every PDF during a sync, so no Book is ever Remote-only there.
+  getRemoteOnlyBooks: () => Promise.resolve({ ok: true, data: [] }),
+  downloadBookNow: () => Promise.resolve({ ok: false, error: 'Every PDF is already on this computer.' }),
   getCloudAccount: () => ipcRenderer.invoke('cloud:status'),
   connectCloud: () => ipcRenderer.invoke('cloud:connect'),
   // The loopback sign-in has no code to show; the device flow replaces it on desktop later.

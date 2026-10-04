@@ -1,6 +1,6 @@
 import { createContext } from 'react';
 import type { DeviceCodePrompt, ImportProgress, ImportSummary } from '@taking-book/core';
-import type { BookFile, BookStatus, CloudAccount, SyncSummary } from '@/reader-api';
+import type { BookFile, BookStatus, CloudAccount, RemoteOnlyBook, SyncSummary } from '@/reader-api';
 
 export interface SyncState {
   syncing: boolean;
@@ -13,6 +13,12 @@ export interface LibraryContextValue {
   /** False until the first library load settles, so an empty `files` is not yet a truly empty library. */
   loaded: boolean;
   error: string | null;
+  /** The Books whose PDF is not on this device, by content hash; empty on a platform that has every PDF. */
+  remoteOnly: ReadonlyMap<string, RemoteOnlyBook>;
+  /** The hash of the Book being downloaded by Download now, or null. */
+  downloadingHash: string | null;
+  /** Downloads a Remote-only Book's PDF once; a failure is shown through `error`. */
+  downloadNow: (file: BookFile) => Promise<void>;
   busy: boolean;
   account: CloudAccount | null;
   connecting: boolean;

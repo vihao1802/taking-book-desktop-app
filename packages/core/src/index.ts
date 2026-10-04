@@ -205,6 +205,15 @@ export {
   type SkippedDownload,
 } from './sync/blobTransfer';
 export {
+  describeRemoteOnlyBook,
+  downloadBookNow,
+  getSkippedDownloads,
+  saveSkippedDownloads,
+  type DownloadBookNowOptions,
+  type RemoteOnlyBook,
+  type RemoteOnlyReason,
+} from './sync/remoteOnly';
+export {
   createDriveRestClient,
   type DriveFetch,
   type DriveFetchInit,

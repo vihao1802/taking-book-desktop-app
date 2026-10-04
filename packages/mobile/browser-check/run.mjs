@@ -207,6 +207,46 @@ async function checkAutoSync(page, sizeClass) {
   });
 }
 
+/** Books without their PDF are marked, explain themselves instead of opening, and one can be downloaded now. */
+async function checkRemoteOnly(page, sizeClass) {
+  await tap(page, 'button[aria-label=Library]');
+  const detailsOf = (title) => `[aria-label="Details for ${title}"]`;
+  await check(sizeClass.name, 'The Library marks the Books that are not on this device', async () => {
+    await page.waitForSelector('text=Not on this device');
+    const marks = await page.locator('text=Not on this device').count();
+    return marks === 2 ? '' : `${marks} marks`;
+  });
+  await check(sizeClass.name, 'Tapping a Remote-only Book shows why in its details and does not open the reader', async () => {
+    await page.locator('button:has-text("Synced Book")').first().tap({ timeout: 5000 });
+    await page.waitForSelector('section[aria-label="Book details"] [role=status]');
+    const text = await page.locator('section[aria-label="Book details"] [role=status]').innerText();
+    const reader = await page.$('canvas');
+    if (reader) return 'the reader opened';
+    return text.includes('Wi-Fi') && text.includes('Download now') ? '' : `notice says: ${text}`;
+  });
+  if (sizeClass.name === 'compact') {
+    await check(sizeClass.name, 'Remote-only details: every control is at least 48dp', async () => {
+      const small = JSON.parse(await page.evaluate(TOUCH_TARGETS));
+      return small.length === 0 ? '' : small.join(', ');
+    });
+  }
+  await check(sizeClass.name, 'Download now makes the Book openable', async () => {
+    await tap(page, 'section[aria-label="Book details"] button:has-text("Download now")');
+    await page.waitForSelector('section[aria-label="Book details"] [aria-label="Open Synced Book"]', { timeout: 5000 });
+    const marks = await page.locator('text=Not on this device').count();
+    return marks === 1 ? '' : `${marks} marks left`;
+  });
+  await page.keyboard.press('Escape');
+  await check(sizeClass.name, 'An oversize Book says to read it on desktop and offers no download', async () => {
+    await tap(page, detailsOf('Huge Book'));
+    await page.waitForSelector('section[aria-label="Book details"] [role=status]');
+    const text = await page.locator('section[aria-label="Book details"] [role=status]').innerText();
+    return text.includes('desktop') && !text.includes('Download now') ? '' : `notice says: ${text}`;
+  });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(SETTLE_MS);
+}
+
 async function openBook(page) {
   await tap(page, '[aria-label^="Details for"]');
   await tap(page, '[data-slot=sheet-content] [aria-label^="Open"], aside [aria-label^="Open"]');
@@ -403,6 +443,7 @@ async function runClass(browser, baseUrl, sizeClass) {
   await checkLibrary(page, sizeClass);
   await checkConnect(page, sizeClass);
   await checkAutoSync(page, sizeClass);
+  await checkRemoteOnly(page, sizeClass);
   await checkSettings(page, sizeClass);
   await check(sizeClass.name, 'The book opens', async () => {
     await openBook(page);

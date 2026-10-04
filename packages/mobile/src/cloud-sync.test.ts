@@ -96,6 +96,14 @@ const DESKTOP_MANIFEST = {
 
 describe('createCloudSync', () => {
   let db: SqlDriver;
+  let booksOnDevice: Set<string>;
+
+  function bookAccess(): Pick<CloudSyncOptions, 'listBooks' | 'isBookOnDevice'> {
+    return {
+      listBooks: () => createServices(db).library.listBooks(),
+      isBookOnDevice: async (path) => booksOnDevice.has(path),
+    };
+  }
   let drive: ReturnType<typeof createMemoryStorage>;
   let log: ReturnType<typeof vi.fn>;
 
@@ -110,12 +118,14 @@ describe('createCloudSync', () => {
       resolveLocalPath: (hash) => `books/${hash}.pdf`,
       blobTransfer: overrides.blobTransfer ?? ALLOW_ALL,
       presentDeviceCode: vi.fn(async () => undefined),
+      ...bookAccess(),
       log,
     });
   }
 
   beforeEach(async () => {
     db = await openDatabase();
+    booksOnDevice = new Set();
     drive = createMemoryStorage();
     log = vi.fn();
   });
@@ -225,6 +235,7 @@ describe('createCloudSync', () => {
       resolveLocalPath: (hash) => hash,
       blobTransfer: ALLOW_ALL,
       presentDeviceCode,
+      ...bookAccess(),
       log,
     });
     const shown: DeviceCodePrompt[] = [];
@@ -244,6 +255,58 @@ describe('createCloudSync', () => {
     expect(await createSync(provider).disconnectCloud()).toEqual(ok(undefined));
 
     expect(provider.disconnect).toHaveBeenCalled();
+  });
+
+  describe('Remote-only Books', () => {
+    const MISSING_BOOK = { hash: 'abc', title: 'Dune', filePath: 'books/abc.pdf' };
+
+    it('lists a Book whose PDF is not on the device, as pending before any sync has said why', async () => {
+      await upsertFile(db, MISSING_BOOK, { updatedAt: 1, updatedBy: 'phone' });
+
+      const result = await createSync(null).getRemoteOnlyBooks();
+
+      expect(result.ok && result.data.map((book) => [book.hash, book.reason, book.canDownloadNow])).toEqual([['abc', 'pending', true]]);
+    });
+
+    it('does not list a Book whose PDF is on the device', async () => {
+      await upsertFile(db, MISSING_BOOK, { updatedAt: 1, updatedBy: 'phone' });
+      booksOnDevice.add('books/abc.pdf');
+
+      expect(await createSync(null).getRemoteOnlyBooks()).toEqual(ok([]));
+    });
+
+    it('remembers why a sync skipped a PDF and reports it for that Book', async () => {
+      await drive.writeFile('manifest.json', new TextEncoder().encode(JSON.stringify(DESKTOP_MANIFEST)));
+      await drive.writeFile('blobs/abc', new Uint8Array([1]));
+      const refuse: BlobTransferPolicy = { uploadBooks: false, decideDownload: async () => ({ download: false, reason: 'size', message: 'Read it on desktop.' }) };
+      const sync = createSync(createProvider(ok(drive)), { blobTransfer: refuse });
+
+      await sync.runSync();
+      const result = await sync.getRemoteOnlyBooks();
+
+      expect(result).toEqual(ok([{ hash: 'abc', reason: 'size', message: 'Read it on desktop.', canDownloadNow: false }]));
+    });
+
+    it('downloads a Book now, ignoring the policy, and stops listing it as skipped', async () => {
+      await drive.writeFile('manifest.json', new TextEncoder().encode(JSON.stringify(DESKTOP_MANIFEST)));
+      await drive.writeFile('blobs/abc', new Uint8Array([7]));
+      const refuse: BlobTransferPolicy = { uploadBooks: false, decideDownload: async () => ({ download: false, reason: 'network', message: 'Use Wi-Fi.' }) };
+      const local = createMemoryStorage();
+      const sync = createSync(createProvider(ok(drive)), { blobTransfer: refuse, localStorage: local });
+      await sync.runSync();
+
+      expect(await sync.downloadBookNow('abc')).toEqual(ok(undefined));
+
+      expect(local.files.get('blobs/abc')).toEqual(new Uint8Array([7]));
+      const afterwards = await sync.getRemoteOnlyBooks();
+      expect(afterwards.ok && afterwards.data[0]?.reason).toBe('pending');
+    });
+
+    it('reports a failed download without changing anything', async () => {
+      const offline = createProvider(err('Drive request failed: Unable to resolve host'));
+
+      expect(await createSync(offline).downloadBookNow('abc')).toEqual(err('Drive request failed: Unable to resolve host'));
+    });
   });
 
   it('says sync is not set up when the build has no OAuth client', async () => {

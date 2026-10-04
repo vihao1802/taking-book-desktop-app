@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { BookFile } from '@/reader-api';
+import type { BookFile, RemoteOnlyBook } from '@/reader-api';
 import { installFakeCapabilities } from '@/lib/fake-capabilities';
 import { BookDetails } from './BookDetails';
 
@@ -24,11 +24,13 @@ const BOOK: BookFile = {
 
 const noop = (): void => undefined;
 
-function renderDetails(overrides: { onQuiz?: (() => void) | null; onClose?: () => void; file?: BookFile } = {}): string {
+function renderDetails(overrides: { onQuiz?: (() => void) | null; onClose?: () => void; file?: BookFile; remoteOnly?: RemoteOnlyBook | null } = {}): string {
   return renderToStaticMarkup(
     <BookDetails
       file={overrides.file ?? BOOK}
       onOpen={noop}
+      remoteOnly={overrides.remoteOnly ?? null}
+      onDownloadNow={noop}
       onSetStatus={noop}
       onSetTags={noop}
       onToggleFavorite={noop}
@@ -73,5 +75,35 @@ describe('BookDetails', () => {
     installFakeCapabilities();
     expect(renderDetails()).not.toContain('Close details');
     expect(renderDetails({ onClose: noop })).toContain('aria-label="Close details"');
+  });
+
+  describe('for a Book whose PDF is not on this device', () => {
+    const networkReason: RemoteOnlyBook = { hash: 'abc', reason: 'network', message: 'PDFs download on Wi-Fi.', canDownloadNow: true };
+
+    it('says why, offers Download now, and gives way from Open', () => {
+      installFakeCapabilities();
+      const html = renderDetails({ remoteOnly: networkReason });
+
+      expect(html).toContain('Not on this device');
+      expect(html).toContain('PDFs download on Wi-Fi.');
+      expect(html).toContain('Download now');
+      expect(html).not.toContain('Open Deep Work');
+    });
+
+    it('tells the reader to use desktop for a PDF that is too large, without a Download now', () => {
+      installFakeCapabilities();
+      const html = renderDetails({ remoteOnly: { hash: 'abc', reason: 'size', message: 'Read it on desktop.', canDownloadNow: false } });
+
+      expect(html).toContain('Read it on desktop.');
+      expect(html).not.toContain('Download now');
+    });
+
+    it('still shows the Book details, such as its title and Remove', () => {
+      installFakeCapabilities();
+      const html = renderDetails({ remoteOnly: networkReason });
+
+      expect(html).toContain('Deep Work');
+      expect(html).toContain('Remove Deep Work from library');
+    });
   });
 });

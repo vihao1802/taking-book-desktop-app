@@ -1,16 +1,16 @@
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { err, getDeviceId, ok, type Result, type SettingsService, type SqlDriver } from '@taking-book/core';
+import { err, getDeviceId, ok, type Result, type SqlDriver } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
 import { createAppUpdates, fetchLatestRelease } from './app-updates';
 import { createBookFiles } from './book-files';
 import { createBookSyncStorage } from './book-sync-storage';
-import { bookPathFor, checkBookReadable, createCapacitorBookStorage, createDocumentUrlResolver } from './capacitor-book-storage';
+import { bookPathFor, checkBookReadable, isBookOnDevice, createCapacitorBookStorage, createDocumentUrlResolver } from './capacitor-book-storage';
 import { createAutoSync, type AutoSyncEvents } from './auto-sync';
 import { createCloudSync, type CloudSync } from './cloud-sync';
 import { createDriveProvider } from './create-drive-provider';
 import { createFilesystemTextStore } from './filesystem-text-store';
-import { createMobileReaderApi, createMobileServices } from './mobile-reader-api';
+import { createMobileReaderApi, createMobileServices, type MobileServices } from './mobile-reader-api';
 import { createMobileTransferPolicy } from './mobile-transfer-policy';
 import { openDatabase } from './open-database';
 import { pickPdfs } from './pick-pdfs';
@@ -38,13 +38,16 @@ async function openInBrowser(url: string): Promise<Result<void>> {
   }
 }
 
-function buildCloudSync(db: SqlDriver, settings: SettingsService, generateId: () => string, log: (message: string) => void): CloudSync & AutoSyncEvents {
+function buildCloudSync(db: SqlDriver, services: MobileServices, generateId: () => string, log: (message: string) => void): CloudSync & AutoSyncEvents {
+  const { settings, library } = services;
   const clientConfig = { clientId: import.meta.env.VITE_TB_GDRIVE_CLIENT_ID, clientSecret: import.meta.env.VITE_TB_GDRIVE_CLIENT_SECRET };
   const cloud = createCloudSync({
     db,
     provider: createDriveProvider(clientConfig, generateId),
     localStorage: createBookSyncStorage(),
     resolveLocalPath: bookPathFor,
+    listBooks: () => library.listBooks(),
+    isBookOnDevice,
     blobTransfer: createMobileTransferPolicy({
       isOnWifi,
       getFreeBytes: getFreeStorageBytes,
@@ -100,5 +103,5 @@ export async function startReaderApi(): Promise<Result<ReaderApi>> {
     openUrl: openInBrowser,
     log,
   });
-  return ok(createMobileReaderApi(services, bookFiles, updates, buildCloudSync(db.data, services.settings, generateId, log)));
+  return ok(createMobileReaderApi(services, bookFiles, updates, buildCloudSync(db.data, services, generateId, log)));
 }

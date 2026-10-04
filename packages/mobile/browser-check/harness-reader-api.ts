@@ -1,5 +1,5 @@
 import { ok, type Result } from '@taking-book/core';
-import type { BookFile, BookStatus, CloudAccount, DeviceCodePrompt, LastPosition, ReaderApi, ReadMode, SyncSummary } from '@taking-book/renderer';
+import type { BookFile, BookStatus, CloudAccount, DeviceCodePrompt, LastPosition, RemoteOnlyBook, ReaderApi, ReadMode, SyncSummary } from '@taking-book/renderer';
 import { createInMemoryReaderApi } from '../src/in-memory-reader-api';
 
 const FIXTURE_URL = '/fixture.pdf';
@@ -52,9 +52,17 @@ export function createHarnessReaderApi(): ReaderApi {
   let account: CloudAccount | null = null;
   let syncedBooks: BookFile[] = [];
   let downloadOverMobileData = false;
+  let remoteOnly: RemoteOnlyBook[] = [];
   const syncListeners = new Set<(result: Result<SyncSummary>) => void>();
   Reflect.set(window, AUTO_SYNC_HOOK, () => {
-    syncedBooks = [{ ...createFixtureBook(), id: 2, hash: 'synced-hash', title: 'Synced Book' }];
+    syncedBooks = [
+      { ...createFixtureBook(), id: 2, hash: 'synced-hash', title: 'Synced Book' },
+      { ...createFixtureBook(), id: 3, hash: 'huge-hash', title: 'Huge Book' },
+    ];
+    remoteOnly = [
+      { hash: 'synced-hash', reason: 'network', message: 'PDFs download on Wi-Fi. Connect to Wi-Fi, or allow mobile data in Settings.', canDownloadNow: true },
+      { hash: 'huge-hash', reason: 'size', message: 'This PDF is 400 MB, over the 150 MB limit for this device. Read it on desktop.', canDownloadNow: false },
+    ];
     const summary: SyncSummary = { added: 1, updated: 0, deleted: 0, uploaded: 0, downloaded: 0, warnings: [], skippedDownloads: [] };
     syncListeners.forEach((listener) => listener(ok(summary)));
   });
@@ -91,6 +99,11 @@ export function createHarnessReaderApi(): ReaderApi {
         warnings: [],
         skippedDownloads: [{ hash: 'skipped-hash', title: 'Skipped Book', reason: 'network', message: 'PDFs download on Wi-Fi. Connect to Wi-Fi, or allow mobile data in Settings.' }],
       }),
+    getRemoteOnlyBooks: () => done(remoteOnly),
+    downloadBookNow: (hash: string) => {
+      remoteOnly = remoteOnly.filter((book) => book.hash !== hash);
+      return done(undefined);
+    },
     capabilities: { ...createInMemoryReaderApi().capabilities, mobileDataDownloads: true },
     getDownloadOverMobileData: () => done(downloadOverMobileData),
     setDownloadOverMobileData: (allowed: boolean) => {

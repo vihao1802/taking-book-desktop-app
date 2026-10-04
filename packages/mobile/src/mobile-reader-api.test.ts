@@ -41,6 +41,8 @@ function createApi(db: SqlDriver): ReaderApi {
     connectCloud: async () => ({ ok: false, error: 'offline' }),
     disconnectCloud: async () => ({ ok: true, data: undefined }),
     runSync: async () => ({ ok: false, error: 'offline' }),
+    getRemoteOnlyBooks: async () => ({ ok: true, data: [] }),
+    downloadBookNow: async () => ({ ok: false, error: 'offline' }),
     onDeviceCode: () => () => undefined,
   };
   return createMobileReaderApi(services, bookFiles, updates, cloud);

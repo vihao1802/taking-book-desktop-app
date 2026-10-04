@@ -1,4 +1,4 @@
-import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, DeviceCodePrompt, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
+import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, DeviceCodePrompt, RemoteOnlyBook, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /**
  * Which optional features a platform supports. The renderer hides the
@@ -105,6 +105,10 @@ export interface ReaderApi {
   /** Whether PDFs may be downloaded over mobile data on this device (never synced); off until turned on. */
   getDownloadOverMobileData(): Promise<Result<boolean>>;
   setDownloadOverMobileData(allowed: boolean): Promise<Result<void>>;
+  /** The Books in the Library whose PDF is not on this device (Remote-only Books), each with the reason. */
+  getRemoteOnlyBooks(): Promise<Result<RemoteOnlyBook[]>>;
+  /** Downloads a Remote-only Book's PDF once, ignoring the Wi-Fi and storage rules; the error is worded for the reader. */
+  downloadBookNow(hash: string): Promise<Result<void>>;
   getCloudAccount(): Promise<Result<CloudAccount | null>>;
   /**
    * Signs in to the cloud account. A platform that signs in with a device code
@@ -163,4 +167,4 @@ export interface ReaderApi {
   acknowledgeQuizPrivacyNotice(): Promise<Result<void>>;
 }
 
-export type { Annotation, AnnotationColor, BookFile, DeviceCodePrompt, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };
+export type { Annotation, AnnotationColor, BookFile, DeviceCodePrompt, RemoteOnlyBook, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };

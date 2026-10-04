@@ -1,13 +1,20 @@
 import {
+  describeRemoteOnlyBook,
+  downloadBookNow,
   err,
+  getSkippedDownloads,
   ok,
+  saveSkippedDownloads,
   syncLibrary,
   type CloudAccount,
   type BlobTransferPolicy,
+  type BookFile,
   type CloudProvider,
   type DeviceCodePrompt,
+  type RemoteOnlyBook,
   type Result,
   type SqlDriver,
+  type SkippedDownload,
   type SyncStorage,
   type SyncSummary,
 } from '@taking-book/core';
@@ -18,6 +25,10 @@ export interface CloudSync {
   connectCloud(): Promise<Result<CloudAccount>>;
   disconnectCloud(): Promise<Result<void>>;
   runSync(): Promise<Result<SyncSummary>>;
+  /** The Books in the Library whose PDF is not on this device, each with the reason. */
+  getRemoteOnlyBooks(): Promise<Result<RemoteOnlyBook[]>>;
+  /** Downloads one Book's PDF once, whatever the Wi-Fi and storage rules say. */
+  downloadBookNow(hash: string): Promise<Result<void>>;
   onDeviceCode(listener: (prompt: DeviceCodePrompt) => void): () => void;
 }
 
@@ -32,6 +43,10 @@ export interface CloudSyncOptions {
   blobTransfer: BlobTransferPolicy;
   /** Copies the code and opens the verification page when a sign-in code appears. */
   presentDeviceCode: (prompt: DeviceCodePrompt) => Promise<void>;
+  /** The whole Library, so the Books missing from the device can be found. */
+  listBooks: () => Promise<Result<BookFile[]>>;
+  /** Whether a Book's stored path has its PDF on this device. */
+  isBookOnDevice: (storedPath: string) => Promise<boolean>;
   log: (message: string) => void;
 }
 
@@ -68,6 +83,7 @@ export function createCloudSync(options: CloudSyncOptions): CloudSync {
         logWarning: (message) => log(`sync: ${message}`),
       });
       if (!summary.ok) log(`sync failed: ${summary.error}`);
+      else await rememberSkippedDownloads(summary.data.skippedDownloads);
       return summary;
     } catch (error) {
       log(`sync failed unexpectedly: ${errorMessage(error)}`);
@@ -75,7 +91,42 @@ export function createCloudSync(options: CloudSyncOptions): CloudSync {
     }
   }
 
+  /** Keeps the reasons for Book details; failing to keep them must not fail a sync that worked. */
+  async function rememberSkippedDownloads(skipped: SkippedDownload[]): Promise<void> {
+    const saved = await saveSkippedDownloads(db, skipped);
+    if (!saved.ok) log(`sync: could not remember the skipped downloads: ${saved.error}`);
+  }
+
+  async function getRemoteOnlyBooks(): Promise<Result<RemoteOnlyBook[]>> {
+    const [books, skipped] = await Promise.all([options.listBooks(), getSkippedDownloads(db)]);
+    if (!books.ok) return books;
+    const reasons = new Map((skipped.ok ? skipped.data : []).map((item) => [item.hash, item]));
+    const missing: RemoteOnlyBook[] = [];
+    for (const book of books.data) {
+      if (!(await options.isBookOnDevice(book.path))) missing.push(describeRemoteOnlyBook(book.hash, reasons.get(book.hash)));
+    }
+    return ok(missing);
+  }
+
+  async function downloadNow(hash: string): Promise<Result<void>> {
+    if (!provider) return err(NOT_SET_UP);
+    try {
+      const remote = await provider.createSyncStorage();
+      if (!remote.ok) return remote;
+      const downloaded = await downloadBookNow({ remote: remote.data, local: options.localStorage, hash });
+      if (!downloaded.ok) return downloaded;
+      const skipped = await getSkippedDownloads(db);
+      if (skipped.ok) await rememberSkippedDownloads(skipped.data.filter((item) => item.hash !== hash));
+      return ok(undefined);
+    } catch (error) {
+      log(`download now failed unexpectedly: ${errorMessage(error)}`);
+      return err('The PDF could not be downloaded. Try again.');
+    }
+  }
+
   return {
+    getRemoteOnlyBooks,
+    downloadBookNow: downloadNow,
     getCloudAccount: () => (provider ? provider.getAccount() : Promise.resolve(ok(null))),
     connectCloud: () => {
       if (!provider) return Promise.resolve(err(NOT_SET_UP));

@@ -107,6 +107,8 @@ export function createInMemoryReaderApi(): ReaderApi {
     translate: () => unavailable(),
     getDownloadOverMobileData: () => done(false),
     setDownloadOverMobileData: () => unavailable(),
+    getRemoteOnlyBooks: () => done([]),
+    downloadBookNow: () => unavailable(),
     getCloudAccount: () => done(null),
     connectCloud: () => unavailable(),
     onDeviceCode: () => () => undefined,
