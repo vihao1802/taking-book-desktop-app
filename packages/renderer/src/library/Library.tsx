@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, BookOpen, Cloud, FolderSync, LayoutGrid, List, Star } from 'lucide-react';
+import { AlertCircle, BookOpen, Cloud, FolderSync, LayoutGrid, List, MoreHorizontal, Star } from 'lucide-react';
 import type { BookFile, BookStatus } from '@/reader-api';
 import { Badge, badgeVariants } from '@/components/ui/badge';
 import { BookCover } from '@/components/BookCover';
@@ -7,12 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { initials } from '@/lib/initials';
 import { useCapabilities } from '@/lib/useCapabilities';
 import { readingProgressPercent } from '@/lib/progress';
 import { STATUS_OPTIONS, statusBadgeVariant } from '@/lib/status';
 import { cn } from '@/lib/utils';
 import { useSearchShortcut } from '@/lib/useSearchShortcut';
+import { useWindowSizeClass } from '@/lib/useWindowSizeClass';
 import { Progress } from '@/components/ui/progress';
 import {
   Select,
@@ -22,6 +24,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { QuizDialog } from '../quiz/QuizDialog';
+import { BookDetails } from './BookDetails';
+import { getBookDetailsPresentation } from './book-details-presentation';
 import { useAddPdf } from './useAddPdf';
 import { useLibrary } from './useLibrary';
 
@@ -55,6 +59,9 @@ export function Library({
   const { quiz: quizEnabled } = useCapabilities();
   const [quizFile, setQuizFile] = useState<BookFile | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  // The Book whose details are showing; looked up in `files` on every render so edits show at once.
+  const [detailsId, setDetailsId] = useState<number | null>(null);
+  const sizeClass = useWindowSizeClass();
   const searchRef = useRef<HTMLInputElement>(null);
   useSearchShortcut(searchRef);
 
@@ -79,6 +86,37 @@ export function Library({
   }, [files, query, statusFilter, tagFilter, favoritesOnly]);
 
   const handleOpen = useAddPdf(onOpen);
+
+  const detailsFile = files.find((f) => f.id === detailsId) ?? null;
+  const presentation = getBookDetailsPresentation({ view, sizeClass });
+
+  // The sheet and the dialogs it leads to are all modal, so the sheet goes away before another opens.
+  const bookDetails = (file: BookFile, inPane: boolean) => (
+    <BookDetails
+      file={file}
+      onOpen={() => {
+        setDetailsId(null);
+        onOpen(file);
+      }}
+      onSetStatus={(status) => setStatus(file.id, status)}
+      onSetTags={(tags) => setTags(file.id, tags)}
+      onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
+      onRename={(title) => setTitle(file.id, title)}
+      onRemove={() => {
+        setDetailsId(null);
+        setPendingRemove(file);
+      }}
+      onQuiz={
+        quizEnabled
+          ? () => {
+              setDetailsId(null);
+              setQuizFile(file);
+            }
+          : null
+      }
+      onClose={inPane ? () => setDetailsId(null) : undefined}
+    />
+  );
 
   const confirmRemove = async () => {
     if (!pendingRemove) return;
@@ -269,25 +307,40 @@ export function Library({
               onRemove={() => setPendingRemove(file)}
               onRename={(title) => setTitle(file.id, title)}
               onQuiz={quizEnabled ? () => setQuizFile(file) : null}
+              onShowDetails={() => setDetailsId(file.id)}
             />
           ))}
         </ul>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {visible.map((file) => (
-            <BookRow
-              key={file.id}
-              file={file}
-              onOpen={() => onOpen(file)}
-              onSetStatus={(status) => setStatus(file.id, status)}
-              onSetTags={(tags) => setTags(file.id, tags)}
-              onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
-              onRemove={() => setPendingRemove(file)}
-              onRename={(title) => setTitle(file.id, title)}
-              onQuiz={quizEnabled ? () => setQuizFile(file) : null}
-            />
-          ))}
-        </ul>
+        <div className="flex items-start gap-5">
+          <ul className="flex min-w-0 flex-1 flex-col gap-2">
+            {visible.map((file) => (
+              <BookRow
+                key={file.id}
+                file={file}
+                onOpen={() => onOpen(file)}
+                onSetStatus={(status) => setStatus(file.id, status)}
+                onSetTags={(tags) => setTags(file.id, tags)}
+                onToggleFavorite={() => setFavorite(file.id, !file.favorite)}
+                onRemove={() => setPendingRemove(file)}
+                onRename={(title) => setTitle(file.id, title)}
+                onQuiz={quizEnabled ? () => setQuizFile(file) : null}
+                onShowDetails={() => setDetailsId(file.id)}
+              />
+            ))}
+          </ul>
+          {presentation === 'pane' && detailsFile && (
+            <aside className="border-border bg-card sticky top-0 w-96 shrink-0 rounded-lg border p-5">
+              {bookDetails(detailsFile, true)}
+            </aside>
+          )}
+        </div>
+      )}
+
+      {presentation === 'sheet' && (
+        <Sheet open={detailsFile != null} onOpenChange={(open) => !open && setDetailsId(null)}>
+          {detailsFile && <SheetContent title={`Details for ${detailsFile.title}`}>{bookDetails(detailsFile, false)}</SheetContent>}
+        </Sheet>
       )}
 
       {quizEnabled && quizFile && (
@@ -330,6 +383,7 @@ function BookCard({
   onRemove,
   onRename,
   onQuiz,
+  onShowDetails,
 }: {
   file: BookFile;
   onOpen: () => void;
@@ -339,6 +393,7 @@ function BookCard({
   onRemove: () => void;
   onRename: (title: string) => void;
   onQuiz: (() => void) | null;
+  onShowDetails: () => void;
 }) {
   const [draftTag, setDraftTag] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -365,6 +420,18 @@ function BookCard({
               className="bg-secondary/60 aspect-2/3 w-full rounded-md text-xl font-semibold transition-transform duration-200 group-hover:scale-[1.02]"
               fallback={<span>{initials(file.title)}</span>}
             />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 left-2 size-8 cursor-pointer rounded-full bg-black/30 hover:bg-black/40"
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowDetails();
+              }}
+              aria-label={`Details for ${file.title}`}
+            >
+              <MoreHorizontal className="size-4 text-white" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -576,6 +643,7 @@ function BookRow({
   onRemove,
   onRename,
   onQuiz,
+  onShowDetails,
 }: {
   file: BookFile;
   onOpen: () => void;
@@ -585,6 +653,7 @@ function BookRow({
   onRemove: () => void;
   onRename: (title: string) => void;
   onQuiz: (() => void) | null;
+  onShowDetails: () => void;
 }) {
   const [draftTag, setDraftTag] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -692,6 +761,18 @@ function BookRow({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground size-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowDetails();
+              }}
+              aria-label={`Details for ${file.title}`}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
             {onQuiz && file.lastPage != null && file.lastPage > 0 && (
               <Button
                 variant="ghost"

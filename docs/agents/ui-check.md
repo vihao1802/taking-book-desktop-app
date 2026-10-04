@@ -42,6 +42,8 @@ The Window size class follows the real window width, live, so the three classes 
 
 In the Reader, per class: the Notes sidebar pushes the page at expanded (the `[data-reader-view]` area narrows by the sidebar) and is a bottom sheet with a scrim at compact and medium (`aside[aria-label=Notes]` spans the width, the page does not narrow); the Reader sidebar is at most 85% of the width at compact (try a 280 wide window: 238); a Page mode canvas stops near 900 wide at expanded; resizing keeps the page (compare `scrollTop / scrollHeight` before and after); a click in the middle of the page toggles the overlay (`.overlay-top` opacity), a click at the edge does not, and the click that clears a selection (double-click a word, then click) does not.
 
+In the Library, add the fixture, then per class: the "…" (`[aria-label^="Details for"]`) opens Book details in a pane beside the list at expanded in the List view (`aside section[aria-label="Book details"]`), and as a bottom sheet (`[data-slot=sheet-content]`) in the Grid view at expanded and in both views at compact and medium. Exercise Favorite, status, adding and removing a tag, Rename, Open and Remove from the details; tapping the Book itself opens it at every size. `key Enter` does not submit a form, so submit with `form.requestSubmit()` or click the button. Quiz hidden when the `quiz` capability is off is covered by the BookDetails unit test.
+
 Check that the destinations are the same in each class, and that an open Book stays open, at the same position, across the resizes. Restore the size afterwards.
 
 ## Gotchas
