@@ -1,8 +1,12 @@
 import { ok, type Result } from '@taking-book/core';
-import type { BookFile, BookStatus, LastPosition, ReaderApi, ReadMode } from '@taking-book/renderer';
+import type { BookFile, BookStatus, CloudAccount, DeviceCodePrompt, LastPosition, ReaderApi, ReadMode } from '@taking-book/renderer';
 import { createInMemoryReaderApi } from '../src/in-memory-reader-api';
 
 const FIXTURE_URL = '/fixture.pdf';
+const SIGN_IN_PROMPT: DeviceCodePrompt = { userCode: 'ABCD-EFGH', verificationUrl: 'https://www.google.com/device', expiresAt: 0 };
+const SIGNED_IN_ACCOUNT: CloudAccount = { providerId: 'google-drive', displayName: 'Reader', email: 'reader@example.com' };
+// The name of the function on `window` that a check calls to approve the pending sign-in, as the reader does on Google's page.
+const APPROVE_SIGN_IN_HOOK = '__approveSignIn';
 
 function done<T>(data: T): Promise<Result<T>> {
   return Promise.resolve(ok(data));
@@ -43,8 +47,30 @@ export function createHarnessReaderApi(): ReaderApi {
     return done(undefined);
   };
 
+  let account: CloudAccount | null = null;
+  const deviceCodeListeners = new Set<(prompt: DeviceCodePrompt) => void>();
+  const signIn = (): Promise<Result<CloudAccount>> =>
+    new Promise((resolve) => {
+      deviceCodeListeners.forEach((listener) => listener(SIGN_IN_PROMPT));
+      Reflect.set(window, APPROVE_SIGN_IN_HOOK, () => {
+        account = SIGNED_IN_ACCOUNT;
+        resolve(ok(SIGNED_IN_ACCOUNT));
+      });
+    });
+
   return {
     ...createInMemoryReaderApi(),
+    getCloudAccount: () => done(account),
+    connectCloud: signIn,
+    onDeviceCode: (listener) => {
+      deviceCodeListeners.add(listener);
+      return () => deviceCodeListeners.delete(listener);
+    },
+    disconnectCloud: () => {
+      account = null;
+      return done(undefined);
+    },
+    runSync: () => done({ added: 0, updated: 0, deleted: 0, uploaded: 0, downloaded: 0, warnings: [] }),
     getDocumentUrl: () => FIXTURE_URL,
     listFiles: () => done([book]),
     setFileStatus: (_id: number, status: BookStatus) => update({ status }),

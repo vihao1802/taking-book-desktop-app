@@ -1,14 +1,18 @@
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { err, getDeviceId, ok, type Result } from '@taking-book/core';
+import { err, getDeviceId, ok, type Result, type SqlDriver } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
 import { createAppUpdates, fetchLatestRelease } from './app-updates';
 import { createBookFiles } from './book-files';
-import { checkBookReadable, createCapacitorBookStorage, createDocumentUrlResolver } from './capacitor-book-storage';
+import { createBookSyncStorage } from './book-sync-storage';
+import { bookPathFor, checkBookReadable, createCapacitorBookStorage, createDocumentUrlResolver } from './capacitor-book-storage';
+import { createCloudSync, type CloudSync } from './cloud-sync';
+import { createDriveProvider } from './create-drive-provider';
 import { createFilesystemTextStore } from './filesystem-text-store';
 import { createMobileReaderApi, createMobileServices } from './mobile-reader-api';
 import { openDatabase } from './open-database';
 import { pickPdfs } from './pick-pdfs';
+import { capacitorDeviceCodeActions, presentDeviceCode } from './present-device-code';
 
 async function openStream(webPath: string): Promise<ReadableStream<Uint8Array>> {
   const response = await fetch(webPath);
@@ -28,6 +32,18 @@ async function openInBrowser(url: string): Promise<Result<void>> {
     console.error(`update: could not open ${url}: ${String(error)}`);
     return err('Could not open the link in your browser.');
   }
+}
+
+function buildCloudSync(db: SqlDriver, generateId: () => string, log: (message: string) => void): CloudSync {
+  const clientConfig = { clientId: import.meta.env.VITE_TB_GDRIVE_CLIENT_ID, clientSecret: import.meta.env.VITE_TB_GDRIVE_CLIENT_SECRET };
+  return createCloudSync({
+    db,
+    provider: createDriveProvider(clientConfig, generateId),
+    localStorage: createBookSyncStorage(),
+    resolveLocalPath: bookPathFor,
+    presentDeviceCode: (prompt) => presentDeviceCode(prompt, capacitorDeviceCodeActions),
+    log,
+  });
 }
 
 /**
@@ -69,5 +85,5 @@ export async function startReaderApi(): Promise<Result<ReaderApi>> {
     openUrl: openInBrowser,
     log,
   });
-  return ok(createMobileReaderApi(services, bookFiles, updates));
+  return ok(createMobileReaderApi(services, bookFiles, updates, buildCloudSync(db.data, generateId, log)));
 }

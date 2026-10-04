@@ -99,8 +99,13 @@ jobs:
 
       - run: npm ci
 
+      # The device-flow OAuth client (ADR-0010) is baked into the web bundle;
+      # when the secrets are missing the build proceeds with Drive sync off.
       - name: Build web assets and sync Capacitor
         working-directory: packages/mobile
+        env:
+          VITE_TB_GDRIVE_CLIENT_ID: ${{ secrets.TB_GDRIVE_CLIENT_ID }}
+          VITE_TB_GDRIVE_CLIENT_SECRET: ${{ secrets.TB_GDRIVE_CLIENT_SECRET }}
         run: npm run android:sync
 
       # The keystore is decoded to a runner temp file only for the Gradle run

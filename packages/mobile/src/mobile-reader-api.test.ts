@@ -3,6 +3,7 @@ import { startDatabase, upsertFile, type SqlDriver } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
 import type { AppUpdates } from './app-updates';
 import type { BookFiles } from './book-files';
+import type { CloudSync } from './cloud-sync';
 import { createCapacitorSqlDriver } from './capacitor-sql-driver';
 import { createFakeConnection } from './fake-sqlite-connection';
 import { createMobileReaderApi, createMobileServices } from './mobile-reader-api';
@@ -33,7 +34,14 @@ function createApi(db: SqlDriver): ReaderApi {
     openReleasesPage: async () => ({ ok: true, data: undefined }),
     getAppVersion: async () => ({ ok: true, data: '1.2.0' }),
   };
-  return createMobileReaderApi(services, bookFiles, updates);
+  const cloud: CloudSync = {
+    getCloudAccount: async () => ({ ok: true, data: null }),
+    connectCloud: async () => ({ ok: false, error: 'offline' }),
+    disconnectCloud: async () => ({ ok: true, data: undefined }),
+    runSync: async () => ({ ok: false, error: 'offline' }),
+    onDeviceCode: () => () => undefined,
+  };
+  return createMobileReaderApi(services, bookFiles, updates, cloud);
 }
 
 describe('createMobileReaderApi', () => {

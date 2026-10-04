@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { isOk, type ImportProgress, type ImportSummary, type Result } from '@taking-book/core';
+import { isOk, type DeviceCodePrompt, type ImportProgress, type ImportSummary, type Result } from '@taking-book/core';
 import type { BookFile, BookStatus, CloudAccount } from '@/reader-api';
 import {
   LibraryContext,
@@ -17,6 +17,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [account, setAccount] = useState<CloudAccount | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [deviceCode, setDeviceCode] = useState<DeviceCodePrompt | null>(null);
   const [sync, setSync] = useState<SyncState>({ syncing: false, last: null, error: null });
 
   const refresh = useCallback(async () => {
@@ -31,6 +32,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   useEffect(() => window.api.onImportProgress(setImportProgress), []);
+
+  useEffect(() => window.api.onDeviceCode(setDeviceCode), []);
 
   useEffect(() => {
     window.api.getCloudAccount().then((result) => {
@@ -77,6 +80,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setConnecting(true);
     try {
       const result = await window.api.connectCloud();
+      setDeviceCode(null);
       if (isOk(result)) {
         setAccount(result.data);
         setSync({ syncing: false, last: null, error: null });
@@ -91,6 +95,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         setSync({ syncing: false, last: null, error: result.error });
       }
     } finally {
+      setDeviceCode(null);
       setConnecting(false);
     }
   }, [refresh]);
@@ -168,6 +173,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     busy,
     account,
     connecting,
+    deviceCode,
     sync,
     addFiles,
     importPaths,

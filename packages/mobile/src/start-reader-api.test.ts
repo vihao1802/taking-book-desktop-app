@@ -14,6 +14,8 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { convertFileSrc: (uri: string) =
 vi.mock('@capacitor/app', () => ({ App: { getInfo: async () => ({ version: '1.2.0' }) } }));
 vi.mock('@capacitor/browser', () => ({ Browser: { open: async () => undefined } }));
 vi.mock('@capawesome/capacitor-file-picker', () => ({ FilePicker: {} }));
+vi.mock('@capacitor/clipboard', () => ({ Clipboard: {} }));
+vi.mock('@aparajita/capacitor-secure-storage', () => ({ SecureStorage: {} }));
 
 import { startReaderApi } from './start-reader-api';
 

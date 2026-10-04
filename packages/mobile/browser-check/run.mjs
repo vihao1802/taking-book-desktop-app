@@ -140,6 +140,36 @@ async function checkLibrary(page, sizeClass) {
   }
 }
 
+/** Connecting shows the sign-in code, and approving it leaves the account connected and syncable. */
+async function checkConnect(page, sizeClass) {
+  await tap(page, 'button[aria-label=Library]');
+  await check(sizeClass.name, 'Connect Google Drive shows the sign-in code inside the window', async () => {
+    await tap(page, 'button:has-text("Connect Google Drive")');
+    await page.waitForSelector('[aria-label="Google sign-in code"]');
+    const text = await page.locator('[aria-label="Google sign-in code"]').innerText();
+    const r = await rectOf(page, '[aria-label="Google sign-in code"]');
+    if (!text.includes('ABCD-EFGH') || !text.includes('google.com/device')) return `notice says: ${text}`;
+    return r.left >= 0 && r.right <= sizeClass.width ? '' : `notice spans ${r.left}..${r.right}`;
+  });
+  if (sizeClass.name === 'compact') {
+    await check(sizeClass.name, 'Library with the sign-in code: every control is at least 48dp', async () => {
+      const small = JSON.parse(await page.evaluate(TOUCH_TARGETS));
+      return small.length === 0 ? '' : small.join(', ');
+    });
+  }
+  await check(sizeClass.name, 'Approving the sign-in replaces the code with Sync now and the account', async () => {
+    await page.evaluate(() => window.__approveSignIn());
+    await page.waitForSelector('button:has-text("Sync now")');
+    const notice = await page.$('[aria-label="Google sign-in code"]');
+    return notice ? 'the code is still showing' : '';
+  });
+  await check(sizeClass.name, 'Disconnect forgets the account', async () => {
+    await tap(page, 'button:has-text("Disconnect")');
+    await page.waitForSelector('button:has-text("Connect Google Drive")');
+    return '';
+  });
+}
+
 async function openBook(page) {
   await tap(page, '[aria-label^="Details for"]');
   await tap(page, '[data-slot=sheet-content] [aria-label^="Open"], aside [aria-label^="Open"]');
@@ -334,6 +364,7 @@ async function runClass(browser, baseUrl, sizeClass) {
   await page.waitForSelector('button[aria-label=Library]', { timeout: 15000 });
   const session = await context.newCDPSession(page);
   await checkLibrary(page, sizeClass);
+  await checkConnect(page, sizeClass);
   await check(sizeClass.name, 'The book opens', async () => {
     await openBook(page);
     return '';

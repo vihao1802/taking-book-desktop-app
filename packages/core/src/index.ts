@@ -193,6 +193,21 @@ export {
   type DeviceFlowOptions,
   type EnsureFreshTokenOptions,
 } from './sync/googleDeviceFlow';
+export {
+  createDriveRestClient,
+  type DriveFetch,
+  type DriveFetchInit,
+  type DriveFetchResponse,
+  type DriveRestClient,
+  type DriveRestClientOptions,
+} from './sync/driveRestClient';
+export { createGoogleDriveSyncStorage, type GoogleDriveSyncStorageOptions } from './sync/googleDriveSyncStorage';
+export {
+  createGoogleDriveDeviceFlowProvider,
+  type CloudAuthStore,
+  type GoogleDriveDeviceFlowOptions,
+  type StoredCloudAuth,
+} from './sync/googleDriveProvider';
 export { deriveCodeChallenge, generateCodeVerifier } from './sync/pkce';
 export { processPagesInOrder, type ProcessPagesOptions } from './pageProcessing';
 export {

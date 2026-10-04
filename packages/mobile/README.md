@@ -44,6 +44,22 @@ core's `SqlDriver` over it with a write mutex, and runs the same transaction
 tests as the desktop driver (`describeSqlDriverContract`). Covers and reflow
 text are files under the app's private data directory.
 
+## Google Drive sync
+
+The Android app signs in to Google with the OAuth device flow (ADR-0010): connecting
+shows a code, copies it to the clipboard and opens the verification page, and the
+reader pastes it and approves. The sign-in is kept in the platform's secure storage
+(`@aparajita/capacitor-secure-storage`, backed by the Android keystore), never in the
+app database. Requests to Google go through Capacitor's native HTTP plugin, so they
+do not depend on the WebView's CORS rules.
+
+The OAuth client (type "TVs and Limited Input devices", the same one desktop uses) is baked
+into the web bundle at build time. Set `VITE_TB_GDRIVE_CLIENT_ID` and
+`VITE_TB_GDRIVE_CLIENT_SECRET` (for example in `packages/mobile/.env`, which is
+gitignored) before `npm run android:apk`; CI takes them from the `TB_GDRIVE_CLIENT_ID` and
+`TB_GDRIVE_CLIENT_SECRET` secrets. Without them the Connect button reports that sync is not
+set up in this build.
+
 ## Check the database driver on a device
 
 The driver's transaction tests also run against the real plugin. With an

@@ -63,6 +63,8 @@ const api: ReaderApi = {
   translate: (text) => ipcRenderer.invoke('translate:text', text),
   getCloudAccount: () => ipcRenderer.invoke('cloud:status'),
   connectCloud: () => ipcRenderer.invoke('cloud:connect'),
+  // The loopback sign-in has no code to show; the device flow replaces it on desktop later.
+  onDeviceCode: () => () => undefined,
   disconnectCloud: () => ipcRenderer.invoke('cloud:disconnect'),
   runSync: () => ipcRenderer.invoke('sync:run'),
   checkForUpdate: () => ipcRenderer.invoke('update:check'),

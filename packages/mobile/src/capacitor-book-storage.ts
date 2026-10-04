@@ -4,7 +4,8 @@ import { err, ok, type Result } from '@taking-book/core';
 import { bytesToBase64 } from './bytes-to-base64';
 import type { IncomingBookStorage } from './picked-pdf-file-system';
 
-const BOOK_FOLDER = 'books';
+/** The folder, inside the app's private data folder, that holds the Books. */
+export const BOOK_FOLDER = 'books';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

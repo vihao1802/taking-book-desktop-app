@@ -1,4 +1,4 @@
-import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
+import type { AddCustomSoundsSummary, Annotation, AvailableUpdate, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, CustomSound, DeviceCodePrompt, FocusPreferences, ImportProgress, ImportSummary, LastPosition, NoteAnchor, NoteDraft, PageNoteInput, ReadMode, PageAnchor, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadingStats, ReflowAnchor, ReflowCacheEntry, Result, SyncSummary, Theme, Translation } from '@taking-book/core';
 
 /**
  * Which optional features a platform supports. The renderer hides the
@@ -101,7 +101,13 @@ export interface ReaderApi {
   /** Translates selected text into the Target language in effect; the error is worded for the reader. */
   translate(text: string): Promise<Result<Translation>>;
   getCloudAccount(): Promise<Result<CloudAccount | null>>;
+  /**
+   * Signs in to the cloud account. A platform that signs in with a device code
+   * reports it through `onDeviceCode` first, and the result arrives once the reader approves.
+   */
   connectCloud(): Promise<Result<CloudAccount>>;
+  /** Listens for the sign-in code to show while `connectCloud` waits for approval; returns the unsubscribe. */
+  onDeviceCode(listener: (prompt: DeviceCodePrompt) => void): () => void;
   disconnectCloud(): Promise<Result<void>>;
   runSync(): Promise<Result<SyncSummary>>;
   /** A newer release to offer, or null when this is the latest version. */
@@ -147,4 +153,4 @@ export interface ReaderApi {
   acknowledgeQuizPrivacyNotice(): Promise<Result<void>>;
 }
 
-export type { Annotation, AnnotationColor, BookFile, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };
+export type { Annotation, AnnotationColor, BookFile, DeviceCodePrompt, BookMinutes, BookStatus, CloudAccount, CreateAnnotationInput, LastPosition, NoteAnchor, ImportProgress, ImportSummary, NoteDraft, PageNoteInput, Quiz, QuizAnswerInput, QuizAttempt, QuizAttemptAnswer, QuizMissedQuestion, QuizQuestion, QuizScopePage, ReadMode, ReadingStats, Result, SyncSummary, Theme, Translation };

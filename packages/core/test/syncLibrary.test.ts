@@ -337,4 +337,35 @@ describe('syncLibrary', () => {
     expect(isOk(result)).toBe(true);
     if (isOk(result)) expect(result.data.uploaded).toBe(1);
   });
+
+  it('syncs the manifest but copies no book files when transferBlobs is off', async () => {
+    const shared = createMemoryStorage();
+    await shared.writeFile(
+      'manifest.json',
+      new TextEncoder().encode(
+        JSON.stringify({
+          version: 1,
+          records: [{ hash: 'abc', title: 'Alpha', status: 'unread', tags: [], lastPage: null, lastPosition: null, updatedAt: 100, updatedBy: 'dev-remote', deleted: false }],
+        }),
+      ),
+    );
+    await shared.writeFile('blobs/abc', new TextEncoder().encode('pdf-bytes'));
+    const db = createMemoryDriver();
+    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
+    const local = createMemoryStorage();
+
+    const result = await syncLibrary(db, {
+      local,
+      remote: shared,
+      resolveLocalPath: (hash) => `/blobs/${hash}`,
+      transferBlobs: false,
+    });
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.data.added).toBe(1);
+      expect(result.data.downloaded).toBe(0);
+    }
+    expect(local.dump().has('blobs/abc')).toBe(false);
+  });
 });

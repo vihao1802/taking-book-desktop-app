@@ -19,6 +19,12 @@ export interface SyncLibraryOptions {
   remote: SyncStorage;
   resolveLocalPath: (hash: string) => string | Promise<string>;
   logWarning?: (message: string) => void;
+  /**
+   * Whether to copy missing book files between `local` and `remote`. Defaults
+   * to true; a platform that cannot hold whole files in memory turns it off
+   * and syncs the manifest only.
+   */
+  transferBlobs?: boolean;
 }
 
 function recordCounts(
@@ -99,7 +105,7 @@ export async function syncLibrary(
     summary.warnings.push(writeResult.error);
   }
 
-  await reconcileBlobs(merged, local, remote, summary, warn);
+  if (options.transferBlobs !== false) await reconcileBlobs(merged, local, remote, summary, warn);
   return ok(summary);
 }
 
