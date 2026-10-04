@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import type { ImportProgress, ImportSummary } from '@taking-book/core';
+import type { DeviceCodePrompt, ImportProgress, ImportSummary } from '@taking-book/core';
 import type { BookFile, BookStatus, CloudAccount, SyncSummary } from '@/reader-api';
 
 export interface SyncState {
@@ -16,6 +16,8 @@ export interface LibraryContextValue {
   busy: boolean;
   account: CloudAccount | null;
   connecting: boolean;
+  /** The code to enter on the verification page while Connect waits for approval; null otherwise. */
+  deviceCode: DeviceCodePrompt | null;
   sync: SyncState;
   /** Runs the Add PDF dialog and import; resolves to null when cancelled or failed (the error is set instead). */
   addFiles: () => Promise<ImportSummary | null>;

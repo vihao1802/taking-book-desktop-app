@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { QuizDialog } from '../quiz/QuizDialog';
 import { BookDetails } from './BookDetails';
+import { SignInCode } from './SignInCode';
 import { getBookDetailsPresentation } from './book-details-presentation';
 import { useAddPdf } from './useAddPdf';
 import { useLibrary } from './useLibrary';
@@ -41,6 +42,7 @@ export function Library({
     busy,
     account,
     connecting,
+    deviceCode,
     sync,
     setStatus,
     setTags,
@@ -220,6 +222,8 @@ export function Library({
           </div>
         )}
       </section>
+
+      {deviceCode && <SignInCode prompt={deviceCode} />}
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookStatus | 'all')}>

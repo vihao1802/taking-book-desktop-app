@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { readSystemLocaleArgument } from './shared/system-locale';
+import type { DeviceCodePrompt } from '@taking-book/core';
 import type { ImportProgress, ReaderApi } from '@taking-book/renderer';
 
 const api: ReaderApi = {
@@ -63,6 +64,11 @@ const api: ReaderApi = {
   translate: (text) => ipcRenderer.invoke('translate:text', text),
   getCloudAccount: () => ipcRenderer.invoke('cloud:status'),
   connectCloud: () => ipcRenderer.invoke('cloud:connect'),
+  onCloudDeviceCode: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, prompt: DeviceCodePrompt): void => listener(prompt);
+    ipcRenderer.on('cloud:deviceCode', handler);
+    return () => ipcRenderer.removeListener('cloud:deviceCode', handler);
+  },
   disconnectCloud: () => ipcRenderer.invoke('cloud:disconnect'),
   runSync: () => ipcRenderer.invoke('sync:run'),
   checkForUpdate: () => ipcRenderer.invoke('update:check'),

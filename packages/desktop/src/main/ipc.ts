@@ -321,10 +321,14 @@ export function registerIpc(db: SqlDriver): void {
     return provider.data.getAccount();
   });
 
-  ipcMain.handle('cloud:connect', async (): Promise<Result<CloudAccount>> => {
+  ipcMain.handle('cloud:connect', async (event): Promise<Result<CloudAccount>> => {
     const provider = await cloudProvider();
     if (!isOk(provider)) return provider;
-    return provider.data.connect();
+    return provider.data.connect({
+      onDeviceCode: (prompt) => {
+        if (!event.sender.isDestroyed()) event.sender.send('cloud:deviceCode', prompt);
+      },
+    });
   });
 
   ipcMain.handle('cloud:disconnect', async (): Promise<Result<void>> => {

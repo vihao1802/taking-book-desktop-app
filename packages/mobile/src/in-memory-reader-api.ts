@@ -106,6 +106,7 @@ export function createInMemoryReaderApi(): ReaderApi {
     translate: () => unavailable(),
     getCloudAccount: () => done(null),
     connectCloud: () => unavailable(),
+    onCloudDeviceCode: () => () => undefined,
     disconnectCloud: () => unavailable(),
     runSync: () => unavailable(),
     checkForUpdate: () => done(null),

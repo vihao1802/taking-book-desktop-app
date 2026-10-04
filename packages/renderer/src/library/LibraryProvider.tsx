@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { isOk, type ImportProgress, type ImportSummary, type Result } from '@taking-book/core';
+import { isOk, type DeviceCodePrompt, type ImportProgress, type ImportSummary, type Result } from '@taking-book/core';
 import type { BookFile, BookStatus, CloudAccount } from '@/reader-api';
 import {
   LibraryContext,
@@ -17,6 +17,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [account, setAccount] = useState<CloudAccount | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [deviceCode, setDeviceCode] = useState<DeviceCodePrompt | null>(null);
   const [sync, setSync] = useState<SyncState>({ syncing: false, last: null, error: null });
 
   const refresh = useCallback(async () => {
@@ -31,6 +32,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   useEffect(() => window.api.onImportProgress(setImportProgress), []);
+
+  useEffect(() => window.api.onCloudDeviceCode(setDeviceCode), []);
 
   useEffect(() => {
     window.api.getCloudAccount().then((result) => {
@@ -92,6 +95,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       setConnecting(false);
+      setDeviceCode(null);
     }
   }, [refresh]);
 
@@ -168,6 +172,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     busy,
     account,
     connecting,
+    deviceCode,
     sync,
     addFiles,
     importPaths,

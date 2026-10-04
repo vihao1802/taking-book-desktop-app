@@ -39,6 +39,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
     });
 
     const account = await provider.getAccount();
@@ -61,6 +62,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
     });
 
     const account = await provider.getAccount();
@@ -83,6 +85,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
     });
 
     const result = await provider.disconnect();
@@ -121,6 +124,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
       fetchImpl: mockFetch,
     };
 
@@ -150,6 +154,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
     });
 
     const storageResult = await provider.createSyncStorage();
@@ -188,6 +193,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
       fetchImpl: mockFetch,
     });
 
@@ -260,6 +266,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
       fetchImpl: mockFetch,
     });
 
@@ -310,6 +317,7 @@ describe('createGoogleDriveProvider', () => {
       appFolderName: "O'Reilly Books",
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
       fetchImpl: mockFetch,
     });
 
@@ -319,5 +327,76 @@ describe('createGoogleDriveProvider', () => {
       await storageResult.data.readFile('manifest.json');
       expect(queries.some((q) => q.includes("'root' in parents and name = 'O\\'Reilly Books'"))).toBe(true);
     }
+  });
+
+  describe('connect', () => {
+    function deviceFlowFetch(tokenBodies: unknown[]): typeof fetch {
+      const json = (body: unknown, status = 200): Response =>
+        new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+      return async (url) => {
+        const target = String(url);
+        if (target === 'https://oauth2.googleapis.com/device/code') {
+          return json({
+            device_code: 'dev-1',
+            user_code: 'ABCD-EFGH',
+            verification_url: 'https://www.google.com/device',
+            expires_in: 600,
+            interval: 0.001,
+          });
+        }
+        if (target === 'https://oauth2.googleapis.com/token') {
+          const next = tokenBodies.shift();
+          return json(next, (next as { error?: string }).error ? 428 : 200);
+        }
+        return json({ email: 'test@example.com', name: 'Test User' });
+      };
+    }
+
+    it('copies the code, opens the verification page, and stores the token once approved', async () => {
+      const { store, getStored } = createMockTokenStore(null);
+      const copied: string[] = [];
+      const opened: string[] = [];
+      const shown: string[] = [];
+      const provider = createGoogleDriveProvider({
+        clientId: 'client',
+        clientSecret: 'secret',
+        tokenStore: store,
+        openExternal: (url) => {
+          opened.push(url);
+        },
+        copyToClipboard: (text) => copied.push(text),
+        fetchImpl: deviceFlowFetch([
+          { error: 'authorization_pending' },
+          { access_token: 'access-1', refresh_token: 'refresh-1', expires_in: 3600 },
+        ]),
+      });
+
+      const result = await provider.connect({ onDeviceCode: (prompt) => shown.push(prompt.userCode) });
+
+      expect(isOk(result)).toBe(true);
+      expect(copied).toEqual(['ABCD-EFGH']);
+      expect(opened).toEqual(['https://www.google.com/device']);
+      expect(shown).toEqual(['ABCD-EFGH']);
+      expect(getStored()?.token.refreshToken).toBe('refresh-1');
+      expect(getStored()?.account.email).toBe('test@example.com');
+    });
+
+    it('stores nothing and reports the reason when the reader denies sign-in', async () => {
+      const { store, getStored } = createMockTokenStore(null);
+      const provider = createGoogleDriveProvider({
+        clientId: 'client',
+        clientSecret: 'secret',
+        tokenStore: store,
+        openExternal: () => undefined,
+        copyToClipboard: () => undefined,
+        fetchImpl: deviceFlowFetch([{ error: 'access_denied' }]),
+      });
+
+      const result = await provider.connect();
+
+      expect(isOk(result)).toBe(false);
+      if (!isOk(result)) expect(result.error).toBe('Sign-in was denied.');
+      expect(getStored()).toBeNull();
+    });
   });
 });
