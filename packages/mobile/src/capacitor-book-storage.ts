@@ -82,8 +82,10 @@ export async function checkBookReadable(storedPath: string): Promise<Result<void
 export async function createDocumentUrlResolver(): Promise<Result<(storedPath: string) => string>> {
   try {
     const { uri } = await Filesystem.getUri({ path: BOOK_FOLDER, directory: Directory.Data });
-    if (!uri.endsWith(BOOK_FOLDER)) return err(`Unexpected app data location: ${uri}`);
-    const dataFolderUri = uri.slice(0, uri.length - BOOK_FOLDER.length);
+    // Android reports a folder with a trailing slash, other platforms without one.
+    const folderUri = uri.replace(/\/+$/, '');
+    if (!folderUri.endsWith(`/${BOOK_FOLDER}`)) return err(`Unexpected app data location: ${uri}`);
+    const dataFolderUri = folderUri.slice(0, folderUri.length - BOOK_FOLDER.length);
     return ok((storedPath) => Capacitor.convertFileSrc(`${dataFolderUri}${storedPath}`));
   } catch (error) {
     return err(`Could not locate the app data folder: ${errorMessage(error)}`);
