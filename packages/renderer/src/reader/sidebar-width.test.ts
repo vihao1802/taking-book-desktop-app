@@ -5,6 +5,8 @@ import {
   clampSidebarWidth,
   getNotesPageInset,
   getThumbnailWidth,
+  getReaderSidebarMaxWidth,
+  isNotesSidebarSheet,
 } from './sidebar-width';
 
 describe('clampSidebarWidth', () => {
@@ -38,14 +40,40 @@ describe('getThumbnailWidth', () => {
 
 describe('getNotesPageInset', () => {
   it('reserves nothing while the Notes sidebar is closed', () => {
-    expect(getNotesPageInset(false, 320)).toBe(0);
+    expect(getNotesPageInset(false, 320, 'expanded')).toBe(0);
   });
 
   it('reserves the sidebar width plus its margin and gap while open', () => {
-    expect(getNotesPageInset(true, 320)).toBe(336);
+    expect(getNotesPageInset(true, 320, 'expanded')).toBe(336);
   });
 
   it('follows the sidebar as it is resized', () => {
-    expect(getNotesPageInset(true, 400) - getNotesPageInset(true, 300)).toBe(100);
+    expect(getNotesPageInset(true, 400, 'expanded') - getNotesPageInset(true, 300, 'expanded')).toBe(100);
+  });
+});
+
+describe('getNotesPageInset below the expanded class', () => {
+  it('reserves nothing, since the Notes sidebar is a sheet over the page there', () => {
+    expect(getNotesPageInset(true, 320, 'medium')).toBe(0);
+    expect(getNotesPageInset(true, 320, 'compact')).toBe(0);
+  });
+});
+
+describe('isNotesSidebarSheet', () => {
+  it('is a sheet at compact and medium and a pushing panel at expanded', () => {
+    expect(isNotesSidebarSheet('compact')).toBe(true);
+    expect(isNotesSidebarSheet('medium')).toBe(true);
+    expect(isNotesSidebarSheet('expanded')).toBe(false);
+  });
+});
+
+describe('getReaderSidebarMaxWidth', () => {
+  it('caps the floating Reader sidebar at 85% of the width at compact', () => {
+    expect(getReaderSidebarMaxWidth('compact')).toBe('85%');
+  });
+
+  it('only keeps it inside the window with its margin from medium up', () => {
+    expect(getReaderSidebarMaxWidth('medium')).toBe('calc(100% - 1rem)');
+    expect(getReaderSidebarMaxWidth('expanded')).toBe('calc(100% - 1rem)');
   });
 });

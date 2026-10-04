@@ -2,7 +2,8 @@ import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { hasNoteText, listNotes } from '@taking-book/core';
 import type { Annotation } from '@/reader-api';
 import { usePersistedSidebarWidth } from './usePersistedSidebarWidth';
-import { getNotesPageInset } from './sidebar-width';
+import { useWindowSizeClass } from '@/lib/useWindowSizeClass';
+import { getNotesPageInset, isNotesSidebarSheet } from './sidebar-width';
 
 /** Everything a reader view needs to show the Notes sidebar and make room for it. */
 export interface NotesSidebarState {
@@ -35,6 +36,8 @@ export interface NotesSidebarState {
    */
   selectAnnotation: (annotation: Annotation) => void;
   stopEditing: () => void;
+  /** True when the sidebar is a bottom sheet over the page (below the expanded class) instead of a panel that pushes it. */
+  sheet: boolean;
   /** Pixels the page area must stay clear of on its right edge while the sidebar is open. */
   pageInset: number;
 }
@@ -94,7 +97,8 @@ export function useNotesSidebar(annotations: Annotation[]): NotesSidebarState {
   const notes = useMemo(() => listNotes(annotations, { includeHighlights: showHighlights }), [annotations, showHighlights]);
   // Dragging the sidebar wider re-lays-out every page; deferring the inset keeps
   // the panel itself following the pointer while the pages catch up.
-  const pageInset = useDeferredValue(getNotesPageInset(open, width));
+  const sizeClass = useWindowSizeClass();
+  const pageInset = useDeferredValue(getNotesPageInset(open, width, sizeClass));
 
-  return { open, toggle, show, close, width, onWidthChange, showHighlights, onShowHighlightsChange: setShowHighlights, notes, editingId, selectedId, focusRequest, editAnnotation, selectAnnotation, stopEditing, pageInset };
+  return { open, toggle, show, close, width, onWidthChange, showHighlights, onShowHighlightsChange: setShowHighlights, notes, editingId, selectedId, focusRequest, editAnnotation, selectAnnotation, stopEditing, sheet: isNotesSidebarSheet(sizeClass), pageInset };
 }

@@ -30,6 +30,7 @@ import { SelectionToolbar } from './SelectionToolbar';
 import { TranslationPopup } from './TranslationPopup';
 import { useTranslationPopup } from './useTranslationPopup';
 import type { SelectionAnchor } from './floating-placement';
+import { useOverlayTap } from './useOverlayTap';
 import { ReflowFigure } from './ReflowFigure';
 import {
   findRangeIgnoringWhitespace,
@@ -299,16 +300,7 @@ export function ReflowReader({
     startHideTimer();
   }, [startHideTimer]);
 
-  const handleClick = useCallback(() => {
-    // A fresh text selection also produces a click after mouseup; don't clear
-    // its toolbar while the selection is still active.
-    const selection = window.getSelection();
-    const hasSelection =
-      selection &&
-      !selection.isCollapsed &&
-      selection.rangeCount > 0 &&
-      articleRef.current?.contains(selection.getRangeAt(0).commonAncestorContainer);
-    if (!hasSelection) setSelectionToolbar(null);
+  const toggleOverlay = useCallback(() => {
     setOverlayVisible((visible) => {
       if (visible) {
         window.clearTimeout(hideTimerRef.current);
@@ -318,6 +310,19 @@ export function ReflowReader({
       return true;
     });
   }, [startHideTimer]);
+  const overlayTap = useOverlayTap(toggleOverlay);
+
+  const clearToolbarUnlessSelecting = useCallback(() => {
+    // A fresh text selection also produces a click after mouseup; don't clear
+    // its toolbar while the selection is still active.
+    const selection = window.getSelection();
+    const hasSelection =
+      selection &&
+      !selection.isCollapsed &&
+      selection.rangeCount > 0 &&
+      articleRef.current?.contains(selection.getRangeAt(0).commonAncestorContainer);
+    if (!hasSelection) setSelectionToolbar(null);
+  }, []);
 
   const scrollToPage = useCallback((page: number) => {
     const el = scrollRef.current;
@@ -571,7 +576,11 @@ export function ReflowReader({
           ref={scrollRef}
           data-reader-view
           onScroll={handleScroll}
-          onClick={handleClick}
+          onPointerDownCapture={overlayTap.onPointerDownCapture}
+          onClick={(event) => {
+            clearToolbarUnlessSelecting();
+            overlayTap.onClick(event);
+          }}
         >
           <ReflowArticle
             articleRef={articleRef}

@@ -23,6 +23,9 @@ import { useFullScreen } from './useFullScreen';
 import { usePersistedSidebarWidth } from './usePersistedSidebarWidth';
 import { usePersistedZoom } from './usePersistedZoom';
 import { getThumbnailWidth } from './sidebar-width';
+import { getPageBaseWidth } from './page-width';
+import { useOverlayTap } from './useOverlayTap';
+import { useWindowSizeClass } from '@/lib/useWindowSizeClass';
 
 const HIDE_DELAY_MS = 2500;
 
@@ -120,7 +123,9 @@ export function Reader({ file, onClose, noteToOpen = null, pageToOpen = null }: 
   // agree, and floored to a whole pixel so the canvas/text-layer `Math.ceil`
   // rounding can't push one extra px over.
   const contentWidth = Math.max(width - getScrollbarWidth(), 1);
-  const viewWidth = Math.max(Math.floor(fitWidth ? contentWidth : contentWidth * zoom), 1);
+  // Zoom scales the base width, which stops growing at expanded so lines stay comfortable to read.
+  const baseWidth = getPageBaseWidth(contentWidth, useWindowSizeClass());
+  const viewWidth = Math.max(Math.floor(fitWidth ? baseWidth : baseWidth * zoom), 1);
   const layout = usePageLayout(pdf, viewWidth);
 
   // Where the reader is right now, as a page plus how far down it. Both views
@@ -247,7 +252,7 @@ export function Reader({ file, onClose, noteToOpen = null, pageToOpen = null }: 
     startHideTimer();
   }, [startHideTimer]);
 
-  const handleClick = useCallback(() => {
+  const toggleOverlay = useCallback(() => {
     setOverlayVisible((visible) => {
       if (visible) {
         window.clearTimeout(hideTimerRef.current);
@@ -257,6 +262,8 @@ export function Reader({ file, onClose, noteToOpen = null, pageToOpen = null }: 
       return true;
     });
   }, [startHideTimer]);
+
+  const overlayTap = useOverlayTap(toggleOverlay);
 
   const selectSidebarPage = useCallback((page: number) => {
     pagesRef.current?.scrollToPage(page);
@@ -410,7 +417,7 @@ export function Reader({ file, onClose, noteToOpen = null, pageToOpen = null }: 
           className="absolute inset-y-0 left-0 isolate"
           style={{ right: notesSidebar.pageInset }}
           ref={scrollRef}
-          onClick={handleClick}
+          {...overlayTap}
         >
           {ready ? (
             <PdfPages

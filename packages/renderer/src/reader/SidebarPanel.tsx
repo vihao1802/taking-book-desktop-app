@@ -2,7 +2,9 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { LayoutGrid, ListTree, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useWindowSizeClass } from '@/lib/useWindowSizeClass';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
+import { getReaderSidebarMaxWidth } from './sidebar-width';
 
 /** Which sidebar tab is visible; null means the sidebar is closed. */
 export type SidebarTab = 'thumbnails' | 'outlines';
@@ -41,6 +43,7 @@ export function SidebarPanel({
   children,
 }: SidebarPanelProps) {
   const asideRef = useRef<HTMLElement>(null);
+  const maxWidth = getReaderSidebarMaxWidth(useWindowSizeClass());
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -69,8 +72,8 @@ export function SidebarPanel({
     <aside
       ref={asideRef}
       aria-label={TAB_LABEL[tab]}
-      style={{ width }}
-      className="bg-overlay text-foreground pointer-events-auto absolute top-16 bottom-16 left-2 z-[5] flex max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-lg shadow-lg backdrop-blur-md"
+      style={{ width, maxWidth }}
+      className="bg-overlay text-foreground pointer-events-auto absolute top-16 bottom-16 left-2 z-[5] flex flex-col overflow-hidden rounded-lg shadow-lg backdrop-blur-md"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

@@ -1,3 +1,5 @@
+import type { WindowSizeClass } from '@/lib/window-size-class';
+
 /** Narrowest the reader sidebar can be; also its default width. */
 export const SIDEBAR_MIN_WIDTH = 240;
 
@@ -30,13 +32,30 @@ export function getThumbnailWidth(sidebarWidth: number): number {
 }
 
 /**
+ * Whether the Notes sidebar is a bottom sheet over the page instead of a panel
+ * that pushes it: only the expanded class has the room to narrow the page.
+ */
+export function isNotesSidebarSheet(sizeClass: WindowSizeClass): boolean {
+  return sizeClass !== 'expanded';
+}
+
+/**
+ * CSS max-width of the floating Reader sidebar: most of the screen on a phone,
+ * so the page behind it stays visible, and just inside the window otherwise.
+ */
+export function getReaderSidebarMaxWidth(sizeClass: WindowSizeClass): string {
+  return sizeClass === 'compact' ? '85%' : 'calc(100% - 1rem)';
+}
+
+/**
  * How far in from the window's right edge the page area must end so the Notes
  * sidebar pushes the page instead of covering it.
  *
  * @param open - Whether the Notes sidebar is showing.
  * @param sidebarWidth - The sidebar's width in pixels.
- * @returns Pixels to reserve on the right; 0 while the sidebar is closed.
+ * @param sizeClass - The Window size class; below expanded the sidebar is a sheet and takes no room.
+ * @returns Pixels to reserve on the right; 0 while closed or while it is a sheet.
  */
-export function getNotesPageInset(open: boolean, sidebarWidth: number): number {
-  return open ? sidebarWidth + NOTES_SIDEBAR_PAGE_GAP : 0;
+export function getNotesPageInset(open: boolean, sidebarWidth: number, sizeClass: WindowSizeClass): number {
+  return open && !isNotesSidebarSheet(sizeClass) ? sidebarWidth + NOTES_SIDEBAR_PAGE_GAP : 0;
 }

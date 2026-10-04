@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FilePlus2, X } from 'lucide-react';
 import { findNearestNote } from '@taking-book/core';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import type { Annotation } from '@/reader-api';
 import { NoteCard } from './NoteCard';
 import { NoteDraftCard } from './NoteDraftCard';
@@ -33,7 +34,7 @@ interface NotesSidebarProps {
  * followed every page turn would move under the pointer while a Note is clicked.
  */
 export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJump }: NotesSidebarProps) {
-  const { notes, showHighlights, onShowHighlightsChange, close, width, onWidthChange, editingId, selectedId, focusRequest, stopEditing } = state;
+  const { sheet, notes, showHighlights, onShowHighlightsChange, close, width, onWidthChange, editingId, selectedId, focusRequest, stopEditing } = state;
   const focusedId = editingId ?? selectedId;
   const asideRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -68,12 +69,23 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
     noteDraft.startPageNote(readingPage);
   };
 
-  return (
+  // A jump in a sheet has to uncover the page it jumps to.
+  const jump = (annotation: Annotation) => {
+    onJump(annotation);
+    if (sheet) close();
+  };
+
+  const panel = (
     <aside
       ref={asideRef}
       aria-label="Notes"
-      style={{ width }}
-      className="notes-sidebar bg-overlay text-foreground pointer-events-auto absolute top-16 right-2 bottom-16 z-[5] flex max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-lg shadow-lg backdrop-blur-md"
+      style={sheet ? undefined : { width }}
+      className={cn(
+        'notes-sidebar bg-overlay text-foreground pointer-events-auto z-[5] flex flex-col overflow-hidden shadow-lg backdrop-blur-md',
+        sheet
+          ? 'fixed inset-x-0 bottom-0 z-30 max-h-[70%] min-h-[40%] rounded-t-2xl'
+          : 'absolute top-16 right-2 bottom-16 max-w-[calc(100%-1rem)] rounded-lg',
+      )}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
@@ -121,7 +133,7 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
                   key={note.id}
                   annotation={note}
                   selected={note.id === selectedId}
-                  onJump={onJump}
+                  onJump={jump}
                   onEdit={state.editAnnotation}
                 />
               ),
@@ -129,7 +141,16 @@ export function NotesSidebar({ state, noteDraft, readingPage, editActions, onJum
           </ul>
         )}
       </div>
-      <SidebarResizeHandle panelRef={asideRef} edge="left" width={width} onWidthChange={onWidthChange} />
+      {!sheet && <SidebarResizeHandle panelRef={asideRef} edge="left" width={width} onWidthChange={onWidthChange} />}
     </aside>
+  );
+
+  if (!sheet) return panel;
+  // The scrim closes the sheet, as a tap beside a bottom sheet does; the page stays visible above it.
+  return (
+    <>
+      <div className="fixed inset-0 z-30 bg-black/30" aria-hidden="true" onPointerDown={(e) => e.stopPropagation()} onClick={close} />
+      {panel}
+    </>
   );
 }
