@@ -16,6 +16,7 @@ const api: ReaderApi = {
   importPaths: (paths) => ipcRenderer.invoke('files:import', paths),
   // File.path is gone from Electron; webUtils only works in the preload, so it is wrapped here.
   getPathForFile: (file) => webUtils.getPathForFile(file),
+  getDocumentUrl: (filePath) => `appfile://doc/${encodeURIComponent(filePath)}`,
   deleteFile: (id) => ipcRenderer.invoke('files:delete', id),
   checkFileReadable: (filePath) => ipcRenderer.invoke('files:check-readable', filePath),
   getLastPosition: (id) => ipcRenderer.invoke('files:last-position:get', id),

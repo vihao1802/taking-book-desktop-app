@@ -56,7 +56,7 @@ export function useQuizScopeText(
     setState({ pages: [], loading: true, error: null, settled: false });
 
     const task = pdfjs.getDocument({
-      url: `appfile://doc/${encodeURIComponent(filePath)}`,
+      url: window.api.getDocumentUrl(filePath),
       standardFontDataUrl: 'appfile://fonts/',
       wasmUrl: 'appfile://wasm/',
       worker: getQuizWorker(),
