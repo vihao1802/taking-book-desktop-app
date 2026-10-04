@@ -6,7 +6,7 @@ The window opens pinned at the top-left of the primary display and off the taskb
 
 ## Steps
 
-1. **Plan the checks.** Turn every acceptance criterion of the ticket (or every behaviour the diff changes) into an observable check: an action, then the DOM state or screenshot that proves it. Include both reader modes (page and reflow) and all three Themes when the change is visual. Done when each criterion maps to at least one check.
+1. **Plan the checks.** Turn every acceptance criterion of the ticket (or every behaviour the diff changes) into an observable check: an action, then the DOM state or screenshot that proves it. Include both reader modes (page and reflow) and all three Themes when the change is visual, and all three Window size classes (compact, medium, expanded) when the change is layout (see "Window size classes" below). Done when each criterion maps to at least one check.
 2. **Start** from the repo root: `node scripts/ui-check/start.mjs`. It returns once the app has rendered. The library is empty; clicking **Add PDF** adds the fixture (the native dialog is stubbed) and opens it in page mode.
 3. **Run each check** with `node scripts/ui-check/cdp.mjs` (commands below). Act with real input (`click`, `dbl`, `drag`, `key`) so the app's own event handlers run; use `eval` to read state and to reach controls by label. Read every screenshot you take. Done when every planned check has passed or has a recorded failure.
 4. **Stop** with `node scripts/ui-check/stop.mjs`, even after a failure. It ends the whole process group and deletes the profile.
@@ -29,6 +29,18 @@ The window opens pinned at the top-left of the primary display and off the taskb
 | `key <Key>` | Presses `Escape`, `Enter`, `ArrowDown`, a letter, …; `Shift+ArrowRight` adds modifiers (`Shift`, `Control`, `Alt`, `Meta`) |
 
 Example: `node scripts/ui-check/cdp.mjs click $(node scripts/ui-check/cdp.mjs center '[aria-label=Highlight]')`
+
+## Window size classes
+
+The Window size class follows the real window width, live, so the three classes are checked by resizing the window with `main` and `BrowserWindow.getAllWindows()[0].setContentSize(w, h)`, then reading `innerWidth` and the layout through `eval` and taking a `shot`. Use one width inside each class, and the boundaries when a change touches the classification:
+
+| Class | Content width (dp) | Navigation |
+|---|---|---|
+| compact | under 600 (try 450, and 599) | bottom bar |
+| medium | 600 to 839 (try 700, 600 and 839) | rail |
+| expanded | 840 and up (try 1000, and 840) | rail |
+
+Check that the destinations are the same in each class, and that an open Book stays open, at the same position, across the resizes. Restore the size afterwards.
 
 ## Gotchas
 

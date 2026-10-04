@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactElement } from 'react';
 import { Timer } from 'lucide-react';
 import { formatFocusTimeLeft, isFocusActive } from '@taking-book/core';
 import { hasFocusControls, useCapabilities } from '@/lib/useCapabilities';
+import { useWindowSizeClass } from '@/lib/useWindowSizeClass';
 import { cn } from '@/lib/utils';
 import { FocusControlsPanel } from './FocusControlsPanel';
 import { useFocus } from './useFocus';
@@ -16,6 +17,7 @@ export function FocusIndicator(): ReactElement | null {
   const { timer, sound, timeLeftMs } = useFocus();
   const [open, setOpen] = useState(false);
   const capabilities = useCapabilities();
+  const isBottomBar = useWindowSizeClass() === 'compact';
   const active = isFocusActive({ timer, sound });
 
   useEffect(() => {
@@ -59,7 +61,11 @@ export function FocusIndicator(): ReactElement | null {
         <div
           role="dialog"
           aria-label="Focus controls"
-          className="bg-popover text-popover-foreground absolute bottom-0 left-full z-30 ml-2 w-72 rounded-md border p-3 shadow-md"
+          className={cn(
+            'bg-popover text-popover-foreground absolute z-30 w-72 rounded-md border p-3 shadow-md',
+            // Above the bottom bar at compact, beside the rail otherwise.
+            isBottomBar ? 'right-0 bottom-full mb-2' : 'bottom-0 left-full ml-2',
+          )}
         >
           <FocusControlsPanel />
         </div>
