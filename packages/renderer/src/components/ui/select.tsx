@@ -3,6 +3,8 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useWindowSizeClass } from '@/lib/useWindowSizeClass';
+import { isBottomSheetClass } from './adaptive-surface';
 
 function Select({ ...props }: SelectPrimitive.SelectProps) {
   return <SelectPrimitive.Root data-slot="select" {...props} />;
@@ -44,13 +46,20 @@ function SelectContent({
   position = 'popper',
   ...props
 }: SelectPrimitive.SelectContentProps) {
+  // At compact the options rise from the bottom edge as a sheet; index.css pins the popper wrapper there and dims the page behind it.
+  const sheet = isBottomSheetClass(useWindowSizeClass());
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         data-slot="select-content"
+        data-sheet={sheet ? '' : undefined}
         className={cn(
-          'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-96 min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-hidden rounded-md border shadow-md',
-          position === 'popper' &&
+          'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 relative z-50 overflow-hidden border shadow-md',
+          sheet
+            ? 'max-h-[60vh] w-full rounded-t-2xl data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom'
+            : 'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 max-h-96 min-w-[8rem] origin-(--radix-select-content-transform-origin) rounded-md',
+          !sheet &&
+            position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
           className,
         )}
@@ -61,7 +70,8 @@ function SelectContent({
         <SelectPrimitive.Viewport
           className={cn(
             'p-1',
-            position === 'popper' &&
+            !sheet &&
+              position === 'popper' &&
               'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1',
           )}
         >

@@ -44,6 +44,8 @@ In the Reader, per class: the Notes sidebar pushes the page at expanded (the `[d
 
 In the Library, add the fixture, then per class: the "…" (`[aria-label^="Details for"]`) opens Book details in a pane beside the list at expanded in the List view (`aside section[aria-label="Book details"]`), and as a bottom sheet (`[data-slot=sheet-content]`) in the Grid view at expanded and in both views at compact and medium. Exercise Favorite, status, adding and removing a tag, Rename, Open and Remove from the details; tapping the Book itself opens it at every size. `key Enter` does not submit a form, so submit with `form.requestSubmit()` or click the button. Quiz hidden when the `quiz` capability is off is covered by the BookDetails unit test.
 
+Dialogs, selects and popovers: at compact they are bottom sheets (the panel spans the width and ends at the bottom of the window) and from medium up a dialog is centred and a select or popover is anchored; open the Remove dialog from Book details, a status select and the reader's Focus controls at 450 and 700. At compact every interactive element is at least 48 by 48: run `node scripts/ui-check/cdp.mjs eval "$(cat scripts/ui-check/touch-targets.js)"` in each view, in the reader with the overlay showing, and with a sheet or select open; it prints the elements that are too small (an empty list passes). The desktop shortcuts still work at expanded (Control+f, Control+g, n for the Notes sidebar).
+
 Check that the destinations are the same in each class, and that an open Book stays open, at the same position, across the resizes. Restore the size afterwards.
 
 ## Gotchas

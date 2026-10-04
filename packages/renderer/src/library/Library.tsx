@@ -462,7 +462,7 @@ function BookCard({
             <SelectTrigger
               className={cn(
                 badgeVariants({ variant: statusBadgeVariant(file.status) }),
-                'h-7 cursor-pointer rounded-full px-3 text-xs',
+                'h-7 cursor-pointer rounded-full px-3 text-xs compact:hidden',
               )}
               onClick={(e) => e.stopPropagation()}
               aria-label={`Status for ${file.title}`}
@@ -478,12 +478,12 @@ function BookCard({
             </SelectContent>
           </Select>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 compact:hidden">
             {file.tags.map((tag) => (
               <Badge
                 key={tag}
                 variant="secondary"
-                className="group cursor-pointer hover:line-through"
+                className="group cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   onSetTags(file.tags.filter((t) => t !== tag));
@@ -491,7 +491,7 @@ function BookCard({
                 title="Remove tag"
               >
                 {tag}
-                <span className="text-muted-foreground hidden group-hover:inline" aria-hidden="true">
+                <span className="text-muted-foreground" aria-hidden="true">
                   ×
                 </span>
               </Badge>
@@ -523,7 +523,7 @@ function BookCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+                  className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs compact:hidden"
                   onClick={(e) => {
                     e.stopPropagation();
                     onQuiz();
@@ -536,7 +536,7 @@ function BookCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+                className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs compact:hidden"
                 onClick={(e) => {
                   e.stopPropagation();
                   setDraftTitle(file.title);
@@ -549,7 +549,7 @@ function BookCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+                className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs compact:hidden"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRemove();
@@ -708,7 +708,7 @@ function BookRow({
             <SelectTrigger
               className={cn(
                 badgeVariants({ variant: statusBadgeVariant(file.status) }),
-                'h-7 cursor-pointer rounded-full px-3 text-xs',
+                'h-7 cursor-pointer rounded-full px-3 text-xs compact:hidden',
               )}
               onClick={(e) => e.stopPropagation()}
               aria-label={`Status for ${file.title}`}
@@ -724,12 +724,12 @@ function BookRow({
             </SelectContent>
           </Select>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 compact:hidden">
             {file.tags.map((tag) => (
               <Badge
                 key={tag}
                 variant="secondary"
-                className="group cursor-pointer hover:line-through"
+                className="group cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   onSetTags(file.tags.filter((t) => t !== tag));
@@ -737,7 +737,7 @@ function BookRow({
                 title="Remove tag"
               >
                 {tag}
-                <span className="text-muted-foreground hidden group-hover:inline" aria-hidden="true">
+                <span className="text-muted-foreground" aria-hidden="true">
                   ×
                 </span>
               </Badge>
@@ -777,7 +777,7 @@ function BookRow({
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+                className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs compact:hidden"
                 onClick={(e) => {
                   e.stopPropagation();
                   onQuiz();
@@ -790,7 +790,7 @@ function BookRow({
             <Button
               variant="ghost"
               size="sm"
-              className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+              className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs compact:hidden"
               onClick={(e) => {
                 e.stopPropagation();
                 setDraftTitle(file.title);
@@ -803,7 +803,7 @@ function BookRow({
             <Button
               variant="ghost"
               size="sm"
-              className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs"
+              className="text-muted-foreground hover:text-primary h-auto px-1 py-0.5 text-xs compact:hidden"
               onClick={(e) => {
                 e.stopPropagation();
                 onRemove();

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, FileText, Frame, LayoutGrid, ListTree, Maximize, Minimize, NotebookText, PanelLeft, TextWrap } from 'lucide-react';
 import { clampZoomPercent } from '@taking-book/core';
 import { Badge } from '@/components/ui/badge';
+import { AdaptivePopover } from '@/components/AdaptivePopover';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useCapabilities } from '@/lib/useCapabilities';
@@ -140,7 +141,8 @@ export function Overlay({
           z-30 in a local stacking context, so without this the transparent
           backdrop (z-10) covers the menu and swallows every click on it. */}
       <div className={cn('overlay overlay-top', !visible && 'overlay-hidden', openMenu !== null && 'z-20')}>
-        <div className="bg-overlay text-foreground pointer-events-auto flex items-center gap-3.5 px-4 py-2.5 backdrop-blur-md">
+        {/* The controls wrap onto a second line at compact, where 48dp targets would not fit in one. */}
+        <div className="bg-overlay text-foreground pointer-events-auto flex flex-wrap items-center gap-x-3.5 gap-y-1 px-4 py-2.5 backdrop-blur-md compact:gap-x-1 compact:px-2">
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Back">
             <ArrowLeft className="size-5" />
           </Button>
@@ -159,12 +161,11 @@ export function Overlay({
                 <PanelLeft className="size-4" />
               </Button>
               {sidebarMenuOpen && (
-                <div
+                <AdaptivePopover
                   role="menu"
-                  aria-label="Sidebar views"
-                  className="bg-popover text-popover-foreground absolute top-full left-0 z-30 mt-1.5 w-44 rounded-md border p-1 shadow-md"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
+                  label="Sidebar views"
+                  onClose={closeMenu}
+                  anchoredClassName="top-full left-0 mt-1.5 w-44 p-1"
                 >
                   <button
                     type="button"
@@ -185,11 +186,11 @@ export function Overlay({
                     <ListTree className="size-4" />
                     Outlines
                   </button>
-                </div>
+                </AdaptivePopover>
               )}
             </div>
           )}
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
+          <span className="min-w-24 flex-1 truncate text-sm font-medium">{title}</span>
           {mode === 'reflow' && <Badge variant="secondary">Reflow</Badge>}
           {mode === 'page' && (
             <Button

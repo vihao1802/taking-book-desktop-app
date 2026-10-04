@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Play, Star, Trash2, X } from 'lucide-react';
 import type { BookFile, BookStatus } from '@/reader-api';
-import { Badge } from '@/components/ui/badge';
+import { badgeVariants } from '@/components/ui/badge';
 import { BookCover } from '@/components/BookCover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { initials } from '@/lib/initials';
 import { progressLine, readingProgressPercent } from '@/lib/progress';
 import { STATUS_OPTIONS } from '@/lib/status';
+import { cn } from '@/lib/utils';
 
 interface BookDetailsProps {
   file: BookFile;
@@ -141,17 +142,16 @@ export function BookDetails({
 
       <div className="flex flex-wrap items-center gap-2">
         {file.tags.map((tag) => (
-          <Badge key={tag} variant="secondary" className="gap-1 py-1 pr-1 pl-2.5 text-xs">
+          <button
+            key={tag}
+            type="button"
+            className={cn(badgeVariants({ variant: 'secondary' }), 'cursor-pointer gap-1.5 py-1.5 text-xs')}
+            onClick={() => onSetTags(file.tags.filter((t) => t !== tag))}
+            aria-label={`Remove tag ${tag}`}
+          >
             {tag}
-            <button
-              type="button"
-              className="hover:bg-accent flex size-5 cursor-pointer items-center justify-center rounded-full"
-              onClick={() => onSetTags(file.tags.filter((t) => t !== tag))}
-              aria-label={`Remove tag ${tag}`}
-            >
-              <X className="size-3" />
-            </button>
-          </Badge>
+            <X className="size-3" aria-hidden="true" />
+          </button>
         ))}
         <form
           className="inline-flex"

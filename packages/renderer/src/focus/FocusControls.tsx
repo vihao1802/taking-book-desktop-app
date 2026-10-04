@@ -1,5 +1,6 @@
 import { Timer } from 'lucide-react';
 import { formatFocusTimeLeft } from '@taking-book/core';
+import { AdaptivePopover } from '@/components/AdaptivePopover';
 import { Button } from '@/components/ui/button';
 import { hasFocusControls, useCapabilities } from '@/lib/useCapabilities';
 import { cn } from '@/lib/utils';
@@ -42,15 +43,13 @@ export function FocusControls({ open, onOpenChange }: FocusControlsProps) {
         )}
       </Button>
       {open && (
-        <div
-          role="dialog"
-          aria-label="Focus controls"
-          className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-1.5 w-72 rounded-md border p-3 shadow-md"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
+        <AdaptivePopover
+          label="Focus controls"
+          onClose={() => onOpenChange(false)}
+          anchoredClassName="top-full right-0 mt-1.5 w-72 p-3"
         >
           <FocusControlsPanel />
-        </div>
+        </AdaptivePopover>
       )}
     </div>
   );

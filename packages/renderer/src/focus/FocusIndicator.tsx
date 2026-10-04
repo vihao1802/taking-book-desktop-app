@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Timer } from 'lucide-react';
 import { formatFocusTimeLeft, isFocusActive } from '@taking-book/core';
+import { AdaptivePopover } from '@/components/AdaptivePopover';
 import { hasFocusControls, useCapabilities } from '@/lib/useCapabilities';
-import { useWindowSizeClass } from '@/lib/useWindowSizeClass';
 import { cn } from '@/lib/utils';
 import { FocusControlsPanel } from './FocusControlsPanel';
 import { useFocus } from './useFocus';
@@ -17,7 +17,6 @@ export function FocusIndicator(): ReactElement | null {
   const { timer, sound, timeLeftMs } = useFocus();
   const [open, setOpen] = useState(false);
   const capabilities = useCapabilities();
-  const isBottomBar = useWindowSizeClass() === 'compact';
   const active = isFocusActive({ timer, sound });
 
   useEffect(() => {
@@ -58,17 +57,10 @@ export function FocusIndicator(): ReactElement | null {
         )}
       </button>
       {open && (
-        <div
-          role="dialog"
-          aria-label="Focus controls"
-          className={cn(
-            'bg-popover text-popover-foreground absolute z-30 w-72 rounded-md border p-3 shadow-md',
-            // Above the bottom bar at compact, beside the rail otherwise.
-            isBottomBar ? 'right-0 bottom-full mb-2' : 'bottom-0 left-full ml-2',
-          )}
-        >
+        // A sheet at compact (above the bottom bar), beside the rail otherwise.
+        <AdaptivePopover label="Focus controls" onClose={() => setOpen(false)} anchoredClassName="bottom-0 left-full ml-2 w-72 p-3">
           <FocusControlsPanel />
-        </div>
+        </AdaptivePopover>
       )}
     </div>
   );

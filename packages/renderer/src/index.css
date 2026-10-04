@@ -396,3 +396,58 @@
   /* The canvas already shows the text; keep the overlay glyphs invisible. */
   color: transparent;
 }
+
+/* ---------- Compact Window size class (under 600dp) ---------- */
+
+/* Must match MEDIUM_MIN_WIDTH_DP in lib/window-size-class.ts: the width where compact ends. */
+@custom-variant compact (@media (width < 600px));
+
+@media (width < 600px) {
+  /* Every control is at least 48dp each way, so a finger can hit it. The 0
+     specificity of :where lets a utility such as min-h-0 still opt out. */
+  :where(
+    button,
+    a[href],
+    summary,
+    textarea,
+    select,
+    input:not([type='checkbox'], [type='radio'], [type='range']),
+    [role='button'],
+    [role='menuitem'],
+    [role='option'],
+    [role='tab'],
+    [role='combobox']
+  ) {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  /* A slider's thumb is small; the whole track row is what a finger drags. */
+  :where([data-slot='slider']) {
+    min-height: 48px;
+  }
+
+  /* A checkbox is tiny by itself; its label is the target. */
+  :where(label:has(input[type='checkbox'], input[type='radio'])) {
+    min-height: 48px;
+  }
+
+  /* Select options become a sheet pinned to the bottom edge; Radix places them with a transform. */
+  [data-radix-popper-content-wrapper]:has(> [data-slot='select-content'][data-sheet]) {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    transform: none !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* The scrim behind an open select sheet; the sheet's wrapper sits above it at z-50. */
+  body:has([data-slot='select-content'][data-sheet][data-state='open'])::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+  }
+}
