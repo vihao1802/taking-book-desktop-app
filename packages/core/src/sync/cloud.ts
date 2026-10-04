@@ -24,6 +24,22 @@ export interface CloudAccount {
   email: string;
 }
 
+/** What the UI shows while the reader approves a device-flow sign-in. */
+export interface DeviceCodePrompt {
+  /** The short code the reader types at the address. */
+  userCode: string;
+  /** The address to open, on this device or any other. */
+  verificationUrl: string;
+  /** Epoch ms after which the code no longer works. */
+  expiresAt: number;
+}
+
+/** Optional hooks a caller gives {@link CloudProvider.connect}. */
+export interface ConnectOptions {
+  /** Called when a provider needs the reader to enter a code elsewhere (device flow). */
+  onDeviceCode?: (prompt: DeviceCodePrompt) => void;
+}
+
 /**
  * A cloud provider capable of producing a {@link SyncStorage}. Implementations
  * live in platform packages (the desktop wires OAuth over Electron); the
@@ -36,8 +52,11 @@ export interface CloudProvider {
   readonly providerName: string;
   /** Returns the connected account, or null when not connected. */
   getAccount(): Promise<Result<CloudAccount | null>>;
-  /** Starts the OAuth flow and returns the account once connected. */
-  connect(): Promise<Result<CloudAccount>>;
+  /**
+   * Starts the OAuth flow and returns the account once connected. Providers
+   * that sign in with a device code report it through `options.onDeviceCode`.
+   */
+  connect(options?: ConnectOptions): Promise<Result<CloudAccount>>;
   /** Forgets the stored token. */
   disconnect(): Promise<Result<void>>;
   /**

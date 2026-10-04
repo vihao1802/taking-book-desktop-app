@@ -166,10 +166,26 @@ export {
   type CloudAccount,
   type CloudProvider,
   type CloudToken,
+  type ConnectOptions,
+  type DeviceCodePrompt,
   type OAuthClientConfig,
   type OAuthHttpClient,
   type OAuthTokenResponse,
 } from './sync/cloud';
+export {
+  GOOGLE_DEVICE_CODE_URL,
+  GOOGLE_DEVICE_FLOW_SCOPES,
+  GOOGLE_TOKEN_URL,
+  ensureFreshToken,
+  parseDeviceCodeResponse,
+  signInWithDeviceFlow,
+  type DeviceCodeGrant,
+  type DeviceFlowConfig,
+  type DeviceFlowError,
+  type DeviceFlowFailureKind,
+  type DeviceFlowOptions,
+  type EnsureFreshTokenOptions,
+} from './sync/googleDeviceFlow';
 export { deriveCodeChallenge, generateCodeVerifier } from './sync/pkce';
 export { processPagesInOrder, type ProcessPagesOptions } from './pageProcessing';
 export {
