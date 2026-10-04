@@ -75,7 +75,7 @@ What it does not cover: the Android WebView, the Capacitor plugins (SQLite, file
 
 `node packages/mobile/browser-check/device-run.mjs` runs against the app's own WebView on a connected emulator or device, with the system's real touch input (`adb shell input tap`, after a calibration tap that maps CSS pixels to screen pixels). Playwright's `connectOverCDP` and `tap` do not work with a WebView, so it uses Playwright's Android driver (`_android`) to reach the page. It currently walks the five navigation destinations and, at compact, scans for controls under 48dp. The Library starts empty and adding a Book needs the system file picker, so Reader checks still run only in the browser check above.
 
-Setup on this machine (the JDK and the SDK live under `~/Android`, and the AVDs are `tb_phone` and `tb_tablet`):
+Run it on both a phone and a tablet: once with `tb_phone` and once with `tb_tablet` (kill the first emulator with `adb emu kill` before starting the second), and report the result per device. Setup on this machine (the JDK and the SDK live under `~/Android`, and the AVDs are `tb_phone` and `tb_tablet`):
 
 1. `export JAVA_HOME=$HOME/Android/jdk21 ANDROID_HOME=$HOME/Android PATH=$HOME/Android/jdk21/bin:$HOME/Android/platform-tools:$PATH`
 2. `npm run android:apk --workspace @taking-book/mobile` builds the debug APK.
