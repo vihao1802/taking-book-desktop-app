@@ -12,9 +12,13 @@ export const ALL_CAPABILITIES: ReaderCapabilities = {
 
 /**
  * Test helper: installs a fake `window.api` that carries only the given
- * capabilities (the rest stay on), for rendering components in a node test.
+ * capabilities (the rest stay on) and the given window width in dp, for
+ * rendering components in a node test.
  */
-export function installFakeCapabilities(overrides: Partial<ReaderCapabilities> = {}): void {
-  const fakeWindow = { api: { capabilities: { ...ALL_CAPABILITIES, ...overrides } } };
+export function installFakeCapabilities(
+  overrides: Partial<ReaderCapabilities> = {},
+  innerWidth = 1280,
+): void {
+  const fakeWindow = { innerWidth, api: { capabilities: { ...ALL_CAPABILITIES, ...overrides } } };
   Object.defineProperty(globalThis, 'window', { value: fakeWindow, configurable: true, writable: true });
 }

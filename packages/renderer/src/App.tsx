@@ -16,6 +16,8 @@ import { Settings } from './settings/Settings';
 import { Statistics } from './statistics/Statistics';
 import { ThemeProvider } from './theme';
 import { useCapabilities } from './lib/useCapabilities';
+import { useWindowSizeClass } from './lib/useWindowSizeClass';
+import { cn } from './lib/utils';
 import { useUpdateCheck } from './updates/useUpdateCheck';
 
 export function App() {
@@ -25,6 +27,8 @@ export function App() {
   const [noteToOpen, setNoteToOpen] = useState<Annotation | null>(null);
   // A Quiz question's source page, which the reader opens the book at; null for every other way of opening a book.
   const [pageToOpen, setPageToOpen] = useState<number | null>(null);
+  // At compact the navigation is a bar below the content instead of a rail beside it.
+  const isBottomBar = useWindowSizeClass() === 'compact';
   const [view, setView] = useState<View>('home');
   // Checked here, above the Reader branch, so opening and closing a Book neither re-checks nor brings back a dismissed notice.
   const updateCheck = useUpdateCheck();
@@ -57,9 +61,9 @@ export function App() {
           <Reader key={file.id} file={file} noteToOpen={noteToOpen} pageToOpen={pageToOpen} onClose={closeReader} />
         ) : (
           <LibraryProvider>
-            <div className="bg-background flex h-full overflow-hidden">
+            <div className={cn('bg-background flex h-full overflow-hidden', isBottomBar && 'flex-col-reverse')}>
               <NavRail current={view} onNavigate={navigate} />
-              <main className="min-w-0 flex-1 overflow-y-auto">
+              <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
                 {view === 'home' ? (
                   <Home onOpen={setFile} onNavigate={navigate} />
                 ) : view === 'library' ? (

@@ -17,6 +17,22 @@ afterEach(() => {
   Reflect.deleteProperty(globalThis, 'window');
 });
 
+describe('NavRail layout by Window size class', () => {
+  const LABELS = ['Home', 'Library', 'Favorites', 'Notes', 'Statistics', 'Settings'];
+
+  it.each([
+    [599, 'h-16 w-full'],
+    [600, 'w-20 shrink-0 flex-col'],
+    [839, 'w-20 shrink-0 flex-col'],
+    [840, 'w-20 shrink-0 flex-col'],
+  ])('at %i dp lays out as %s with the same destinations', (width, layout) => {
+    installFakeCapabilities({}, width);
+    const html = renderRail();
+    expect(html).toContain(layout);
+    for (const label of LABELS) expect(html).toContain(`aria-label="${label}"`);
+  });
+});
+
 describe('NavRail capabilities', () => {
   it('shows every entry when all capabilities are on', () => {
     installFakeCapabilities();

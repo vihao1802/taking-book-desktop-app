@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { FocusIndicator } from '@/focus/FocusIndicator';
 import { useCapabilities } from '@/lib/useCapabilities';
+import { useWindowSizeClass } from '@/lib/useWindowSizeClass';
 
 export type View = 'home' | 'library' | 'favorites' | 'notes' | 'statistics' | 'settings';
 
@@ -29,11 +30,20 @@ export function NavRail({
 }) {
   const { statistics } = useCapabilities();
   const items = NAV_ITEMS.filter((item) => item.id !== 'statistics' || statistics);
+  // The same destinations either way: a bottom bar at compact, a rail from medium up.
+  const isBottomBar = useWindowSizeClass() === 'compact';
 
   return (
-    <nav className="bg-nav flex w-20 shrink-0 flex-col items-center justify-between border-r border-border py-6" aria-label="Primary">
-      <div className="flex flex-col items-center gap-8">
-        <ul className="flex flex-col items-center gap-6">
+    <nav
+      className={
+        isBottomBar
+          ? 'bg-nav flex h-16 w-full shrink-0 items-center justify-between border-t border-border px-2'
+          : 'bg-nav flex w-20 shrink-0 flex-col items-center justify-between border-r border-border py-6'
+      }
+      aria-label="Primary"
+    >
+      <div className={isBottomBar ? 'flex min-w-0 flex-1' : 'flex flex-col items-center gap-8'}>
+        <ul className={isBottomBar ? 'flex flex-1 items-center justify-around' : 'flex flex-col items-center gap-6'}>
           {items.map((item) => (
             <li key={item.id}>
               <button
