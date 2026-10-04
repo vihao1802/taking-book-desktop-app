@@ -60,9 +60,114 @@ jobs:
           path: packages/desktop/out/make/
           if-no-files-found: error
 
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    env:
+      # Signing inputs for packages/mobile/android/app/build.gradle (ADR-0011).
+      TB_KEYSTORE_PASSWORD: ${{ secrets.TB_ANDROID_KEYSTORE_PASSWORD }}
+      TB_KEY_ALIAS: ${{ secrets.TB_ANDROID_KEY_ALIAS }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # A tag push uses the tag as the version. A manual run has no tag, so it
+      # takes the desktop version, which the tag must match anyway.
+      - name: Derive version
+        id: version
+        run: |
+          desktop_version=$(node -p "require('./packages/desktop/package.json').version")
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+            if [ "$tag" != "v${desktop_version}" ]; then
+              echo "Tag $tag does not match packages/desktop/package.json version ${desktop_version}." >&2
+              exit 1
+            fi
+          else
+            tag="v${desktop_version}"
+          fi
+          node packages/mobile/scripts/derive-android-version.mjs "$tag"
+
+      - run: npm ci
+
+      - name: Build web assets and sync Capacitor
+        working-directory: packages/mobile
+        run: npm run android:sync
+
+      # The keystore is decoded to a runner temp file only for the Gradle run
+      # and removed in the always() step below. When the secrets are absent, a
+      # manual run still builds an unsigned APK; a tag push refuses to publish
+      # one.
+      - name: Decode keystore
+        id: keystore
+        env:
+          TB_ANDROID_KEYSTORE_BASE64: ${{ secrets.TB_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$TB_ANDROID_KEYSTORE_BASE64" ] || [ -z "$TB_KEYSTORE_PASSWORD" ] || [ -z "$TB_KEY_ALIAS" ]; then
+            if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+              echo "Android signing secrets are missing; refusing to publish an unsigned APK." >&2
+              exit 1
+            fi
+            echo "Signing secrets missing; building an unsigned APK (manual run only)."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          keystore_path="${RUNNER_TEMP}/release.p12"
+          echo "$TB_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          echo "TB_KEYSTORE_PATH=${keystore_path}" >> "$GITHUB_ENV"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        working-directory: packages/mobile/android
+        run: >
+          ./gradlew assembleRelease
+          -PversionName=${{ steps.version.outputs.versionName }}
+          -PversionCode=${{ steps.version.outputs.versionCode }}
+
+      - name: Delete keystore
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/release.p12"
+
+      - name: Name and verify APK
+        id: apk
+        env:
+          SIGNED: ${{ steps.keystore.outputs.signed }}
+          VERSION_NAME: ${{ steps.version.outputs.versionName }}
+        run: |
+          output_dir=packages/mobile/android/app/build/outputs/apk/release
+          mkdir -p dist
+          if [ "$SIGNED" = "true" ]; then
+            apk="dist/taking-book-${VERSION_NAME}.apk"
+            cp "${output_dir}/app-release.apk" "$apk"
+            apksigner=$(ls "${ANDROID_HOME}"/build-tools/*/apksigner | sort -V | tail -n 1)
+            # Prints the signing certificate so it can be compared with the
+            # SHA-256 registered in the Android Developer Console (ADR-0011).
+            "$apksigner" verify --print-certs "$apk"
+          else
+            apk="dist/taking-book-${VERSION_NAME}-unsigned.apk"
+            cp "${output_dir}/app-release-unsigned.apk" "$apk"
+          fi
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+
   release:
     name: Create release
-    needs: build
+    needs: [build, android]
     # Manual dispatch runs verify the builds only; publishing stays tag-gated.
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
@@ -102,5 +207,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body_path: release-notes.md
-          files: artifacts/**/*.{exe,nupkg,blockmap,deb,zip}
+          files: artifacts/**/*.{exe,nupkg,blockmap,deb,zip,apk}
           fail_on_unmatched_files: false
