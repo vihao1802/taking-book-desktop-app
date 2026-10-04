@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Annotation, BookFile } from '@/reader-api';
 import { AddPdfFab } from './components/AddPdfFab';
 import { DropOverlay } from './components/DropOverlay';
@@ -46,11 +46,20 @@ export function App() {
     setPageToOpen(page ?? null);
     setFile(book);
   };
-  const closeReader = () => {
+  const closeReader = useCallback(() => {
     setFile(null);
     setNoteToOpen(null);
     setPageToOpen(null);
-  };
+  }, []);
+
+  // Stable, because the Library provider re-runs its share import whenever this changes.
+  const showLibrary = useCallback(() => {
+    setView('library');
+    window.scrollTo(0, 0);
+  }, []);
+
+  // Files shared from another app are imported by the Library, which a Book that is open hides: close it first.
+  useEffect(() => window.api.onSharedFiles(closeReader), [closeReader]);
 
   // The providers sit above both branches: the Focus timer belongs to the app,
   // so opening or leaving a Book must not remount it.
@@ -60,7 +69,7 @@ export function App() {
         {file ? (
           <Reader key={file.id} file={file} noteToOpen={noteToOpen} pageToOpen={pageToOpen} onClose={closeReader} />
         ) : (
-          <LibraryProvider>
+          <LibraryProvider onSharedFilesReceived={showLibrary}>
             <div className={cn('bg-background flex h-full overflow-hidden', isBottomBar && 'flex-col-reverse')}>
               <NavRail current={view} onNavigate={navigate} />
               <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">

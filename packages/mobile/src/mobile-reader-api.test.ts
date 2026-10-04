@@ -24,6 +24,8 @@ function createApi(db: SqlDriver): ReaderApi {
   });
   const bookFiles: BookFiles = {
     addFromPicker: async () => ({ ok: true, data: null }),
+    addFromShares: async () => ({ ok: true, data: null }),
+    onSharesReceived: () => () => undefined,
     checkReadable: async () => ({ ok: true, data: undefined }),
     getDocumentUrl: (storedPath) => `http://localhost/_capacitor_file_/data/${storedPath}`,
   };

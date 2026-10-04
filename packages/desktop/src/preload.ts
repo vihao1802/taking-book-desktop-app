@@ -76,6 +76,8 @@ const api: ReaderApi = {
     ipcRenderer.on('files:import:progress', handler);
     return () => ipcRenderer.removeListener('files:import:progress', handler);
   },
+  importSharedFiles: () => Promise.resolve({ ok: true, data: null }),
+  onSharedFiles: () => () => undefined,
   listCustomSounds: () => ipcRenderer.invoke('sounds:custom:list'),
   addCustomSounds: () => ipcRenderer.invoke('sounds:custom:add'),
   renameCustomSound: (contentHash, name) => ipcRenderer.invoke('sounds:custom:rename', contentHash, name),

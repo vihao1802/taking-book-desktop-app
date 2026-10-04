@@ -68,6 +68,8 @@ export function createMobileReaderApi({ library, annotations, settings }: Mobile
   return {
     ...createInMemoryReaderApi(),
     openFile: () => bookFiles.addFromPicker(reportProgress),
+    importSharedFiles: () => bookFiles.addFromShares(reportProgress),
+    onSharedFiles: (listener) => bookFiles.onSharesReceived(listener),
     onImportProgress: (listener) => {
       progressListeners.add(listener);
       return () => progressListeners.delete(listener);

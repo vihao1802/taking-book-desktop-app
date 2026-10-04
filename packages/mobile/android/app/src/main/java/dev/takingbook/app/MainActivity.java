@@ -1,5 +1,13 @@
 package dev.takingbook.app;
 
+import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 
-public class MainActivity extends BridgeActivity {}
+public class MainActivity extends BridgeActivity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        // Plugins written for this app (not from npm) are registered before the bridge starts.
+        registerPlugin(ShareIntentPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+}
