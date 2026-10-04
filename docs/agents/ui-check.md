@@ -46,6 +46,8 @@ In the Library, add the fixture, then per class: the "…" (`[aria-label^="Detai
 
 Dialogs, selects and popovers: at compact they are bottom sheets (the panel spans the width and ends at the bottom of the window) and from medium up a dialog is centred and a select or popover is anchored; open the Remove dialog from Book details, a status select and the reader's Focus controls at 450 and 700. At compact every interactive element is at least 48 by 48: run `node scripts/ui-check/cdp.mjs eval "$(cat scripts/ui-check/touch-targets.js)"` in each view, in the reader with the overlay showing, and with a sheet or select open; it prints the elements that are too small (an empty list passes). The desktop shortcuts still work at expanded (Control+f, Control+g, n for the Notes sidebar).
 
+Also scan the reader's on-demand surfaces at compact (Find with Control+f, Go to page, the Selection toolbar after a double-click on a word with the overlay hidden, the Translation popup, the Reflow reader, the Quiz dialog), and check that each one stays inside the window: the scan only measures size, so read each screenshot for a bar running off an edge.
+
 Check that the destinations are the same in each class, and that an open Book stays open, at the same position, across the resizes. Restore the size afterwards.
 
 ## Gotchas

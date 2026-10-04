@@ -44,7 +44,7 @@ export function FindBar(props: FindBarProps) {
   return (
     <div
       role="search"
-      className="bg-popover text-popover-foreground pointer-events-auto flex items-center gap-1 rounded-md border p-1.5 shadow-md"
+      className="bg-popover text-popover-foreground pointer-events-auto flex flex-wrap items-center gap-1 rounded-md border p-1.5 shadow-md compact:w-full"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
@@ -60,10 +60,10 @@ export function FindBar(props: FindBarProps) {
         }}
         placeholder="Find in document"
         aria-label="Find in document"
-        className="h-8 w-56 text-sm"
+        className="h-8 w-56 text-sm compact:w-full compact:basis-full"
       />
       <span
-        className="text-muted-foreground min-w-[9ch] text-center text-xs tabular-nums"
+        className="text-muted-foreground min-w-[9ch] flex-1 text-center text-xs tabular-nums"
         aria-live="polite"
       >
         {statusText(props)}

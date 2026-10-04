@@ -33,7 +33,7 @@ export function ReaderBars({
   return (
     <>
       {search.open && (
-        <div className="pointer-events-none fixed top-16 right-4 z-30">
+        <div className="pointer-events-none fixed top-16 right-4 z-30 compact:left-2 compact:right-2">
           <FindBar
             query={search.query}
             activeIndex={search.activeIndex}
