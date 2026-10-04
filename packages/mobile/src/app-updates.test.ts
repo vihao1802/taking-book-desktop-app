@@ -48,7 +48,20 @@ describe('createAppUpdates', () => {
     expect(await updates.checkForUpdate()).toEqual(err('offline'));
   });
 
-  it('opens a release download in the browser', async () => {
+  it('reports an error instead of throwing when the app version cannot be read', async () => {
+    const updates = createAppUpdates({
+      getAppVersion: async () => {
+        throw new Error('no plugin');
+      },
+      fetchLatestRelease: async () => ok(releaseJson(['taking-book-1.3.0.apk'])),
+      openUrl: async () => ok(undefined),
+      log: () => undefined,
+    });
+    expect((await updates.checkForUpdate()).ok).toBe(false);
+    expect((await updates.getAppVersion()).ok).toBe(false);
+  });
+
+  it('opens a release download in the browser',async () => {
     const { updates, openUrl } = setup(ok(null));
     expect(await updates.openUpdateDownload(APK_URL)).toEqual(ok(undefined));
     expect(openUrl).toHaveBeenCalledWith(APK_URL);

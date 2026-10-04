@@ -16,6 +16,10 @@ async function openStream(webPath: string): Promise<ReadableStream<Uint8Array>> 
   return response.body;
 }
 
+async function readAppVersion(): Promise<string> {
+  return (await App.getInfo()).version;
+}
+
 async function openInBrowser(url: string): Promise<Result<void>> {
   try {
     await Browser.open({ url });
@@ -60,7 +64,7 @@ export async function startReaderApi(): Promise<Result<ReaderApi>> {
     log,
   });
   const updates = createAppUpdates({
-    getAppVersion: async () => (await App.getInfo()).version,
+    getAppVersion: readAppVersion,
     fetchLatestRelease,
     openUrl: openInBrowser,
     log,

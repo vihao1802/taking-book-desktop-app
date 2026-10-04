@@ -34,8 +34,10 @@ export type AppUpdates = Pick<ReaderApi, 'checkForUpdate' | 'openUpdateDownload'
 export function createAppUpdates(options: AppUpdatesOptions): AppUpdates {
   return {
     checkForUpdate: async () => {
+      const version = await readVersion(options);
+      if (!version.ok) return version;
       const result = await checkForUpdate({
-        currentVersion: await options.getAppVersion(),
+        currentVersion: version.data,
         platform: 'android',
         arch: '',
         fetchLatestRelease: options.fetchLatestRelease,
@@ -48,8 +50,18 @@ export function createAppUpdates(options: AppUpdatesOptions): AppUpdates {
       return options.openUrl(url);
     },
     openReleasesPage: () => options.openUrl(RELEASES_PAGE_URL),
-    getAppVersion: async () => ok(await options.getAppVersion()),
+    getAppVersion: () => readVersion(options),
   };
+}
+
+// The plugin call can reject; the renderer expects a Result, so the failure is logged and returned.
+async function readVersion(options: AppUpdatesOptions): Promise<Result<string>> {
+  try {
+    return ok(await options.getAppVersion());
+  } catch (error) {
+    options.log(`update: could not read the app version: ${String(error)}`);
+    return err('Could not read the app version.');
+  }
 }
 
 /**
