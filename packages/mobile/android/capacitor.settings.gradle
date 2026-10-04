@@ -20,5 +20,8 @@ project(':capacitor-clipboard').projectDir = new File('../../../node_modules/@ca
 include ':capacitor-filesystem'
 project(':capacitor-filesystem').projectDir = new File('../../../node_modules/@capacitor/filesystem/android')
 
+include ':capacitor-network'
+project(':capacitor-network').projectDir = new File('../../../node_modules/@capacitor/network/android')
+
 include ':capawesome-capacitor-file-picker'
 project(':capawesome-capacitor-file-picker').projectDir = new File('../../../node_modules/@capawesome/capacitor-file-picker/android')

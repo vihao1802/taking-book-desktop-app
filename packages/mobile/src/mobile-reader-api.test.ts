@@ -55,8 +55,16 @@ describe('createMobileReaderApi', () => {
     api = createApi(db);
   });
 
-  it('keeps every capability off', () => {
-    expect(Object.values(api.capabilities).every((enabled) => !enabled)).toBe(true);
+  it('keeps every desktop-only capability off and turns on the mobile-data setting', () => {
+    const { mobileDataDownloads, ...desktopOnly } = api.capabilities;
+    expect(mobileDataDownloads).toBe(true);
+    expect(Object.values(desktopOnly).every((enabled) => !enabled)).toBe(true);
+  });
+
+  it('saves the mobile-data download choice on this device, off by default', async () => {
+    expect(await api.getDownloadOverMobileData()).toEqual({ ok: true, data: false });
+    await api.setDownloadOverMobileData(true);
+    expect(await createApi(db).getDownloadOverMobileData()).toEqual({ ok: true, data: true });
   });
 
   it('checks for updates through the update service', async () => {

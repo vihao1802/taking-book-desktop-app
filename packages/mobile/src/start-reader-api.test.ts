@@ -10,13 +10,14 @@ vi.mock('@capacitor/filesystem', () => ({
   Directory: { Data: 'DATA' },
   Encoding: { UTF8: 'utf8' },
 }));
-vi.mock('@capacitor/core', () => ({ Capacitor: { convertFileSrc: (uri: string) => uri } }));
+vi.mock('@capacitor/core', () => ({ Capacitor: { convertFileSrc: (uri: string) => uri }, registerPlugin: () => ({}) }));
 vi.mock('@capacitor/app', () => ({
   App: { getInfo: async () => ({ version: '1.2.0' }), addListener: async () => ({ remove: async () => undefined }) },
 }));
 vi.mock('@capacitor/browser', () => ({ Browser: { open: async () => undefined } }));
 vi.mock('@capawesome/capacitor-file-picker', () => ({ FilePicker: {} }));
 vi.mock('@capacitor/clipboard', () => ({ Clipboard: {} }));
+vi.mock('@capacitor/network', () => ({ Network: {} }));
 vi.mock('@aparajita/capacitor-secure-storage', () => ({ SecureStorage: {} }));
 
 import { startReaderApi } from './start-reader-api';

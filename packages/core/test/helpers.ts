@@ -108,6 +108,10 @@ export function createMemoryStorage(): SyncStorage & { dump(): Map<string, Uint8
     async readFile(key) {
       return { ok: true, data: files.get(key) ?? null };
     },
+    async statFile(key) {
+      const data = files.get(key);
+      return { ok: true, data: data ? { size: data.length } : null };
+    },
     async writeFile(key, data) {
       files.set(key, data);
       return { ok: true, data: undefined };

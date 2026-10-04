@@ -64,6 +64,17 @@ describe('createGoogleDriveDeviceFlowProvider', () => {
     expect(fixture.drive.fileNames()).toEqual(['manifest.json', 'abc']);
   });
 
+  it('reports a stored file size without downloading it', async () => {
+    const fixture = createGoogleDeviceFlowProviderForTest();
+    await fixture.provider.connect();
+    const storage = await fixture.provider.createSyncStorage();
+    if (!storage.ok) throw new Error(storage.error);
+    await storage.data.writeFile('blobs/abc', new Uint8Array([1, 2, 3, 4]));
+
+    expect(await storage.data.statFile('blobs/abc')).toEqual(ok({ size: 4 }));
+    expect(await storage.data.statFile('blobs/missing')).toEqual(ok(null));
+  });
+
   it('refreshes an expired token before calling Drive and saves the new one', async () => {
     const expired: CloudToken = { accessToken: 'old', refreshToken: 'refresh-1', expiresAt: NOW - 1 };
     const fixture = createGoogleDeviceFlowProviderForTest({ storedToken: expired });

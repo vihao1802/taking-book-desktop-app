@@ -53,6 +53,12 @@ export function createGoogleDriveSyncStorage(options: GoogleDriveSyncStorageOpti
       if (!folderResult.ok) return folderResult;
       return drive.downloadFile(folderResult.data, name);
     },
+    async statFile(key: string): Promise<Result<{ size: number } | null>> {
+      const { folder, name } = splitKey(key);
+      const folderResult = await folder();
+      if (!folderResult.ok) return folderResult;
+      return drive.statFile(folderResult.data, name);
+    },
     async writeFile(key: string, data: Uint8Array): Promise<Result<void>> {
       const { folder, name } = splitKey(key);
       const folderResult = await folder();

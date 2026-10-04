@@ -45,6 +45,8 @@ export interface DriveRestClientOptions {
 export interface DriveRestClient {
   ensureFolder(name: string, parentId: string | null): Promise<Result<string>>;
   findFile(folderId: string, name: string): Promise<Result<string | null>>;
+  /** The size of a file in bytes without downloading it; null when there is no such file. */
+  statFile(folderId: string, name: string): Promise<Result<{ size: number } | null>>;
   uploadFile(folderId: string, name: string, data: Uint8Array): Promise<Result<void>>;
   downloadFile(folderId: string, name: string): Promise<Result<Uint8Array | null>>;
   deleteFile(folderId: string, name: string): Promise<Result<void>>;
@@ -138,15 +140,25 @@ export function createDriveRestClient(options: DriveRestClientOptions): DriveRes
     }
   }
 
-  async function fileIdByName(folderId: string, name: string): Promise<Result<string | null>> {
+  async function entryByName(folderId: string, name: string): Promise<Result<{ id: string; size: number } | null>> {
     const q = encodeURIComponent(
       `name = '${escapeDriveQueryValue(name)}' and '${folderId}' in parents and trashed = false`,
     );
-    const json = await apiJson(`/files?q=${q}&fields=files(id,name)&pageSize=1000`);
+    const json = await apiJson(`/files?q=${q}&fields=files(id,name,size)&pageSize=1000`);
     if (!json.ok) return json;
     if (!json.data) return ok(null);
-    const files = (json.data as { files?: { id: string }[] }).files ?? [];
-    return ok(files[0]?.id ?? null);
+    const first = (json.data as { files?: { id: string; size?: string }[] }).files?.[0];
+    return ok(first ? { id: first.id, size: Number(first.size ?? 0) } : null);
+  }
+
+  async function fileIdByName(folderId: string, name: string): Promise<Result<string | null>> {
+    const entry = await entryByName(folderId, name);
+    return entry.ok ? ok(entry.data?.id ?? null) : entry;
+  }
+
+  async function statFile(folderId: string, name: string): Promise<Result<{ size: number } | null>> {
+    const entry = await entryByName(folderId, name);
+    return entry.ok ? ok(entry.data ? { size: entry.data.size } : null) : entry;
   }
 
   async function ensureFolder(name: string, parentId: string | null): Promise<Result<string>> {
@@ -218,5 +230,5 @@ export function createDriveRestClient(options: DriveRestClientOptions): DriveRes
     return ok(files.map((file) => file.name));
   }
 
-  return { ensureFolder, findFile: fileIdByName, uploadFile, downloadFile, deleteFile, listFiles };
+  return { ensureFolder, findFile: fileIdByName, statFile, uploadFile, downloadFile, deleteFile, listFiles };
 }

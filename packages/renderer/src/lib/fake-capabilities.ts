@@ -8,6 +8,7 @@ export const ALL_CAPABILITIES: ReaderCapabilities = {
   statistics: true,
   dropImport: true,
   fullScreen: true,
+  mobileDataDownloads: true,
 };
 
 /**

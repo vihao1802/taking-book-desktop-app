@@ -10,6 +10,7 @@ const api: ReaderApi = {
     statistics: true,
     dropImport: true,
     fullScreen: true,
+    mobileDataDownloads: false,
   },
   systemLocale: readSystemLocaleArgument(process.argv),
   openFile: () => ipcRenderer.invoke('files:open'),
@@ -61,6 +62,9 @@ const api: ReaderApi = {
   setAiApiKey: (key) => ipcRenderer.invoke('settings:aiKey:set', key),
   clearAiApiKey: () => ipcRenderer.invoke('settings:aiKey:clear'),
   translate: (text) => ipcRenderer.invoke('translate:text', text),
+  // A computer has no mobile connection, so the setting is hidden and never read.
+  getDownloadOverMobileData: () => Promise.resolve({ ok: true, data: false }),
+  setDownloadOverMobileData: () => Promise.resolve({ ok: false, error: 'This setting is only for phones.' }),
   getCloudAccount: () => ipcRenderer.invoke('cloud:status'),
   connectCloud: () => ipcRenderer.invoke('cloud:connect'),
   // The loopback sign-in has no code to show; the device flow replaces it on desktop later.

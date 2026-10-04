@@ -14,6 +14,8 @@ export interface ReaderCapabilities {
   /** Adding Books by dragging files onto the window. */
   dropImport: boolean;
   fullScreen: boolean;
+  /** The device-local Settings choice to download PDFs over mobile data; only a phone has a mobile connection. */
+  mobileDataDownloads: boolean;
 }
 
 /** Contract exposed on window.api by the preload bridge. */
@@ -100,6 +102,9 @@ export interface ReaderApi {
   deleteCustomSound(contentHash: string): Promise<Result<void>>;
   /** Translates selected text into the Target language in effect; the error is worded for the reader. */
   translate(text: string): Promise<Result<Translation>>;
+  /** Whether PDFs may be downloaded over mobile data on this device (never synced); off until turned on. */
+  getDownloadOverMobileData(): Promise<Result<boolean>>;
+  setDownloadOverMobileData(allowed: boolean): Promise<Result<void>>;
   getCloudAccount(): Promise<Result<CloudAccount | null>>;
   /**
    * Signs in to the cloud account. A platform that signs in with a device code

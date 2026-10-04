@@ -338,34 +338,79 @@ describe('syncLibrary', () => {
     if (isOk(result)) expect(result.data.uploaded).toBe(1);
   });
 
-  it('syncs the manifest but copies no book files when transferBlobs is off', async () => {
-    const shared = createMemoryStorage();
-    await shared.writeFile(
-      'manifest.json',
-      new TextEncoder().encode(
-        JSON.stringify({
-          version: 1,
-          records: [{ hash: 'abc', title: 'Alpha', status: 'unread', tags: [], lastPage: null, lastPosition: null, updatedAt: 100, updatedBy: 'dev-remote', deleted: false }],
-        }),
-      ),
-    );
-    await shared.writeFile('blobs/abc', new TextEncoder().encode('pdf-bytes'));
-    const db = createMemoryDriver();
-    await db.exec(`${filesSchema()} ${annotationsSchema()}`);
-    const local = createMemoryStorage();
-
-    const result = await syncLibrary(db, {
-      local,
-      remote: shared,
-      resolveLocalPath: (hash) => `/blobs/${hash}`,
-      transferBlobs: false,
+  describe('with a blob transfer policy', () => {
+    const record = (hash: string, title: string) => ({
+      hash, title, status: 'unread', tags: [], lastPage: null, lastPosition: null, updatedAt: 100, updatedBy: 'dev-remote', deleted: false,
     });
 
-    expect(isOk(result)).toBe(true);
-    if (isOk(result)) {
-      expect(result.data.added).toBe(1);
-      expect(result.data.downloaded).toBe(0);
+    async function remoteWith(...books: Array<[string, string, number]>) {
+      const shared = createMemoryStorage();
+      await shared.writeFile('manifest.json', new TextEncoder().encode(JSON.stringify({ version: 1, records: books.map(([hash, title]) => record(hash, title)) })));
+      for (const [hash, , size] of books) await shared.writeFile(`blobs/${hash}`, new Uint8Array(size));
+      return shared;
     }
-    expect(local.dump().has('blobs/abc')).toBe(false);
+
+    async function emptyLibrary(): Promise<SqlDriver> {
+      const db = createMemoryDriver();
+      await db.exec(`${filesSchema()} ${annotationsSchema()}`);
+      return db;
+    }
+
+    it('skips a download the policy refuses, reports it, and still syncs the manifest and the other Books', async () => {
+      const remote = await remoteWith(['big', 'Big Book', 9], ['small', 'Small Book', 2]);
+      const db = await emptyLibrary();
+      const local = createMemoryStorage();
+
+      const result = await syncLibrary(db, {
+        local,
+        remote,
+        resolveLocalPath: (hash) => `/blobs/${hash}`,
+        blobTransfer: {
+          uploadBooks: false,
+          decideDownload: async ({ sizeBytes }) =>
+            sizeBytes > 5 ? { download: false, reason: 'size', message: 'too big' } : { download: true },
+        },
+      });
+
+      expect(isOk(result)).toBe(true);
+      if (!isOk(result)) return;
+      expect(result.data.added).toBe(2);
+      expect(result.data.downloaded).toBe(1);
+      expect(result.data.skippedDownloads).toEqual([{ hash: 'big', title: 'Big Book', reason: 'size', message: 'too big' }]);
+      expect(result.data.warnings).toEqual(['Big Book: too big']);
+      expect([...local.dump().keys()]).toEqual(['blobs/small']);
+    });
+
+    it('tells the policy each Book size without reading the files', async () => {
+      const remote = await remoteWith(['abc', 'Alpha', 7]);
+      const requests: unknown[] = [];
+
+      await syncLibrary(await emptyLibrary(), {
+        local: createMemoryStorage(),
+        remote,
+        resolveLocalPath: (hash) => `/blobs/${hash}`,
+        blobTransfer: { uploadBooks: false, decideDownload: async (request) => (requests.push(request), { download: false, reason: 'network', message: 'wifi' }) },
+      });
+
+      expect(requests).toEqual([{ hash: 'abc', title: 'Alpha', sizeBytes: 7 }]);
+    });
+
+    it('does not upload Books when the policy turns uploads off', async () => {
+      const db = createMemoryDriver();
+      await db.exec(`${filesSchema()} ${annotationsSchema()}`);
+      await addBook(db, 'abc', 'Alpha');
+      const remote = createMemoryStorage();
+
+      const result = await syncLibrary(db, {
+        local: localStorageWith('abc'),
+        remote,
+        resolveLocalPath: (hash) => `/blobs/${hash}`,
+        blobTransfer: { uploadBooks: false, decideDownload: async () => ({ download: true }) },
+      });
+
+      expect(isOk(result) && result.data.uploaded).toBe(0);
+      expect(remote.dump().has('manifest.json')).toBe(true);
+      expect(remote.dump().has('blobs/abc')).toBe(false);
+    });
   });
 });

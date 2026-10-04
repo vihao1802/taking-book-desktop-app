@@ -66,10 +66,12 @@ export function createMobileServices(db: SqlDriver, options: MobileServiceOption
  * @returns A reader API for the shared renderer.
  */
 export function createMobileReaderApi({ library, annotations, settings }: MobileServices, bookFiles: BookFiles, updates: AppUpdates, cloud: CloudSync & AutoSyncEvents): ReaderApi {
+  const inMemory = createInMemoryReaderApi();
   const progressListeners = new Set<(progress: ImportProgress) => void>();
   const reportProgress = (progress: ImportProgress): void => progressListeners.forEach((listener) => listener(progress));
   return {
-    ...createInMemoryReaderApi(),
+    ...inMemory,
+    capabilities: { ...inMemory.capabilities, mobileDataDownloads: true },
     openFile: () => bookFiles.addFromPicker(reportProgress),
     onImportProgress: (listener) => {
       progressListeners.add(listener);
@@ -113,6 +115,8 @@ export function createMobileReaderApi({ library, annotations, settings }: Mobile
     setTargetLanguage: (code) => settings.setTargetLanguage(code),
     ...updates,
     ...cloud,
+    getDownloadOverMobileData: () => settings.getDownloadOverMobileData(),
+    setDownloadOverMobileData: (allowed) => settings.setDownloadOverMobileData(allowed),
     recordReadingSession: (fileId, minutes) => settings.recordReadingSession(fileId, minutes),
   };
 }

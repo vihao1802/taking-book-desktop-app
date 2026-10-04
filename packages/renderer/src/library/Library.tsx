@@ -26,6 +26,7 @@ import {
 import { QuizDialog } from '../quiz/QuizDialog';
 import { BookDetails } from './BookDetails';
 import { DeviceCodeNotice } from './DeviceCodeNotice';
+import { describeSkippedDownloads } from './skipped-downloads';
 import { getBookDetailsPresentation } from './book-details-presentation';
 import { useAddPdf } from './useAddPdf';
 import { useLibrary } from './useLibrary';
@@ -291,6 +292,13 @@ export function Library({
           {sync.last.warnings.length > 0 ? ` (${sync.last.warnings.length} warnings)` : ''}
         </p>
       )}
+
+      {sync.last &&
+        describeSkippedDownloads(sync.last.skippedDownloads).map((message) => (
+          <p key={message} role="status" className="text-muted-foreground text-sm">
+            {message}
+          </p>
+        ))}
 
       {error && <p className="text-destructive text-sm">{error}</p>}
 

@@ -261,6 +261,25 @@ for (const view of ['Home', 'Library', 'Favorites', 'Notes', 'Settings']) {
     });
   }
 }
+
+// The loop above ends on Settings, so the mobile-data switch is on screen.
+await check('Settings: a real touch flips the mobile-data switch and the choice is saved', async () => {
+  await page.evaluate(() => document.querySelector('[role=switch]').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(SETTLE_MS);
+  await tapper.tapElement('[role=switch]');
+  await page.waitForTimeout(SETTLE_MS);
+  const shown = await page.getAttribute('[role=switch]', 'aria-checked');
+  const saved = await page.evaluate(async () => (await window.api.getDownloadOverMobileData()).data);
+  await tapper.tapElement('[role=switch]');
+  return shown === 'true' && saved === true ? '' : `shown ${shown}, saved ${saved}`;
+});
+await check('Sync: the native Storage and Network plugins answer', async () => {
+  const answers = await page.evaluate(async () => {
+    const { Storage, Network } = window.Capacitor.Plugins;
+    return { freeBytes: (await Storage.getFreeBytes()).freeBytes, connectionType: (await Network.getStatus()).connectionType };
+  });
+  return answers.freeBytes > 0 && typeof answers.connectionType === 'string' ? '' : JSON.stringify(answers);
+});
 await checkReflowOnDevice();
 if (errors.length > 0) record('No uncaught page errors', false, errors[0]);
 

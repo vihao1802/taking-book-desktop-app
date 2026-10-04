@@ -1,5 +1,6 @@
 import type { AnnotationColor, BookStatus, ReadMode } from '../models';
 import type { Result } from '../result';
+import type { SkippedDownload } from './blobTransfer';
 
 /**
  * Last-write-wins clock stamp for a record. `updatedAt` is epoch milliseconds;
@@ -76,6 +77,8 @@ export interface SyncManifest {
  */
 export interface SyncStorage {
   readFile(key: string): Promise<Result<Uint8Array | null>>;
+  /** The size in bytes of a file without reading it; null when the file is not there. */
+  statFile(key: string): Promise<Result<{ size: number } | null>>;
   writeFile(key: string, data: Uint8Array): Promise<Result<void>>;
   deleteFile(key: string): Promise<Result<void>>;
   listFiles(prefix: string): Promise<Result<string[]>>;
@@ -89,4 +92,6 @@ export interface SyncSummary {
   uploaded: number;
   downloaded: number;
   warnings: string[];
+  /** PDFs this pass chose not to download, each with its reason. */
+  skippedDownloads: SkippedDownload[];
 }

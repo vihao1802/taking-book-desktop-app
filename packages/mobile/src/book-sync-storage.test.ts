@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const filesystem = vi.hoisted(() => ({ readFile: vi.fn(), writeFile: vi.fn(), deleteFile: vi.fn(), readdir: vi.fn() }));
+const filesystem = vi.hoisted(() => ({ readFile: vi.fn(), writeFile: vi.fn(), deleteFile: vi.fn(), readdir: vi.fn(), stat: vi.fn() }));
 vi.mock('@capacitor/filesystem', () => ({ Filesystem: filesystem, Directory: { Data: 'DATA' } }));
 vi.mock('@capacitor/core', () => ({ Capacitor: {} }));
 
@@ -18,6 +18,19 @@ describe('createBookSyncStorage', () => {
 
     expect(await storage.readFile('blobs/abc')).toEqual({ ok: true, data: new Uint8Array([1, 2, 3]) });
     expect(filesystem.readFile).toHaveBeenCalledWith({ path: 'books/abc.pdf', directory: 'DATA' });
+  });
+
+  it('reports a Book size without reading the file', async () => {
+    filesystem.stat.mockResolvedValue({ size: 1234 });
+
+    expect(await storage.statFile('blobs/abc')).toEqual({ ok: true, data: { size: 1234 } });
+    expect(filesystem.readFile).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing Book as absent when asked for its size', async () => {
+    filesystem.stat.mockRejectedValue(new Error('File does not exist'));
+
+    expect(await storage.statFile('blobs/abc')).toEqual({ ok: true, data: null });
   });
 
   it('treats a Book that is not on the device as absent', async () => {

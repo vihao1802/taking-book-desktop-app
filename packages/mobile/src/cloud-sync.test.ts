@@ -4,6 +4,7 @@ import {
   ok,
   startDatabase,
   upsertFile,
+  type BlobTransferPolicy,
   type CloudAccount,
   type CloudProvider,
   type DeviceCodePrompt,
@@ -12,7 +13,7 @@ import {
   type SyncStorage,
 } from '@taking-book/core';
 import { createCapacitorSqlDriver } from './capacitor-sql-driver';
-import { createCloudSync, type CloudSync } from './cloud-sync';
+import { createCloudSync, type CloudSync, type CloudSyncOptions } from './cloud-sync';
 import { createFakeConnection } from './fake-sqlite-connection';
 import { createMobileServices, type MobileServices } from './mobile-reader-api';
 
@@ -24,6 +25,7 @@ function createMemoryStorage(): SyncStorage & { files: Map<string, Uint8Array> }
   return {
     files,
     readFile: async (key) => ok(files.get(key) ?? null),
+    statFile: async (key) => ok(files.has(key) ? { size: files.get(key)?.length ?? 0 } : null),
     writeFile: async (key, data) => ok(void files.set(key, data)),
     deleteFile: async (key) => ok(void files.delete(key)),
     listFiles: async (prefix) => ok([...files.keys()].filter((key) => key.startsWith(prefix))),
@@ -66,6 +68,8 @@ function createServices(db: SqlDriver): MobileServices {
   });
 }
 
+const ALLOW_ALL: BlobTransferPolicy = { uploadBooks: false, decideDownload: async () => ({ download: true }) };
+
 const DESKTOP_MANIFEST = {
   version: 1,
   records: [
@@ -95,12 +99,16 @@ describe('createCloudSync', () => {
   let drive: ReturnType<typeof createMemoryStorage>;
   let log: ReturnType<typeof vi.fn>;
 
-  function createSync(provider: CloudProvider | null): CloudSync {
+  function createSync(
+    provider: CloudProvider | null,
+    overrides: Partial<Pick<CloudSyncOptions, 'localStorage' | 'blobTransfer'>> = {},
+  ): CloudSync {
     return createCloudSync({
       db,
       provider,
-      localStorage: createMemoryStorage(),
+      localStorage: overrides.localStorage ?? createMemoryStorage(),
       resolveLocalPath: (hash) => `books/${hash}.pdf`,
+      blobTransfer: overrides.blobTransfer ?? ALLOW_ALL,
       presentDeviceCode: vi.fn(async () => undefined),
       log,
     });
@@ -135,23 +143,40 @@ describe('createCloudSync', () => {
     expect(manifest.records[0].annotations.map((annotation: { quote: string }) => annotation.quote)).toEqual(['a line']);
   });
 
-  it('copies no PDFs while only the manifest is synced', async () => {
+  it('downloads a PDF the policy allows and leaves the phone side as one file per hash', async () => {
     await drive.writeFile('manifest.json', new TextEncoder().encode(JSON.stringify(DESKTOP_MANIFEST)));
-    await drive.writeFile('blobs/abc', new Uint8Array([1]));
-
+    await drive.writeFile('blobs/abc', new Uint8Array([1, 2]));
     const local = createMemoryStorage();
-    const sync = createCloudSync({
-      db,
-      provider: createProvider(ok(drive)),
-      localStorage: local,
-      resolveLocalPath: (hash) => `books/${hash}.pdf`,
-      presentDeviceCode: async () => undefined,
-      log,
-    });
-    await sync.runSync();
 
+    const summary = await createSync(createProvider(ok(drive)), { localStorage: local }).runSync();
+
+    expect(summary.ok && summary.data.downloaded).toBe(1);
+    expect(local.files.get('blobs/abc')).toEqual(new Uint8Array([1, 2]));
+  });
+
+  it('still syncs the manifest when the policy refuses the PDF, and reports why', async () => {
+    await drive.writeFile('manifest.json', new TextEncoder().encode(JSON.stringify(DESKTOP_MANIFEST)));
+    await drive.writeFile('blobs/abc', new Uint8Array([1, 2]));
+    const local = createMemoryStorage();
+    const refuse: BlobTransferPolicy = {
+      uploadBooks: false,
+      decideDownload: async () => ({ download: false, reason: 'network', message: 'Use Wi-Fi.' }),
+    };
+
+    const summary = await createSync(createProvider(ok(drive)), { localStorage: local, blobTransfer: refuse }).runSync();
+
+    expect(summary.ok && [summary.data.added, summary.data.downloaded, summary.data.skippedDownloads.map((s) => s.reason)]).toEqual([1, 0, ['network']]);
     expect(local.files.size).toBe(0);
-    expect(drive.files.has('blobs/abc')).toBe(true);
+  });
+
+  it('never uploads the phone PDFs to Drive', async () => {
+    await upsertFile(db, { hash: 'abc', title: 'Dune', filePath: 'books/abc.pdf' }, { updatedAt: 1, updatedBy: 'phone' });
+    const local = createMemoryStorage();
+    await local.writeFile('blobs/abc', new Uint8Array([9]));
+
+    await createSync(createProvider(ok(drive)), { localStorage: local }).runSync();
+
+    expect(drive.files.has('blobs/abc')).toBe(false);
   });
 
   it('leaves the library untouched and reports the error when the sync fails', async () => {
@@ -198,6 +223,7 @@ describe('createCloudSync', () => {
       provider: createProvider(ok(drive)),
       localStorage: createMemoryStorage(),
       resolveLocalPath: (hash) => hash,
+      blobTransfer: ALLOW_ALL,
       presentDeviceCode,
       log,
     });

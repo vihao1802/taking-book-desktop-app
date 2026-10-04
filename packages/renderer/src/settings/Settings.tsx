@@ -7,6 +7,7 @@ import { useTheme } from '../theme';
 import { AboutSettings } from './AboutSettings';
 import { AiSettings } from './AiSettings';
 import { CustomSoundsSettings } from './CustomSoundsSettings';
+import { SyncSettings } from './SyncSettings';
 import { TranslationSettings } from './TranslationSettings';
 
 const THEME_OPTIONS: Array<{ value: Theme; label: string; icon: typeof Sun; description: string }> = [
@@ -18,7 +19,7 @@ const THEME_OPTIONS: Array<{ value: Theme; label: string; icon: typeof Sun; desc
 
 export function Settings() {
   const { theme, setTheme } = useTheme();
-  const { quiz, ambientSound } = useCapabilities();
+  const { quiz, ambientSound, mobileDataDownloads } = useCapabilities();
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-6 sm:p-8">
@@ -57,6 +58,8 @@ export function Settings() {
       </Card>
 
       <TranslationSettings />
+
+      {mobileDataDownloads && <SyncSettings />}
 
       {quiz && <AiSettings />}
 

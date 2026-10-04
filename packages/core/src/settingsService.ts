@@ -2,10 +2,12 @@ import type { Theme } from './models';
 import { recordReadingSession } from './readingSessionsRepository';
 import type { Result } from './result';
 import {
+  getDownloadOverMobileData,
   getEffectiveTargetLanguage,
   getNotesSidebarWidth,
   getSidebarWidth,
   getTheme,
+  setDownloadOverMobileData,
   setNotesSidebarWidth,
   setSidebarWidth,
   setTargetLanguage,
@@ -32,6 +34,9 @@ export interface SettingsService {
   getTargetLanguage(): Promise<Result<string>>;
   /** Rejects an unsupported code without saving anything. */
   setTargetLanguage(code: string): Promise<Result<void>>;
+  /** Whether PDFs may be downloaded over mobile data on this device; off until the reader turns it on. */
+  getDownloadOverMobileData(): Promise<Result<boolean>>;
+  setDownloadOverMobileData(allowed: boolean): Promise<Result<void>>;
   /** Adds minutes read to a book's total for today (local calendar day). */
   recordReadingSession(fileId: number, minutes: number): Promise<Result<void>>;
 }
@@ -62,6 +67,8 @@ export function createSettingsService(db: SqlDriver, options: SettingsServiceOpt
     setNotesSidebarWidth: (width) => setNotesSidebarWidth(db, width),
     getTargetLanguage: () => getEffectiveTargetLanguage(db, options.getSystemLocale()),
     setTargetLanguage: (code) => setTargetLanguage(db, code),
+    getDownloadOverMobileData: () => getDownloadOverMobileData(db),
+    setDownloadOverMobileData: (allowed) => setDownloadOverMobileData(db, allowed),
     recordReadingSession: (fileId, minutes) => recordReadingSession(db, fileId, formatLocalDay(now()), minutes),
   };
 }

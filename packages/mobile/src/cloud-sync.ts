@@ -3,6 +3,7 @@ import {
   ok,
   syncLibrary,
   type CloudAccount,
+  type BlobTransferPolicy,
   type CloudProvider,
   type DeviceCodePrompt,
   type Result,
@@ -27,6 +28,8 @@ export interface CloudSyncOptions {
   /** This device's copy of the Books, addressed like the Drive folder. */
   localStorage: SyncStorage;
   resolveLocalPath: (hash: string) => string;
+  /** Which PDFs this device downloads; the manifest syncs regardless. */
+  blobTransfer: BlobTransferPolicy;
   /** Copies the code and opens the verification page when a sign-in code appears. */
   presentDeviceCode: (prompt: DeviceCodePrompt) => Promise<void>;
   log: (message: string) => void;
@@ -40,8 +43,8 @@ function errorMessage(error: unknown): string {
 
 /**
  * Connects Google Drive with the device flow and syncs the Library with the
- * Drive folder. Only the manifest (the Library, Last-read positions and
- * Annotations) is exchanged here. A failed sync leaves the local library
+ * Drive folder: the manifest (the Library, Last-read positions and Annotations)
+ * always, and PDFs as far as the transfer policy allows. A failed sync leaves the local library
  * untouched and comes back as an error result, so reading is never blocked.
  *
  * @param options The database, the provider and the device's storage.
@@ -61,7 +64,7 @@ export function createCloudSync(options: CloudSyncOptions): CloudSync {
         local: options.localStorage,
         remote: remote.data,
         resolveLocalPath: options.resolveLocalPath,
-        transferBlobs: false,
+        blobTransfer: options.blobTransfer,
         logWarning: (message) => log(`sync: ${message}`),
       });
       if (!summary.ok) log(`sync failed: ${summary.error}`);

@@ -163,11 +163,38 @@ async function checkConnect(page, sizeClass) {
     const notice = await page.$('[aria-label="Google sign-in code"]');
     return notice ? 'the code is still showing' : '';
   });
+  await check(sizeClass.name, 'A sync that skipped a PDF says why in the Library', async () => {
+    await tap(page, 'button:has-text("Sync now")');
+    await page.waitForSelector('text=1 PDF not downloaded', { timeout: 5000 });
+    const text = await page.locator('text=1 PDF not downloaded').first().innerText();
+    return text.includes('Wi-Fi') ? '' : `message says: ${text}`;
+  });
   await check(sizeClass.name, 'Disconnect forgets the account', async () => {
     await tap(page, 'button:has-text("Disconnect")');
     await page.waitForSelector('button:has-text("Connect Google Drive")');
     return '';
   });
+}
+
+/** Settings offers the device-local mobile-data choice, and a tap flips it. */
+async function checkSettings(page, sizeClass) {
+  await tap(page, 'button[aria-label=Settings]');
+  await page.waitForSelector('[role=switch]');
+  await check(sizeClass.name, 'Settings: the mobile-data switch starts off and a tap turns it on', async () => {
+    const before = await page.getAttribute('[role=switch]', 'aria-checked');
+    await tap(page, '[role=switch]');
+    await page.waitForTimeout(SETTLE_MS);
+    const after = await page.getAttribute('[role=switch]', 'aria-checked');
+    return before === 'false' && after === 'true' ? '' : `aria-checked ${before} -> ${after}`;
+  });
+  if (sizeClass.name === 'compact') {
+    await check(sizeClass.name, 'Settings: every control is at least 48dp', async () => {
+      const small = JSON.parse(await page.evaluate(TOUCH_TARGETS));
+      return small.length === 0 ? '' : small.join(', ');
+    });
+  }
+  await tap(page, '[role=switch]');
+  await tap(page, 'button[aria-label=Library]');
 }
 
 /** A sync the app runs by itself shows the Books it brought without the reader doing anything. */
@@ -376,6 +403,7 @@ async function runClass(browser, baseUrl, sizeClass) {
   await checkLibrary(page, sizeClass);
   await checkConnect(page, sizeClass);
   await checkAutoSync(page, sizeClass);
+  await checkSettings(page, sizeClass);
   await check(sizeClass.name, 'The book opens', async () => {
     await openBook(page);
     return '';

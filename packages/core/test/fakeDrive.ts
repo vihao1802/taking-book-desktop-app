@@ -92,7 +92,7 @@ export function createFakeDriveServer(options: { rejectToken?: string } = {}): F
     const target = entries.find((entry) => entry.id === id);
     if (init.method === 'GET' && !id) {
       const query = parsed.searchParams.get('q') ?? '';
-      return jsonResponse(200, { files: entries.filter((entry) => matchesQuery(entry, query)).map(({ id: fileId, name }) => ({ id: fileId, name })) });
+      return jsonResponse(200, { files: entries.filter((entry) => matchesQuery(entry, query)).map(({ id: fileId, name, data }) => ({ id: fileId, name, size: String(data.length) })) });
     }
     if (init.method === 'GET') return target ? bytesResponse(200, target.data) : jsonResponse(404, {});
     if (init.method === 'DELETE') {

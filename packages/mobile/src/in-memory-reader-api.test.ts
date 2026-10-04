@@ -6,7 +6,7 @@ describe('createInMemoryReaderApi', () => {
     const { capabilities } = createInMemoryReaderApi();
     expect(Object.values(capabilities).every((enabled) => enabled === false)).toBe(true);
     expect(Object.keys(capabilities).sort()).toEqual(
-      ['ambientSound', 'dropImport', 'focusTimer', 'fullScreen', 'quiz', 'statistics'],
+      ['ambientSound', 'dropImport', 'focusTimer', 'fullScreen', 'mobileDataDownloads', 'quiz', 'statistics'],
     );
   });
 

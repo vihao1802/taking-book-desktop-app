@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Result, SyncStorage } from '@taking-book/core';
 import { err, ok } from '@taking-book/core';
@@ -37,6 +37,15 @@ export function createFolderSyncStorage(root: string): SyncStorage {
         return ok(data);
       } catch (error) {
         return err(`Failed reading "${key}" from ${root}: ${errorMessage(error)}`);
+      }
+    },
+
+    async statFile(key): Promise<Result<{ size: number } | null>> {
+      try {
+        return ok({ size: (await stat(keyPath(key))).size });
+      } catch (error) {
+        if (isNotFound(error)) return ok(null);
+        return err(`Failed checking "${key}" in ${root}: ${errorMessage(error)}`);
       }
     },
 

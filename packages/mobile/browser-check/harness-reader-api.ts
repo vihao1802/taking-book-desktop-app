@@ -51,10 +51,11 @@ export function createHarnessReaderApi(): ReaderApi {
 
   let account: CloudAccount | null = null;
   let syncedBooks: BookFile[] = [];
+  let downloadOverMobileData = false;
   const syncListeners = new Set<(result: Result<SyncSummary>) => void>();
   Reflect.set(window, AUTO_SYNC_HOOK, () => {
     syncedBooks = [{ ...createFixtureBook(), id: 2, hash: 'synced-hash', title: 'Synced Book' }];
-    const summary: SyncSummary = { added: 1, updated: 0, deleted: 0, uploaded: 0, downloaded: 0, warnings: [] };
+    const summary: SyncSummary = { added: 1, updated: 0, deleted: 0, uploaded: 0, downloaded: 0, warnings: [], skippedDownloads: [] };
     syncListeners.forEach((listener) => listener(ok(summary)));
   });
   const deviceCodeListeners = new Set<(prompt: DeviceCodePrompt) => void>();
@@ -79,7 +80,23 @@ export function createHarnessReaderApi(): ReaderApi {
       account = null;
       return done(undefined);
     },
-    runSync: () => done({ added: 0, updated: 0, deleted: 0, uploaded: 0, downloaded: 0, warnings: [] }),
+    // Always reports one PDF skipped on mobile data, to show how the Library words it.
+    runSync: () =>
+      done({
+        added: 0,
+        updated: 0,
+        deleted: 0,
+        uploaded: 0,
+        downloaded: 0,
+        warnings: [],
+        skippedDownloads: [{ hash: 'skipped-hash', title: 'Skipped Book', reason: 'network', message: 'PDFs download on Wi-Fi. Connect to Wi-Fi, or allow mobile data in Settings.' }],
+      }),
+    capabilities: { ...createInMemoryReaderApi().capabilities, mobileDataDownloads: true },
+    getDownloadOverMobileData: () => done(downloadOverMobileData),
+    setDownloadOverMobileData: (allowed: boolean) => {
+      downloadOverMobileData = allowed;
+      return done(undefined);
+    },
     getDocumentUrl: () => FIXTURE_URL,
     listFiles: () => done([book, ...syncedBooks]),
     onSyncComplete: (listener) => {

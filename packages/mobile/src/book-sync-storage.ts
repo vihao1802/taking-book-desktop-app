@@ -38,6 +38,17 @@ export function createBookSyncStorage(): SyncStorage {
         return err(`Could not read ${path}: ${errorMessage(error)}`);
       }
     },
+    async statFile(key): Promise<Result<{ size: number } | null>> {
+      const path = pathForKey(key);
+      if (path === null) return ok(null);
+      try {
+        const { size } = await Filesystem.stat({ path, directory: Directory.Data });
+        return ok({ size });
+      } catch (error) {
+        if (isFileMissing(error)) return ok(null);
+        return err(`Could not check ${path}: ${errorMessage(error)}`);
+      }
+    },
     async writeFile(key, data): Promise<Result<void>> {
       const path = pathForKey(key);
       if (path === null) return err(`Cannot store ${key} on this device`);

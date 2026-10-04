@@ -1,6 +1,7 @@
 import type { Result } from '../result';
 import { err, ok } from '../result';
 import type { SqlDriver } from '../sql';
+import type { BlobTransferPolicy } from './blobTransfer';
 import { parseManifest, serializeManifest } from './manifest';
 import { mergeRecords } from './merge';
 import { applySyncRecords, listRecordsForSync } from './syncRepository';
@@ -20,11 +21,10 @@ export interface SyncLibraryOptions {
   resolveLocalPath: (hash: string) => string | Promise<string>;
   logWarning?: (message: string) => void;
   /**
-   * Whether to copy missing book files between `local` and `remote`. Defaults
-   * to true; a platform that cannot hold whole files in memory turns it off
-   * and syncs the manifest only.
+   * Decides which Book files move. Without it every missing file is copied in
+   * both directions, as on desktop.
    */
-  transferBlobs?: boolean;
+  blobTransfer?: BlobTransferPolicy;
 }
 
 function recordCounts(
@@ -75,6 +75,7 @@ export async function syncLibrary(
     uploaded: 0,
     downloaded: 0,
     warnings: [],
+    skippedDownloads: [],
   };
 
   const localRecordsResult = await listRecordsForSync(db);
@@ -105,46 +106,76 @@ export async function syncLibrary(
     summary.warnings.push(writeResult.error);
   }
 
-  if (options.transferBlobs !== false) await reconcileBlobs(merged, local, remote, summary, warn);
+  await reconcileBlobs(merged, { local, remote, policy: options.blobTransfer, summary, warn });
   return ok(summary);
 }
 
-async function reconcileBlobs(
-  records: SyncRecord[],
-  local: SyncStorage,
-  remote: SyncStorage,
-  summary: SyncSummary,
-  warn: (message: string) => void,
-): Promise<void> {
+interface BlobContext {
+  local: SyncStorage;
+  remote: SyncStorage;
+  policy: BlobTransferPolicy | undefined;
+  summary: SyncSummary;
+  warn: (message: string) => void;
+}
+
+/**
+ * Copies Book files to whichever side lacks them, asking the transfer policy
+ * before each download. Sizes come from `statFile`, so a file is read whole
+ * only when it is really going to be copied. A failure on one Book is a
+ * warning and never stops the others.
+ */
+async function reconcileBlobs(records: SyncRecord[], context: BlobContext): Promise<void> {
   for (const record of records) {
     const key = `blobs/${record.hash}`;
-    const [localBlob, remoteBlob] = await Promise.all([
-      local.readFile(key),
-      remote.readFile(key),
-    ]);
-    if (localBlob.ok && remoteBlob.ok) {
-      if (record.deleted) {
-        if (remoteBlob.data) {
-          const del = await remote.deleteFile(key);
-          if (!del.ok) warn(`Failed deleting remote blob for ${record.hash}: ${del.error}`);
-        }
-        continue;
-      }
-      if (!localBlob.data && remoteBlob.data) {
-        const write = await local.writeFile(key, remoteBlob.data);
-        if (write.ok) summary.downloaded += 1;
-        else warn(`Failed downloading ${record.hash}: ${write.error}`);
-      } else if (localBlob.data && !remoteBlob.data) {
-        const write = await remote.writeFile(key, localBlob.data);
-        if (write.ok) summary.uploaded += 1;
-        else warn(`Failed uploading ${record.hash}: ${write.error}`);
-      }
-    } else if (!localBlob.ok) {
-      warn(`Local blob check failed for ${record.hash}: ${localBlob.error}`);
-      summary.warnings.push(`blob check failed for ${record.hash}`);
-    } else if (!remoteBlob.ok) {
-      warn(`Remote blob check failed for ${record.hash}: ${remoteBlob.error}`);
-      summary.warnings.push(`blob check failed for ${record.hash}`);
+    const [localStat, remoteStat] = await Promise.all([context.local.statFile(key), context.remote.statFile(key)]);
+    if (!localStat.ok) {
+      context.warn(`Local blob check failed for ${record.hash}: ${localStat.error}`);
+      context.summary.warnings.push(`blob check failed for ${record.hash}`);
+    } else if (!remoteStat.ok) {
+      context.warn(`Remote blob check failed for ${record.hash}: ${remoteStat.error}`);
+      context.summary.warnings.push(`blob check failed for ${record.hash}`);
+    } else if (record.deleted) {
+      if (remoteStat.data) await deleteRemoteBlob(context, record.hash, key);
+    } else if (!localStat.data && remoteStat.data) {
+      await downloadBlob(context, record, key, remoteStat.data.size);
+    } else if (localStat.data && !remoteStat.data && context.policy?.uploadBooks !== false) {
+      await uploadBlob(context, record.hash, key);
     }
   }
+}
+
+async function deleteRemoteBlob(context: BlobContext, hash: string, key: string): Promise<void> {
+  const deleted = await context.remote.deleteFile(key);
+  if (!deleted.ok) context.warn(`Failed deleting remote blob for ${hash}: ${deleted.error}`);
+}
+
+async function downloadBlob(context: BlobContext, record: SyncRecord, key: string, sizeBytes: number): Promise<void> {
+  const { summary, warn } = context;
+  const decision = context.policy
+    ? await context.policy.decideDownload({ hash: record.hash, title: record.title, sizeBytes })
+    : { download: true as const };
+  if (!decision.download) {
+    summary.skippedDownloads.push({ hash: record.hash, title: record.title, reason: decision.reason, message: decision.message });
+    summary.warnings.push(`${record.title}: ${decision.message}`);
+    return;
+  }
+  const bytes = await context.remote.readFile(key);
+  if (!bytes.ok || !bytes.data) {
+    warn(`Failed downloading ${record.hash}: ${bytes.ok ? 'the file disappeared' : bytes.error}`);
+    return;
+  }
+  const written = await context.local.writeFile(key, bytes.data);
+  if (written.ok) summary.downloaded += 1;
+  else warn(`Failed downloading ${record.hash}: ${written.error}`);
+}
+
+async function uploadBlob(context: BlobContext, hash: string, key: string): Promise<void> {
+  const bytes = await context.local.readFile(key);
+  if (!bytes.ok || !bytes.data) {
+    context.warn(`Failed uploading ${hash}: ${bytes.ok ? 'the file disappeared' : bytes.error}`);
+    return;
+  }
+  const written = await context.remote.writeFile(key, bytes.data);
+  if (written.ok) context.summary.uploaded += 1;
+  else context.warn(`Failed uploading ${hash}: ${written.error}`);
 }

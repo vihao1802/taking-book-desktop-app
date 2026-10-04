@@ -208,3 +208,21 @@ export async function setFocusPreferences(db: SqlDriver, preferences: Partial<Fo
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+const DOWNLOAD_OVER_MOBILE_DATA_KEY = 'sync.downloadPdfsOverMobileData';
+
+/**
+ * Reads whether PDFs may be downloaded over mobile data. This is a device-local
+ * setting: it is never part of the sync manifest.
+ *
+ * @returns True only when the reader turned it on; false when never set.
+ */
+export async function getDownloadOverMobileData(db: SqlDriver): Promise<Result<boolean>> {
+  const stored = await getSetting(db, DOWNLOAD_OVER_MOBILE_DATA_KEY);
+  return stored.ok ? ok(stored.data === 'true') : stored;
+}
+
+/** Saves whether PDFs may be downloaded over mobile data on this device. */
+export async function setDownloadOverMobileData(db: SqlDriver, allowed: boolean): Promise<Result<void>> {
+  return setSetting(db, DOWNLOAD_OVER_MOBILE_DATA_KEY, allowed ? 'true' : 'false');
+}

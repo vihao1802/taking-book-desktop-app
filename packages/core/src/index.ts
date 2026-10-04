@@ -194,6 +194,17 @@ export {
   type EnsureFreshTokenOptions,
 } from './sync/googleDeviceFlow';
 export {
+  MAX_DOWNLOAD_BYTES,
+  MIN_FREE_STORAGE_BYTES,
+  decidePdfDownload,
+  type BlobTransferPolicy,
+  type DeviceConditions,
+  type DownloadDecision,
+  type DownloadRequest,
+  type DownloadSkipReason,
+  type SkippedDownload,
+} from './sync/blobTransfer';
+export {
   createDriveRestClient,
   type DriveFetch,
   type DriveFetchInit,

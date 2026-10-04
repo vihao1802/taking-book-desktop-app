@@ -1,6 +1,6 @@
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { err, getDeviceId, ok, type Result, type SqlDriver } from '@taking-book/core';
+import { err, getDeviceId, ok, type Result, type SettingsService, type SqlDriver } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
 import { createAppUpdates, fetchLatestRelease } from './app-updates';
 import { createBookFiles } from './book-files';
@@ -11,8 +11,10 @@ import { createCloudSync, type CloudSync } from './cloud-sync';
 import { createDriveProvider } from './create-drive-provider';
 import { createFilesystemTextStore } from './filesystem-text-store';
 import { createMobileReaderApi, createMobileServices } from './mobile-reader-api';
+import { createMobileTransferPolicy } from './mobile-transfer-policy';
 import { openDatabase } from './open-database';
 import { pickPdfs } from './pick-pdfs';
+import { getFreeStorageBytes, isOnWifi } from './transfer-conditions';
 import { watchAppActive } from './watch-app-active';
 import { capacitorDeviceCodeActions, presentDeviceCode } from './present-device-code';
 
@@ -36,13 +38,21 @@ async function openInBrowser(url: string): Promise<Result<void>> {
   }
 }
 
-function buildCloudSync(db: SqlDriver, generateId: () => string, log: (message: string) => void): CloudSync & AutoSyncEvents {
+function buildCloudSync(db: SqlDriver, settings: SettingsService, generateId: () => string, log: (message: string) => void): CloudSync & AutoSyncEvents {
   const clientConfig = { clientId: import.meta.env.VITE_TB_GDRIVE_CLIENT_ID, clientSecret: import.meta.env.VITE_TB_GDRIVE_CLIENT_SECRET };
   const cloud = createCloudSync({
     db,
     provider: createDriveProvider(clientConfig, generateId),
     localStorage: createBookSyncStorage(),
     resolveLocalPath: bookPathFor,
+    blobTransfer: createMobileTransferPolicy({
+      isOnWifi,
+      getFreeBytes: getFreeStorageBytes,
+      getAllowMobileData: async () => {
+        const allowed = await settings.getDownloadOverMobileData();
+        return allowed.ok && allowed.data;
+      },
+    }),
     presentDeviceCode: (prompt) => presentDeviceCode(prompt, capacitorDeviceCodeActions),
     log,
   });
@@ -90,5 +100,5 @@ export async function startReaderApi(): Promise<Result<ReaderApi>> {
     openUrl: openInBrowser,
     log,
   });
-  return ok(createMobileReaderApi(services, bookFiles, updates, buildCloudSync(db.data, generateId, log)));
+  return ok(createMobileReaderApi(services, bookFiles, updates, buildCloudSync(db.data, services.settings, generateId, log)));
 }

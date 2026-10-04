@@ -63,6 +63,14 @@ describe('createSettingsService', () => {
     expect(unwrap(await service.getTargetLanguage())).toBe('en');
   });
 
+  it('keeps mobile-data downloads off until the reader turns them on, and remembers the choice', async () => {
+    expect(unwrap(await service.getDownloadOverMobileData())).toBe(false);
+    unwrap(await service.setDownloadOverMobileData(true));
+    expect(unwrap(await service.getDownloadOverMobileData())).toBe(true);
+    unwrap(await service.setDownloadOverMobileData(false));
+    expect(unwrap(await service.getDownloadOverMobileData())).toBe(false);
+  });
+
   it('records reading minutes against today and accumulates them', async () => {
     unwrap(await service.recordReadingSession(fileId, 2));
     unwrap(await service.recordReadingSession(fileId, 3));
