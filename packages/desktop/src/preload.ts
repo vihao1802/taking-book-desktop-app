@@ -65,6 +65,8 @@ const api: ReaderApi = {
   connectCloud: () => ipcRenderer.invoke('cloud:connect'),
   // The loopback sign-in has no code to show; the device flow replaces it on desktop later.
   onDeviceCode: () => () => undefined,
+  // The desktop's background sync does not report back; the Library refreshes on its own sync actions.
+  onSyncComplete: () => () => undefined,
   disconnectCloud: () => ipcRenderer.invoke('cloud:disconnect'),
   runSync: () => ipcRenderer.invoke('sync:run'),
   checkForUpdate: () => ipcRenderer.invoke('update:check'),

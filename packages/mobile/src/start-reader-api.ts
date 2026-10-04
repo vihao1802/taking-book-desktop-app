@@ -6,12 +6,14 @@ import { createAppUpdates, fetchLatestRelease } from './app-updates';
 import { createBookFiles } from './book-files';
 import { createBookSyncStorage } from './book-sync-storage';
 import { bookPathFor, checkBookReadable, createCapacitorBookStorage, createDocumentUrlResolver } from './capacitor-book-storage';
+import { createAutoSync, type AutoSyncEvents } from './auto-sync';
 import { createCloudSync, type CloudSync } from './cloud-sync';
 import { createDriveProvider } from './create-drive-provider';
 import { createFilesystemTextStore } from './filesystem-text-store';
 import { createMobileReaderApi, createMobileServices } from './mobile-reader-api';
 import { openDatabase } from './open-database';
 import { pickPdfs } from './pick-pdfs';
+import { watchAppActive } from './watch-app-active';
 import { capacitorDeviceCodeActions, presentDeviceCode } from './present-device-code';
 
 async function openStream(webPath: string): Promise<ReadableStream<Uint8Array>> {
@@ -34,9 +36,9 @@ async function openInBrowser(url: string): Promise<Result<void>> {
   }
 }
 
-function buildCloudSync(db: SqlDriver, generateId: () => string, log: (message: string) => void): CloudSync {
+function buildCloudSync(db: SqlDriver, generateId: () => string, log: (message: string) => void): CloudSync & AutoSyncEvents {
   const clientConfig = { clientId: import.meta.env.VITE_TB_GDRIVE_CLIENT_ID, clientSecret: import.meta.env.VITE_TB_GDRIVE_CLIENT_SECRET };
-  return createCloudSync({
+  const cloud = createCloudSync({
     db,
     provider: createDriveProvider(clientConfig, generateId),
     localStorage: createBookSyncStorage(),
@@ -44,6 +46,9 @@ function buildCloudSync(db: SqlDriver, generateId: () => string, log: (message: 
     presentDeviceCode: (prompt) => presentDeviceCode(prompt, capacitorDeviceCodeActions),
     log,
   });
+  const autoSync = createAutoSync({ cloud, watchAppActive, setTimer: setInterval, clearTimer: (handle) => clearInterval(handle as number), log });
+  autoSync.start();
+  return { ...cloud, onSyncComplete: autoSync.onSyncComplete };
 }
 
 /**

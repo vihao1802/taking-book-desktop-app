@@ -35,6 +35,17 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => window.api.onDeviceCode(setDeviceCode), []);
 
+  // A sync the platform ran by itself can bring Books, so show them and the outcome like a manual sync.
+  useEffect(
+    () =>
+      window.api.onSyncComplete((result) => {
+        if (!isOk(result)) return;
+        setSync({ syncing: false, last: result.data, error: null });
+        void refresh();
+      }),
+    [refresh],
+  );
+
   useEffect(() => {
     window.api.getCloudAccount().then((result) => {
       if (isOk(result)) setAccount(result.data);

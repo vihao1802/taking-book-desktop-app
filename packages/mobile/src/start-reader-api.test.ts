@@ -11,7 +11,9 @@ vi.mock('@capacitor/filesystem', () => ({
   Encoding: { UTF8: 'utf8' },
 }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { convertFileSrc: (uri: string) => uri } }));
-vi.mock('@capacitor/app', () => ({ App: { getInfo: async () => ({ version: '1.2.0' }) } }));
+vi.mock('@capacitor/app', () => ({
+  App: { getInfo: async () => ({ version: '1.2.0' }), addListener: async () => ({ remove: async () => undefined }) },
+}));
 vi.mock('@capacitor/browser', () => ({ Browser: { open: async () => undefined } }));
 vi.mock('@capawesome/capacitor-file-picker', () => ({ FilePicker: {} }));
 vi.mock('@capacitor/clipboard', () => ({ Clipboard: {} }));

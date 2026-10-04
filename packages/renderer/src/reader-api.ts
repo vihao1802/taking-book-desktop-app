@@ -106,6 +106,11 @@ export interface ReaderApi {
    * reports it through `onDeviceCode` first, and the result arrives once the reader approves.
    */
   connectCloud(): Promise<Result<CloudAccount>>;
+  /**
+   * Listens for syncs the platform starts by itself (at launch, on returning to
+   * the app, on a timer), so the Library can show what they brought; returns the unsubscribe.
+   */
+  onSyncComplete(listener: (result: Result<SyncSummary>) => void): () => void;
   /** Listens for the sign-in code to show while `connectCloud` waits for approval; returns the unsubscribe. */
   onDeviceCode(listener: (prompt: DeviceCodePrompt) => void): () => void;
   disconnectCloud(): Promise<Result<void>>;

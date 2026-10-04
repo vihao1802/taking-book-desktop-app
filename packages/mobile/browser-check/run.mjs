@@ -170,6 +170,16 @@ async function checkConnect(page, sizeClass) {
   });
 }
 
+/** A sync the app runs by itself shows the Books it brought without the reader doing anything. */
+async function checkAutoSync(page, sizeClass) {
+  await check(sizeClass.name, 'An automatic sync adds the Book it brought to the Library', async () => {
+    await tap(page, 'button[aria-label=Library]');
+    await page.evaluate(() => window.__runAutoSync());
+    await page.waitForSelector('text=Synced Book', { timeout: 5000 });
+    return '';
+  });
+}
+
 async function openBook(page) {
   await tap(page, '[aria-label^="Details for"]');
   await tap(page, '[data-slot=sheet-content] [aria-label^="Open"], aside [aria-label^="Open"]');
@@ -365,6 +375,7 @@ async function runClass(browser, baseUrl, sizeClass) {
   const session = await context.newCDPSession(page);
   await checkLibrary(page, sizeClass);
   await checkConnect(page, sizeClass);
+  await checkAutoSync(page, sizeClass);
   await check(sizeClass.name, 'The book opens', async () => {
     await openBook(page);
     return '';

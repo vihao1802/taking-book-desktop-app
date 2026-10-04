@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { startDatabase, upsertFile, type SqlDriver } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
 import type { AppUpdates } from './app-updates';
+import type { AutoSyncEvents } from './auto-sync';
 import type { BookFiles } from './book-files';
 import type { CloudSync } from './cloud-sync';
 import { createCapacitorSqlDriver } from './capacitor-sql-driver';
@@ -34,7 +35,8 @@ function createApi(db: SqlDriver): ReaderApi {
     openReleasesPage: async () => ({ ok: true, data: undefined }),
     getAppVersion: async () => ({ ok: true, data: '1.2.0' }),
   };
-  const cloud: CloudSync = {
+  const cloud: CloudSync & AutoSyncEvents = {
+    onSyncComplete: () => () => undefined,
     getCloudAccount: async () => ({ ok: true, data: null }),
     connectCloud: async () => ({ ok: false, error: 'offline' }),
     disconnectCloud: async () => ({ ok: true, data: undefined }),

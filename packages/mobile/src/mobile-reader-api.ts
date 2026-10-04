@@ -11,6 +11,7 @@ import {
 } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
 import type { AppUpdates } from './app-updates';
+import type { AutoSyncEvents } from './auto-sync';
 import type { BookFiles } from './book-files';
 import type { CloudSync } from './cloud-sync';
 import { createInMemoryReaderApi } from './in-memory-reader-api';
@@ -61,10 +62,10 @@ export function createMobileServices(db: SqlDriver, options: MobileServiceOption
  * @param services The core services over the app database.
  * @param bookFiles Adding Books and finding their files on this device.
  * @param updates The update check and opening its download in the browser.
- * @param cloud Google Drive sign-in and sync.
+ * @param cloud Google Drive sign-in and sync, and the notice that an automatic sync finished.
  * @returns A reader API for the shared renderer.
  */
-export function createMobileReaderApi({ library, annotations, settings }: MobileServices, bookFiles: BookFiles, updates: AppUpdates, cloud: CloudSync): ReaderApi {
+export function createMobileReaderApi({ library, annotations, settings }: MobileServices, bookFiles: BookFiles, updates: AppUpdates, cloud: CloudSync & AutoSyncEvents): ReaderApi {
   const progressListeners = new Set<(progress: ImportProgress) => void>();
   const reportProgress = (progress: ImportProgress): void => progressListeners.forEach((listener) => listener(progress));
   return {
