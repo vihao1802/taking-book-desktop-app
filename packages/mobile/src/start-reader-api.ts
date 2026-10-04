@@ -1,8 +1,17 @@
 import { err, getDeviceId, ok, type Result } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
+import { createBookFiles } from './book-files';
+import { checkBookReadable, createCapacitorBookStorage, createDocumentUrlResolver } from './capacitor-book-storage';
 import { createFilesystemTextStore } from './filesystem-text-store';
 import { createMobileReaderApi, createMobileServices } from './mobile-reader-api';
 import { openDatabase } from './open-database';
+import { pickPdfs } from './pick-pdfs';
+
+async function openStream(webPath: string): Promise<ReadableStream<Uint8Array>> {
+  const response = await fetch(webPath);
+  if (!response.ok || !response.body) throw new Error(`The file could not be read (status ${response.status})`);
+  return response.body;
+}
 
 /**
  * Opens the database and builds the reader API on top of it.
@@ -16,13 +25,26 @@ export async function startReaderApi(): Promise<Result<ReaderApi>> {
   if (!db.ok) return err(db.error);
   const deviceId = await getDeviceId(db.data, generateId);
   if (!deviceId.ok) return err(deviceId.error);
+  const documentUrl = await createDocumentUrlResolver();
+  if (!documentUrl.ok) return err(documentUrl.error);
+  const log = (message: string): void => console.error(message);
   const services = createMobileServices(db.data, {
     deviceId: deviceId.data,
     generateUid: generateId,
     systemLocale: navigator.language,
     coverStore: createFilesystemTextStore({ folder: 'covers', extension: 'jpg', label: 'cover', encoding: 'base64' }),
     reflowStore: createFilesystemTextStore({ folder: 'reflow', extension: 'json', label: 'reflow text', encoding: 'utf8' }),
-    log: (message) => console.error(message),
+    log,
   });
-  return ok(createMobileReaderApi(services));
+  const bookFiles = createBookFiles({
+    library: services.library,
+    pickPdfs,
+    storage: createCapacitorBookStorage(),
+    openStream,
+    generateId,
+    checkReadable: checkBookReadable,
+    getDocumentUrl: documentUrl.data,
+    log,
+  });
+  return ok(createMobileReaderApi(services, bookFiles));
 }

@@ -11,6 +11,7 @@ import {
   setFileTitle,
   setFileZoom,
 } from './filesRepository';
+import { importBooks, type ImportFileSystem, type ImportProgress, type ImportSummary } from './importBooks';
 import type { BookFile, BookStatus, LastPosition, ReadMode } from './models';
 import { parseReflowCache, serializeReflowCache, type ReflowCacheEntry } from './reflowCache';
 import { isOk, ok, type Result } from './result';
@@ -39,8 +40,18 @@ export interface LibraryServiceOptions {
   log?: (message: string) => void;
 }
 
+/** What a platform supplies to add Books: where the chosen files are, and who hears about progress. */
+export interface ImportFromPathsOptions {
+  /** The chosen files or folders, in the form the platform's `fileSystem` understands. */
+  paths: string[];
+  fileSystem: ImportFileSystem;
+  onProgress?: (progress: ImportProgress) => void;
+}
+
 /** The database-backed library operations of the reader API. */
 export interface LibraryService {
+  /** Adds Books by content hash, skipping non-PDFs and reporting ones already in the Library (see `importBooks`). */
+  importBooks(options: ImportFromPathsOptions): Promise<Result<ImportSummary>>;
   listBooks(): Promise<Result<BookFile[]>>;
   setStatus(id: number, status: BookStatus): Promise<Result<void>>;
   setTags(id: number, tags: string[]): Promise<Result<void>>;
@@ -77,6 +88,7 @@ export function createLibraryService(db: SqlDriver, options: LibraryServiceOptio
   }
 
   return {
+    importBooks: async (importOptions) => importBooks(db, { ...importOptions, stamp: await stamp() }),
     listBooks: () => listFiles(db),
     setStatus: async (id, status) => setFileStatus(db, id, status, await stamp()),
     setTags: async (id, tags) => setFileTags(db, id, tags, await stamp()),

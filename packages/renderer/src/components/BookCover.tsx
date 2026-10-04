@@ -28,7 +28,7 @@ function getCoverWorker(): pdfjs.PDFWorker {
 /** Renders the first page of a PDF to a small JPEG data URL. */
 async function renderCover(file: CoverSource): Promise<string> {
   const task = pdfjs.getDocument({
-    url: `appfile://doc/${encodeURIComponent(file.path)}`,
+    url: window.api.getDocumentUrl(file.path),
     standardFontDataUrl: 'appfile://fonts/',
     wasmUrl: 'appfile://wasm/',
     worker: getCoverWorker(),

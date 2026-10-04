@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { startDatabase, upsertFile, type SqlDriver } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
+import type { BookFiles } from './book-files';
 import { createCapacitorSqlDriver } from './capacitor-sql-driver';
 import { createFakeConnection } from './fake-sqlite-connection';
 import { createMobileReaderApi, createMobileServices } from './mobile-reader-api';
@@ -20,7 +21,12 @@ function createApi(db: SqlDriver): ReaderApi {
     coverStore: { read: async () => ({ ok: true, data: null }), write: async () => ({ ok: true, data: undefined }) },
     reflowStore: { read: async () => ({ ok: true, data: null }), write: async () => ({ ok: true, data: undefined }) },
   });
-  return createMobileReaderApi(services);
+  const bookFiles: BookFiles = {
+    addFromPicker: async () => ({ ok: true, data: null }),
+    checkReadable: async () => ({ ok: true, data: undefined }),
+    getDocumentUrl: (storedPath) => `http://localhost/_capacitor_file_/data/${storedPath}`,
+  };
+  return createMobileReaderApi(services, bookFiles);
 }
 
 describe('createMobileReaderApi', () => {
@@ -34,6 +40,12 @@ describe('createMobileReaderApi', () => {
 
   it('keeps every capability off', () => {
     expect(Object.values(api.capabilities).every((enabled) => !enabled)).toBe(true);
+  });
+
+  it('opens the picker, serves stored Books by URL and checks they are readable', async () => {
+    expect(await api.openFile()).toEqual({ ok: true, data: null });
+    expect(api.getDocumentUrl('books/abc.pdf')).toBe('http://localhost/_capacitor_file_/data/books/abc.pdf');
+    expect(await api.checkFileReadable('books/abc.pdf')).toEqual({ ok: true, data: undefined });
   });
 
   it('saves the Theme to the database so a second start sees it', async () => {

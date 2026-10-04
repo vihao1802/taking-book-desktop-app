@@ -9,6 +9,7 @@ import {
   upsertFile,
   type BookFile,
   type HashedTextStore,
+  type ImportFileSystem,
   type LibraryService,
   type SqlDriver,
 } from '../src';
@@ -105,6 +106,34 @@ describe('createLibraryService', () => {
   it('reports a failure to delete as an error result', async () => {
     await db.exec('DROP TABLE files');
     expect((await service.deleteBook(bookId)).ok).toBe(false);
+  });
+
+  describe('importBooks', () => {
+    const fileSystem: ImportFileSystem = {
+      stat: async () => 'file',
+      listDirectory: async () => [],
+      hashFile: async () => 'h2',
+      copyToStore: async (_path, hash) => `books/${hash}.pdf`,
+    };
+
+    it('adds a new Book and reports one already in the Library', async () => {
+      const first = await service.importBooks({ paths: ['picked/0/New.pdf'], fileSystem });
+      if (!isOk(first)) throw new Error(first.error);
+      expect(first.data.added.map((book) => [book.title, book.path])).toEqual([
+        ['New', 'books/h2.pdf'],
+      ]);
+
+      const second = await service.importBooks({ paths: ['picked/1/New.pdf'], fileSystem });
+      if (!isOk(second)) throw new Error(second.error);
+      expect(second.data.added).toEqual([]);
+      expect(second.data.alreadyInLibrary.map((book) => book.hash)).toEqual(['h2']);
+    });
+
+    it('reports progress to the caller', async () => {
+      const progress: number[] = [];
+      await service.importBooks({ paths: ['a.pdf'], fileSystem, onProgress: (p) => progress.push(p.done) });
+      expect(progress).toEqual([0, 1]);
+    });
   });
 
   describe('covers', () => {

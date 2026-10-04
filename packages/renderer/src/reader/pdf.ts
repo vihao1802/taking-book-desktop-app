@@ -31,7 +31,7 @@ export function getScrollbarWidth(): number {
 }
 
 export function fileUrl(filePath: string): string {
-  return `appfile://doc/${encodeURIComponent(filePath)}`;
+  return window.api.getDocumentUrl(filePath);
 }
 
 export function usePdfDocument(url: string | null) {

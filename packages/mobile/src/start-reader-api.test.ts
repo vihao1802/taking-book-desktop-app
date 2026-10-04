@@ -5,7 +5,13 @@ import { createFakeConnection } from './fake-sqlite-connection';
 
 const database = vi.hoisted(() => ({ openDatabase: vi.fn() }));
 vi.mock('./open-database', () => database);
-vi.mock('@capacitor/filesystem', () => ({ Filesystem: {}, Directory: { Data: 'DATA' }, Encoding: { UTF8: 'utf8' } }));
+vi.mock('@capacitor/filesystem', () => ({
+  Filesystem: { getUri: async () => ({ uri: 'file:///data/files/books' }) },
+  Directory: { Data: 'DATA' },
+  Encoding: { UTF8: 'utf8' },
+}));
+vi.mock('@capacitor/core', () => ({ Capacitor: { convertFileSrc: (uri: string) => uri } }));
+vi.mock('@capawesome/capacitor-file-picker', () => ({ FilePicker: {} }));
 
 import { startReaderApi } from './start-reader-api';
 

@@ -4,11 +4,13 @@ import {
   createSettingsService,
   type AnnotationService,
   type HashedTextStore,
+  type ImportProgress,
   type LibraryService,
   type SettingsService,
   type SqlDriver,
 } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
+import type { BookFiles } from './book-files';
 import { createInMemoryReaderApi } from './in-memory-reader-api';
 
 /** What the mobile reader API is built from: the core services over one database. */
@@ -55,11 +57,21 @@ export function createMobileServices(db: SqlDriver, options: MobileServiceOption
  * keep the in-memory defaults, and every capability stays off.
  *
  * @param services The core services over the app database.
+ * @param bookFiles Adding Books and finding their files on this device.
  * @returns A reader API for the shared renderer.
  */
-export function createMobileReaderApi({ library, annotations, settings }: MobileServices): ReaderApi {
+export function createMobileReaderApi({ library, annotations, settings }: MobileServices, bookFiles: BookFiles): ReaderApi {
+  const progressListeners = new Set<(progress: ImportProgress) => void>();
+  const reportProgress = (progress: ImportProgress): void => progressListeners.forEach((listener) => listener(progress));
   return {
     ...createInMemoryReaderApi(),
+    openFile: () => bookFiles.addFromPicker(reportProgress),
+    onImportProgress: (listener) => {
+      progressListeners.add(listener);
+      return () => progressListeners.delete(listener);
+    },
+    checkFileReadable: (filePath) => bookFiles.checkReadable(filePath),
+    getDocumentUrl: (filePath) => bookFiles.getDocumentUrl(filePath),
     listFiles: () => library.listBooks(),
     deleteFile: (id) => library.deleteBook(id),
     setFileStatus: (id, status) => library.setStatus(id, status),

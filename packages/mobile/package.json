@@ -19,6 +19,7 @@
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
     "@capacitor/filesystem": "^8.1.4",
+    "@capawesome/capacitor-file-picker": "^8.1.0",
     "@taking-book/core": "0.1.0",
     "@taking-book/renderer": "0.1.0",
     "react": "^19.2.8",

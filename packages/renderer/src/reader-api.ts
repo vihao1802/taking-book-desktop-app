@@ -30,6 +30,11 @@ export interface ReaderApi {
   onImportProgress(listener: (progress: ImportProgress) => void): () => void;
   /** The on-disk path of a dropped file; an empty string when it has none. */
   getPathForFile(file: File): string;
+  /**
+   * The URL pdf.js loads a Book's stored file from, so each platform can serve
+   * it its own way. Empty when the platform cannot serve files yet.
+   */
+  getDocumentUrl(filePath: string): string;
   deleteFile(id: number): Promise<Result<void>>;
   /** Whether a book's stored file can still be read; the error says why not, in words fit to show the reader. */
   checkFileReadable(filePath: string): Promise<Result<void>>;
