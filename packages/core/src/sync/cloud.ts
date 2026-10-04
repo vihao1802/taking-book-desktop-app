@@ -22,6 +22,8 @@ export interface CloudAccount {
   providerId: string;
   displayName: string;
   email: string;
+  /** True when the stored sign-in was made with another OAuth client and must be redone once. */
+  needsReconnect: boolean;
 }
 
 /** What the UI shows while the reader approves a device-flow sign-in. */

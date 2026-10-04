@@ -26,7 +26,7 @@ function createMockTokenStore(initialAuth: StoredCloudAuth | null = null): {
   };
 }
 
-const mockAccount: CloudAccount = {
+const mockAccount: Omit<CloudAccount, 'needsReconnect'> = {
   providerId: 'google-drive',
   displayName: 'Test User',
   email: 'test@example.com',
@@ -57,6 +57,7 @@ describe('createGoogleDriveProvider', () => {
         expiresAt: Date.now() + 3600_000,
       },
       account: mockAccount,
+      clientId: 'test-client-id',
     });
     const provider = createGoogleDriveProvider({
       clientId: 'test-client-id',
@@ -68,7 +69,7 @@ describe('createGoogleDriveProvider', () => {
     const account = await provider.getAccount();
     expect(isOk(account)).toBe(true);
     if (isOk(account)) {
-      expect(account.data).toEqual(mockAccount);
+      expect(account.data).toEqual({ ...mockAccount, needsReconnect: false });
     }
   });
 
@@ -80,6 +81,7 @@ describe('createGoogleDriveProvider', () => {
         expiresAt: Date.now() + 3600_000,
       },
       account: mockAccount,
+      clientId: 'test-client-id',
     });
     const provider = createGoogleDriveProvider({
       clientId: 'test-client-id',
@@ -102,6 +104,7 @@ describe('createGoogleDriveProvider', () => {
     const { store, getStored } = createMockTokenStore({
       token: initialToken,
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     // Mock fetch for token refresh (Google returns new access_token without refresh_token)
@@ -148,6 +151,7 @@ describe('createGoogleDriveProvider', () => {
     const { store } = createMockTokenStore({
       token: initialToken,
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     const provider = createGoogleDriveProvider({
@@ -173,6 +177,7 @@ describe('createGoogleDriveProvider', () => {
     const { store } = createMockTokenStore({
       token: initialToken,
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     const mockFetch: typeof fetch = async (url) => {
@@ -212,6 +217,7 @@ describe('createGoogleDriveProvider', () => {
         expiresAt: Date.now() + 3600_000,
       },
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     const requestedUrls: string[] = [];
@@ -286,6 +292,7 @@ describe('createGoogleDriveProvider', () => {
         expiresAt: Date.now() + 3600_000,
       },
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     const queries: string[] = [];
@@ -379,6 +386,7 @@ describe('createGoogleDriveProvider', () => {
       expect(shown).toEqual(['ABCD-EFGH']);
       expect(getStored()?.token.refreshToken).toBe('refresh-1');
       expect(getStored()?.account.email).toBe('test@example.com');
+      expect(getStored()?.clientId).toBe('client');
     });
 
     it('stores nothing and reports the reason when the reader denies sign-in', async () => {
@@ -397,6 +405,49 @@ describe('createGoogleDriveProvider', () => {
       expect(isOk(result)).toBe(false);
       if (!isOk(result)) expect(result.error).toBe('Sign-in was denied.');
       expect(getStored()).toBeNull();
+    });
+  });
+
+  describe('a token from the old client', () => {
+    const oldAuth: StoredCloudAuth = {
+      token: { accessToken: 'old-access', refreshToken: 'old-refresh', expiresAt: Date.now() + 3600_000 },
+      account: mockAccount,
+      clientId: null,
+    };
+
+    it('reports that the account needs reconnecting, until the same client connects again', async () => {
+      const { store } = createMockTokenStore(oldAuth);
+      const provider = createGoogleDriveProvider({
+        clientId: 'new-client',
+        clientSecret: 'secret',
+        tokenStore: store,
+        openExternal: () => undefined,
+        copyToClipboard: () => undefined,
+      });
+
+      const before = await provider.getAccount();
+      expect(isOk(before) && before.data?.needsReconnect).toBe(true);
+
+      const stored = await store.getAuth();
+      if (!isOk(stored) || !stored.data) throw new Error('expected a stored sign-in');
+      await store.setAuth({ ...stored.data, clientId: 'new-client' });
+      const after = await provider.getAccount();
+      expect(isOk(after) && after.data?.needsReconnect).toBe(false);
+    });
+
+    it('refuses to sync with it and asks the reader to reconnect', async () => {
+      const { store } = createMockTokenStore(oldAuth);
+      const provider = createGoogleDriveProvider({
+        clientId: 'new-client',
+        tokenStore: store,
+        openExternal: () => undefined,
+        copyToClipboard: () => undefined,
+      });
+
+      const storage = await provider.createSyncStorage();
+
+      expect(isOk(storage)).toBe(false);
+      if (!isOk(storage)) expect(storage.error).toContain('Reconnect Google Drive');
     });
   });
 });

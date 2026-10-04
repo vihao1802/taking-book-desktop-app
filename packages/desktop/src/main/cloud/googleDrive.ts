@@ -27,6 +27,8 @@ const USER_INFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
 const REFRESH_SKEW_MS = 60_000;
+const RECONNECT_REQUIRED_MESSAGE =
+  'Reconnect Google Drive once: this sign-in was made by an earlier version of Taking Book.';
 
 export interface GoogleDriveDeps {
   clientId: string;
@@ -133,7 +135,7 @@ export function createGoogleDriveProvider(deps: GoogleDriveDeps): CloudProvider 
     options.onDeviceCode?.(prompt);
   }
 
-  async function accountFromToken(token: CloudToken): Promise<Result<CloudAccount>> {
+  async function accountFromToken(token: CloudToken): Promise<Result<Omit<CloudAccount, 'needsReconnect'>>> {
     try {
       const res = await fetchImpl(userInfoUrl, {
         headers: { Authorization: `Bearer ${token.accessToken}` },
@@ -159,7 +161,8 @@ export function createGoogleDriveProvider(deps: GoogleDriveDeps): CloudProvider 
       const stored = await deps.tokenStore.getAuth();
       if (!isOk(stored)) return stored;
       if (!stored.data) return ok(null);
-      return ok(stored.data.account);
+      const needsReconnect = stored.data.clientId !== deps.clientId;
+      return ok({ ...stored.data.account, needsReconnect });
     },
 
     async connect(options: ConnectOptions = {}): Promise<Result<CloudAccount>> {
@@ -173,9 +176,13 @@ export function createGoogleDriveProvider(deps: GoogleDriveDeps): CloudProvider 
       if (!signedIn.ok) return err(signedIn.error.message);
       const account = await accountFromToken(signedIn.data);
       if (!isOk(account)) return account;
-      const saved = await deps.tokenStore.setAuth({ token: signedIn.data, account: account.data });
+      const saved = await deps.tokenStore.setAuth({
+        token: signedIn.data,
+        account: account.data,
+        clientId: deps.clientId,
+      });
       if (!isOk(saved)) return saved;
-      return ok(account.data);
+      return ok({ ...account.data, needsReconnect: false });
     },
 
     async disconnect(): Promise<Result<void>> {
@@ -211,6 +218,7 @@ async function freshToken(
   const stored = await tokenStore.getAuth();
   if (!isOk(stored)) return stored;
   if (!stored.data) return ok(null);
+  if (stored.data.clientId !== oauthConfig.clientId) return err(RECONNECT_REQUIRED_MESSAGE);
   const { token } = stored.data;
   if (token.expiresAt - REFRESH_SKEW_MS > Date.now()) return ok(token);
   if (!token.refreshToken) return err('Google session expired; reconnect your account.');
@@ -222,7 +230,7 @@ async function freshToken(
     return err(`Could not refresh Google session: ${response.error}`);
   }
   const refreshed = toCloudToken(response.data, token.refreshToken);
-  const saved = await tokenStore.setAuth({ token: refreshed, account: stored.data.account });
+  const saved = await tokenStore.setAuth({ ...stored.data, token: refreshed });
   if (!isOk(saved)) return saved;
   return ok(refreshed);
 }
@@ -287,7 +295,7 @@ function createDriveRestClient(input: {
       return err(`Could not refresh Google session: ${response.error}`);
     }
     const refreshed = toCloudToken(response.data, stored.data.token.refreshToken);
-    const saved = await tokenStore.setAuth({ token: refreshed, account: stored.data.account });
+    const saved = await tokenStore.setAuth({ ...stored.data, token: refreshed });
     if (!isOk(saved)) return saved;
     return ok(refreshed);
   }
