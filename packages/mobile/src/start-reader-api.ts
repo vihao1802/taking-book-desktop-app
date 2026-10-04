@@ -17,6 +17,7 @@ import { pickPdfs } from './pick-pdfs';
 import { getFreeStorageBytes, isOnWifi } from './transfer-conditions';
 import { watchAppActive } from './watch-app-active';
 import { capacitorDeviceCodeActions, presentDeviceCode } from './present-device-code';
+import { createShareSource } from './share-intent';
 
 async function openStream(webPath: string): Promise<ReadableStream<Uint8Array>> {
   const response = await fetch(webPath);
@@ -90,6 +91,7 @@ export async function startReaderApi(): Promise<Result<ReaderApi>> {
   const bookFiles = createBookFiles({
     library: services.library,
     pickPdfs,
+    shares: createShareSource(),
     storage: createCapacitorBookStorage(),
     openStream,
     generateId,

@@ -7,8 +7,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Local plugins must be registered before the bridge starts.
+        // Plugins written for this app (not from npm) are registered before the bridge starts.
         registerPlugin(StoragePlugin.class);
+        registerPlugin(ShareIntentPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

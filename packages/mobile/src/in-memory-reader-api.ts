@@ -43,6 +43,8 @@ export function createInMemoryReaderApi(): ReaderApi {
     openFile: () => unavailable(),
     importPaths: () => unavailable(),
     onImportProgress: () => () => undefined,
+    importSharedFiles: () => done(null),
+    onSharedFiles: () => () => undefined,
     getPathForFile: () => '',
     getDocumentUrl: () => '',
     deleteFile: () => unavailable(),

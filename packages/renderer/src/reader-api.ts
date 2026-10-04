@@ -30,6 +30,13 @@ export interface ReaderApi {
   importPaths(paths: string[]): Promise<Result<ImportSummary>>;
   /** Listens for how far a running import (Add PDF or Drop import) has got; returns the unsubscribe. */
   onImportProgress(listener: (progress: ImportProgress) => void): () => void;
+  /**
+   * Imports the files other apps have shared to the app since the last call (Share import), the same way
+   * Add PDF does; null when nothing was waiting. A platform without sharing always returns null.
+   */
+  importSharedFiles(): Promise<Result<ImportSummary | null>>;
+  /** Listens for files shared to the app while it is running, to be imported with `importSharedFiles`; returns the unsubscribe. */
+  onSharedFiles(listener: () => void): () => void;
   /** The on-disk path of a dropped file; an empty string when it has none. */
   getPathForFile(file: File): string;
   /**

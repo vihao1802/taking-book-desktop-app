@@ -10,7 +10,10 @@ vi.mock('@capacitor/filesystem', () => ({
   Directory: { Data: 'DATA' },
   Encoding: { UTF8: 'utf8' },
 }));
-vi.mock('@capacitor/core', () => ({ Capacitor: { convertFileSrc: (uri: string) => uri }, registerPlugin: () => ({}) }));
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { convertFileSrc: (uri: string) => uri },
+  registerPlugin: () => ({ takePendingShares: async () => ({ files: [] }), addListener: async () => ({ remove: async () => undefined }) }),
+}));
 vi.mock('@capacitor/app', () => ({
   App: { getInfo: async () => ({ version: '1.2.0' }), addListener: async () => ({ remove: async () => undefined }) },
 }));

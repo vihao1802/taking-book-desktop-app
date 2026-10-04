@@ -12,7 +12,13 @@ import {
 const RECONNECT_NOTICE =
   'Reconnect Google Drive once to keep syncing: this sign-in was made by an earlier version of Taking Book.';
 
-export function LibraryProvider({ children }: { children: ReactNode }) {
+interface LibraryProviderProps {
+  children: ReactNode;
+  /** Called when files shared from another app arrived, so the app can show the Library, where the outcome is reported. */
+  onSharedFilesReceived?: () => void;
+}
+
+export function LibraryProvider({ children, onSharedFilesReceived }: LibraryProviderProps) {
   const [files, setFiles] = useState<BookFile[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +93,22 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     },
     [refresh],
   );
+
+  // Pulled on mount as well as on notification: a share that started the app, or arrived while a Book was open, has no listener yet.
+  const importSharedFiles = useCallback(async () => {
+    let received = false;
+    await runImport(async () => {
+      const result = await window.api.importSharedFiles();
+      received = !isOk(result) || result.data !== null;
+      return result;
+    });
+    if (received) onSharedFilesReceived?.();
+  }, [runImport, onSharedFilesReceived]);
+
+  useEffect(() => {
+    void importSharedFiles();
+    return window.api.onSharedFiles(() => void importSharedFiles());
+  }, [importSharedFiles]);
 
   const addFiles = useCallback(() => runImport(() => window.api.openFile()), [runImport]);
 
