@@ -1,6 +1,20 @@
 import type { Result } from './result';
 import { err, ok } from './result';
 
+const REPOSITORY = 'vihao1802/taking-book-desktop-app';
+/** GitHub's API URL for the newest published release. */
+export const LATEST_RELEASE_API_URL = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
+/** The Releases page, the fallback when nothing is downloadable for a device. */
+export const RELEASES_PAGE_URL = `https://github.com/${REPOSITORY}/releases`;
+
+/**
+ * True only for links into this app's GitHub releases, so a compromised
+ * renderer cannot use the download action to open arbitrary URLs.
+ */
+export function isReleaseDownloadUrl(url: unknown): url is string {
+  return typeof url === 'string' && url.startsWith(`${RELEASES_PAGE_URL}/`) && !url.includes('..');
+}
+
 /** One downloadable file attached to a published release. */
 export interface ReleaseAsset {
   name: string;
@@ -21,7 +35,10 @@ export interface AvailableUpdate {
   downloadUrl: string;
 }
 
-/** The device the update is for, as Node reports it (`process.platform`, `process.arch`). */
+/**
+ * The device the update is for, as Node reports it (`process.platform`, `process.arch`);
+ * the Android app reports platform `android`.
+ */
 export interface UpdateTarget {
   currentVersion: string;
   platform: string;
@@ -91,6 +108,8 @@ export function pickDownloadAsset(assets: ReleaseAsset[], platform: string, arch
 }
 
 function assetMatcher(platform: string, arch: string): ((name: string) => boolean) | null {
+  // One universal APK; unsigned builds only come from manual workflow runs and cannot update an installed app.
+  if (platform === 'android') return (name) => name.endsWith('.apk') && !name.endsWith('-unsigned.apk');
   if (platform === 'win32') return (name) => /[. ]Setup\.exe$/.test(name);
   if (platform === 'darwin') return (name) => name.endsWith('.zip') && name.includes(`darwin-${arch}`);
   if (platform === 'linux') {

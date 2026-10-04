@@ -254,6 +254,9 @@ export { crossfadeLoop } from './loop-crossfade';
 export {
   checkForUpdate,
   compareVersions,
+  isReleaseDownloadUrl,
+  LATEST_RELEASE_API_URL,
+  RELEASES_PAGE_URL,
   findAvailableUpdate,
   parseLatestRelease,
   pickDownloadAsset,

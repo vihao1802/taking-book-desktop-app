@@ -77,6 +77,18 @@ describe('pickDownloadAsset', () => {
     expect(pickDownloadAsset(spaced, 'win32', 'x64')?.name).toBe('Taking Book-1.3.0 Setup.exe');
   });
 
+  it('picks the APK on Android whatever the CPU, and never a desktop installer', () => {
+    const withApk = [...assets, { name: 'taking-book-1.3.0.apk', downloadUrl: 'https://example.test/taking-book-1.3.0.apk' }];
+    expect(pickDownloadAsset(withApk, 'android', 'arm64')?.name).toBe('taking-book-1.3.0.apk');
+    expect(pickDownloadAsset(withApk, 'android', 'x64')?.name).toBe('taking-book-1.3.0.apk');
+    expect(pickDownloadAsset(assets, 'android', 'arm64')).toBeNull();
+  });
+
+  it('skips an unsigned APK, which Android would refuse to update over the signed app', () => {
+    const unsigned = [{ name: 'taking-book-1.3.0-unsigned.apk', downloadUrl: 'u' }];
+    expect(pickDownloadAsset(unsigned, 'android', 'arm64')).toBeNull();
+  });
+
   it('finds nothing for a CPU or OS the release does not ship', () => {
     expect(pickDownloadAsset(assets, 'darwin', 'x64')).toBeNull();
     expect(pickDownloadAsset(assets, 'linux', 'arm64')).toBeNull();
@@ -95,6 +107,13 @@ describe('findAvailableUpdate', () => {
   it('falls back to the release page when no installer matches', () => {
     const update = findAvailableUpdate(release, { currentVersion: '1.2.2', platform: 'darwin', arch: 'x64' });
     expect(update?.downloadUrl).toBe(PAGE_URL);
+  });
+
+  it('offers the APK on Android, and the release page when the release has none', () => {
+    const apk = { name: 'taking-book-1.3.0.apk', downloadUrl: 'https://example.test/taking-book-1.3.0.apk' };
+    const target = { currentVersion: '1.2.2', platform: 'android', arch: 'arm64' };
+    expect(findAvailableUpdate({ ...release, assets: [...assets, apk] }, target)?.downloadUrl).toBe(apk.downloadUrl);
+    expect(findAvailableUpdate(release, target)?.downloadUrl).toBe(PAGE_URL);
   });
 
   it('offers nothing when the running version is the same or newer', () => {

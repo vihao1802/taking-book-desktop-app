@@ -10,6 +10,7 @@ import {
   type SqlDriver,
 } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
+import type { AppUpdates } from './app-updates';
 import type { BookFiles } from './book-files';
 import { createInMemoryReaderApi } from './in-memory-reader-api';
 
@@ -58,9 +59,10 @@ export function createMobileServices(db: SqlDriver, options: MobileServiceOption
  *
  * @param services The core services over the app database.
  * @param bookFiles Adding Books and finding their files on this device.
+ * @param updates The update check and opening its download in the browser.
  * @returns A reader API for the shared renderer.
  */
-export function createMobileReaderApi({ library, annotations, settings }: MobileServices, bookFiles: BookFiles): ReaderApi {
+export function createMobileReaderApi({ library, annotations, settings }: MobileServices, bookFiles: BookFiles, updates: AppUpdates): ReaderApi {
   const progressListeners = new Set<(progress: ImportProgress) => void>();
   const reportProgress = (progress: ImportProgress): void => progressListeners.forEach((listener) => listener(progress));
   return {
@@ -106,6 +108,7 @@ export function createMobileReaderApi({ library, annotations, settings }: Mobile
     setNotesSidebarWidth: (width) => settings.setNotesSidebarWidth(width),
     getTargetLanguage: () => settings.getTargetLanguage(),
     setTargetLanguage: (code) => settings.setTargetLanguage(code),
+    ...updates,
     recordReadingSession: (fileId, minutes) => settings.recordReadingSession(fileId, minutes),
   };
 }
