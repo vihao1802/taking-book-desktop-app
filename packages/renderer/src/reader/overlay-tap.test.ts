@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TAP_SLOP_DP, isTapMovement, shouldToggleOverlay } from './overlay-tap';
+import { TAP_SLOP_DP, isTapMovement, revealsOverlayOnMove, shouldToggleOverlay } from './overlay-tap';
 
 describe('isTapMovement', () => {
   it('counts a press that stayed put as a tap', () => {
@@ -33,5 +33,15 @@ describe('shouldToggleOverlay', () => {
 
   it('does not toggle on the gesture that makes a selection', () => {
     expect(shouldToggleOverlay({ ...still, selectionNow: true })).toBe(false);
+  });
+});
+
+describe('revealsOverlayOnMove', () => {
+  it('shows the Overlay when a mouse moves', () => {
+    expect(revealsOverlayOnMove('mouse')).toBe(true);
+  });
+
+  it.each(['touch', 'pen'])('ignores %s movement, which is a scroll or a tap', (pointerType) => {
+    expect(revealsOverlayOnMove(pointerType)).toBe(false);
   });
 });

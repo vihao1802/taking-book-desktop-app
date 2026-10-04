@@ -13,5 +13,5 @@
     "paths": { "@/*": ["../renderer/src/*"] },
     "noEmit": true
   },
-  "include": ["src", "capacitor.config.ts"]
+  "include": ["src", "browser-check/harness.ts", "browser-check/harness-reader-api.ts", "capacitor.config.ts"]
 }

@@ -33,7 +33,7 @@ export function ReaderBars({
   return (
     <>
       {search.open && (
-        <div className="pointer-events-none fixed top-16 right-4 z-30 compact:left-2 compact:right-2">
+        <div className="pointer-events-none fixed top-16 right-4 z-30 compact:top-32 compact:left-2 compact:right-2">
           <FindBar
             query={search.query}
             activeIndex={search.activeIndex}
@@ -48,8 +48,8 @@ export function ReaderBars({
         </div>
       )}
       {goToRequest !== 0 && (
-        // bottom-15 = the bottom bar's ~40px height + a 20px gap above it.
-        <div className="pointer-events-none fixed inset-x-0 bottom-15 z-30 flex justify-center">
+        // bottom-15 = the bottom bar's ~40px height + a 20px gap above it; the bar is taller at compact, where its slider is 48dp.
+        <div className="pointer-events-none fixed inset-x-0 bottom-15 z-30 flex justify-center compact:bottom-24">
           <GoToPageBar
             key={goToRequest}
             total={totalPages}

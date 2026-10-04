@@ -310,7 +310,7 @@ export function ReflowReader({
       return true;
     });
   }, [startHideTimer]);
-  const overlayTap = useOverlayTap(toggleOverlay);
+  const overlayTap = useOverlayTap(toggleOverlay, reveal);
 
   const clearToolbarUnlessSelecting = useCallback(() => {
     // A fresh text selection also produces a click after mouseup; don't clear
@@ -558,7 +558,7 @@ export function ReflowReader({
 
   return (
     // While the Notes sidebar narrows the page, the strip beside it must match the paper.
-    <div className={cn('fixed inset-0', notesSidebar.open ? 'bg-reflow' : 'bg-background')} onMouseMove={reveal}>
+    <div className={cn('fixed inset-0', notesSidebar.open ? 'bg-reflow' : 'bg-background')} onPointerMove={overlayTap.onPointerMove}>
       {error ? (
         <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
           <p>Could not extract text from this document.</p>

@@ -1,10 +1,12 @@
 import { useRef, type MouseEvent, type PointerEvent } from 'react';
-import { isTapMovement, shouldToggleOverlay } from './overlay-tap';
+import { isTapMovement, revealsOverlayOnMove, shouldToggleOverlay } from './overlay-tap';
 
 interface OverlayTapHandlers {
   /** Remembers where the press began and whether a selection was there, since the press itself clears it. */
   onPointerDownCapture: (event: PointerEvent<HTMLElement>) => void;
   onClick: (event: MouseEvent<HTMLElement>) => void;
+  /** For the whole reader, bars included: a mouse moving over it shows the Overlay; touch does not. */
+  onPointerMove: (event: PointerEvent<HTMLElement>) => void;
 }
 
 function hasSelection(): boolean {
@@ -17,8 +19,9 @@ function hasSelection(): boolean {
  * tap that clears a selection, and a gesture that makes one leave it alone.
  *
  * @param onToggle - Shows the Overlay if it is hidden and hides it otherwise.
+ * @param onReveal - Shows the Overlay and starts its hide timer.
  */
-export function useOverlayTap(onToggle: () => void): OverlayTapHandlers {
+export function useOverlayTap(onToggle: () => void, onReveal: () => void): OverlayTapHandlers {
   const pressRef = useRef({ x: 0, y: 0, selectionBefore: false });
 
   const onPointerDownCapture = (event: PointerEvent<HTMLElement>) => {
@@ -36,5 +39,9 @@ export function useOverlayTap(onToggle: () => void): OverlayTapHandlers {
     if (toggle) onToggle();
   };
 
-  return { onPointerDownCapture, onClick };
+  const onPointerMove = (event: PointerEvent<HTMLElement>) => {
+    if (revealsOverlayOnMove(event.pointerType)) onReveal();
+  };
+
+  return { onPointerDownCapture, onClick, onPointerMove };
 }

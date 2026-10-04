@@ -20,3 +20,14 @@ export function isTapMovement(start: Point, end: Point): boolean {
 export function shouldToggleOverlay(tap: { moved: boolean; selectionBefore: boolean; selectionNow: boolean }): boolean {
   return !tap.moved && !tap.selectionBefore && !tap.selectionNow;
 }
+
+/**
+ * Whether moving the pointer over the reader shows the Overlay. Only a mouse
+ * does: a touch screen follows every tap with compatibility mouse events, and
+ * letting those show the Overlay would have the tap's own click hide it again.
+ *
+ * @param pointerType - The `pointerType` of the pointer event: "mouse", "touch" or "pen".
+ */
+export function revealsOverlayOnMove(pointerType: string): boolean {
+  return pointerType === 'mouse';
+}

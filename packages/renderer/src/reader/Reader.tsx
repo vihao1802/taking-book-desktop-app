@@ -263,7 +263,7 @@ export function Reader({ file, onClose, noteToOpen = null, pageToOpen = null }: 
     });
   }, [startHideTimer]);
 
-  const overlayTap = useOverlayTap(toggleOverlay);
+  const overlayTap = useOverlayTap(toggleOverlay, reveal);
 
   const selectSidebarPage = useCallback((page: number) => {
     pagesRef.current?.scrollToPage(page);
@@ -401,7 +401,7 @@ export function Reader({ file, onClose, noteToOpen = null, pageToOpen = null }: 
   }
 
   return (
-    <div className="bg-background fixed inset-0" onMouseMove={reveal}>
+    <div className="bg-background fixed inset-0" onPointerMove={overlayTap.onPointerMove}>
       {error ? (
         <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
           <p>Could not open this document.</p>
@@ -417,7 +417,8 @@ export function Reader({ file, onClose, noteToOpen = null, pageToOpen = null }: 
           className="absolute inset-y-0 left-0 isolate"
           style={{ right: notesSidebar.pageInset }}
           ref={scrollRef}
-          {...overlayTap}
+          onPointerDownCapture={overlayTap.onPointerDownCapture}
+          onClick={overlayTap.onClick}
         >
           {ready ? (
             <PdfPages

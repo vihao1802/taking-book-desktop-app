@@ -73,7 +73,7 @@ export function SidebarPanel({
       ref={asideRef}
       aria-label={TAB_LABEL[tab]}
       style={{ width, maxWidth }}
-      className="bg-overlay text-foreground pointer-events-auto absolute top-16 bottom-16 left-2 z-[5] flex flex-col overflow-hidden rounded-lg shadow-lg backdrop-blur-md"
+      className="bg-overlay text-foreground pointer-events-auto absolute top-16 bottom-16 left-2 z-[5] compact:top-32 compact:bottom-20 flex flex-col overflow-hidden rounded-lg shadow-lg backdrop-blur-md"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

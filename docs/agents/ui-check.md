@@ -62,3 +62,11 @@ Check that the destinations are the same in each class, and that an open Book st
 - Drags: end a `hover-files` drag with `drag-out` or `drop` before the next one. CDP's `dragCancel` never fires `dragleave`, so the page would still believe files are over it.
 - Stop the app only with `stop.mjs`. A `pkill -f` on its flags also matches the shell running it.
 - Startup failures: read `/tmp/tb-ui-check/app.log`. `A UI check app is already running` means a previous run was not stopped; run `stop.mjs`.
+
+## Touch check in a phone-sized browser
+
+The desktop app cannot show what a finger does: a tap arrives with a mouse move before the click, a swipe scrolls with no mouse at all, and there is no hover. `npm run browser-check --workspace @taking-book/mobile` covers that. It serves the shared renderer on a Vite dev server with a fake reader API (`packages/mobile/browser-check/harness-reader-api.ts`: the Android capabilities and one fixture Book kept in memory) and drives it in headless Google Chrome through Playwright, once per Window size class (390, 700 and 1100 wide), with touch input and mobile emulation. It prints PASS/FAIL per check and exits non-zero on a failure; `ONLY_CLASS=compact` runs one class.
+
+It checks, per class: Book details as a sheet or pane, a select and a dialog as a bottom sheet or anchored, taps at several points and a swipe in the Reader, the Notes sidebar and Reader sidebar, the Go to page bar, and that rotating keeps the place; at compact it also scans for controls under 48dp. Add a check for any new touch behaviour in `browser-check/run.mjs`.
+
+What it does not cover: the Android WebView, the Capacitor plugins (SQLite, file picker, Drive), the on-screen keyboard, and native touch selection. Those need a device or an emulator. Needs `google-chrome` on the machine; it uses the installed browser and downloads nothing.
