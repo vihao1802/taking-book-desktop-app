@@ -70,3 +70,15 @@ The desktop app cannot show what a finger does: a tap arrives with a mouse move 
 It checks, per class: Book details as a sheet or pane, a select and a dialog as a bottom sheet or anchored, taps at several points and a swipe in the Reader, the Notes sidebar and Reader sidebar, the Go to page bar, and that rotating keeps the place; at compact it also scans for controls under 48dp. Add a check for any new touch behaviour in `browser-check/run.mjs`.
 
 What it does not cover: the Android WebView, the Capacitor plugins (SQLite, file picker, Drive), the on-screen keyboard, and native touch selection. Those need a device or an emulator. Needs `google-chrome` on the machine; it uses the installed browser and downloads nothing.
+
+## Checks on the real Android WebView (emulator)
+
+`node packages/mobile/browser-check/device-run.mjs` runs against the app's own WebView on a connected emulator or device, with the system's real touch input (`adb shell input tap`, after a calibration tap that maps CSS pixels to screen pixels). Playwright's `connectOverCDP` and `tap` do not work with a WebView, so it uses Playwright's Android driver (`_android`) to reach the page. It currently walks the five navigation destinations and, at compact, scans for controls under 48dp. The Library starts empty and adding a Book needs the system file picker, so Reader checks still run only in the browser check above.
+
+Setup on this machine (the JDK and the SDK live under `~/Android`, and the AVDs are `tb_phone` and `tb_tablet`):
+
+1. `export JAVA_HOME=$HOME/Android/jdk21 ANDROID_HOME=$HOME/Android PATH=$HOME/Android/jdk21/bin:$HOME/Android/platform-tools:$PATH`
+2. `npm run android:apk --workspace @taking-book/mobile` builds the debug APK.
+3. `$HOME/Android/emulator/emulator -avd tb_phone -no-window -no-audio -no-snapshot -gpu swiftshader_indirect &`, then wait until `adb shell getprop sys.boot_completed` prints 1. A "System UI isn't responding" box on a first boot is the emulator being slow; it clears itself.
+4. `adb install -r packages/mobile/android/app/build/outputs/apk/debug/app-debug.apk` and `adb shell am start -n dev.takingbook.app/.MainActivity`.
+5. Run the script, then stop the emulator with `adb emu kill`.
