@@ -13,7 +13,7 @@ describe('createGoogleDriveDeviceFlowProvider', () => {
 
     const connected = await fixture.provider.connect({ onDeviceCode: (prompt) => prompts.push(prompt) });
 
-    expect(connected).toEqual(ok({ providerId: 'google-drive', displayName: 'Reader', email: 'reader@example.com' }));
+    expect(connected).toEqual(ok({ providerId: 'google-drive', displayName: 'Reader', email: 'reader@example.com', needsReconnect: false }));
     expect(prompts).toHaveLength(1);
     expect(prompts[0]?.userCode).toBe('ABCD-EFGH');
     expect(fixture.authStore.current()?.token.refreshToken).toBe('refresh-1');

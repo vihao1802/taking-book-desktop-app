@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { readSystemLocaleArgument } from './shared/system-locale';
+import type { DeviceCodePrompt } from '@taking-book/core';
 import type { ImportProgress, ReaderApi } from '@taking-book/renderer';
 
 const api: ReaderApi = {
@@ -70,8 +71,12 @@ const api: ReaderApi = {
   downloadBookNow: () => Promise.resolve({ ok: false, error: 'Every PDF is already on this computer.' }),
   getCloudAccount: () => ipcRenderer.invoke('cloud:status'),
   connectCloud: () => ipcRenderer.invoke('cloud:connect'),
-  // The loopback sign-in has no code to show; the device flow replaces it on desktop later.
-  onDeviceCode: () => () => undefined,
+  // The device-flow prompt arrives from the main process while connectCloud waits for approval.
+  onDeviceCode: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, prompt: DeviceCodePrompt): void => listener(prompt);
+    ipcRenderer.on('cloud:deviceCode', handler);
+    return () => ipcRenderer.removeListener('cloud:deviceCode', handler);
+  },
   // The desktop's background sync does not report back; the Library refreshes on its own sync actions.
   onSyncComplete: () => () => undefined,
   disconnectCloud: () => ipcRenderer.invoke('cloud:disconnect'),

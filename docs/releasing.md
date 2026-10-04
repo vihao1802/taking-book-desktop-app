@@ -72,6 +72,14 @@ it, so keep the anchor `#install-on-android` stable. In short:
   `TB_GDRIVE_CLIENT_SECRET` repository secrets at build time. Set them in the
   repo's *Settings → Secrets*; the publisher's (verified) client is used for
   end users. Without them the app builds but cloud sync is disabled.
+  The secrets (same names) hold the single OAuth client of type "TVs and
+  Limited Input devices" that desktop and Android share for the device flow
+  (ADR-0010). When that client replaces an older one, **readers must reconnect
+  Google Drive once**: the app shows a "Reconnect Google Drive" notice, the
+  first machine to reconnect uploads the whole library to a new `Taking Book/`
+  folder, and other machines merge through the manifest. Say so in the release
+  notes. The old Drive folder is never touched; rename and delete it by hand once
+  every machine has reconnected, then delete the old client in the Cloud project.
 - **Windows build** (Squirrel `.exe`) is unsigned — SmartScreen will warn users
   "Unknown publisher". Signing needs a code-signing certificate; see
   `.github/workflows/release.yml` if that becomes necessary.

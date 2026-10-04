@@ -50,6 +50,8 @@ async function fetchAccount(fetchImpl: DriveFetch, accessToken: string): Promise
       providerId: PROVIDER_ID,
       displayName: typeof body.name === 'string' ? body.name : 'Google account',
       email: typeof body.email === 'string' ? body.email : '',
+      // This provider signs in with the one configured client, so its token is never from an older one.
+      needsReconnect: false,
     });
   } catch (error) {
     return err(`Google user info failed: ${error instanceof Error ? error.message : String(error)}`);

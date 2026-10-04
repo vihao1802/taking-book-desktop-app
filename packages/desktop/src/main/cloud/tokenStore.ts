@@ -11,7 +11,12 @@ const AUTH_KEY = 'cloud.google-drive.auth';
  */
 export interface StoredCloudAuth {
   token: CloudToken;
-  account: CloudAccount;
+  account: Omit<CloudAccount, 'needsReconnect'>;
+  /**
+   * The OAuth client that issued the token. Null for a token stored before
+   * the device flow, which belongs to the old desktop client (ADR-0010).
+   */
+  clientId: string | null;
 }
 
 export interface CloudTokenStore {
@@ -35,7 +40,7 @@ export function createCloudTokenStore(db: SqlDriver): CloudTokenStore {
         const json = encrypted ? safeStorage.decryptString(Buffer.from(row.data, 'base64')) : row.data;
         const parsed = JSON.parse(json) as StoredCloudAuth;
         if (typeof parsed.token?.accessToken !== 'string') return ok(null);
-        return ok(parsed);
+        return ok({ ...parsed, clientId: typeof parsed.clientId === 'string' ? parsed.clientId : null });
       } catch (error) {
         return err(`Stored Google auth is unreadable: ${errorMessage(error)}`);
       }

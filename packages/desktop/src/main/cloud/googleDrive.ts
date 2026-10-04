@@ -1,64 +1,53 @@
-import { createServer, type Server } from 'node:http';
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
-  buildAuthorizationUrl,
   createDriveRestClient,
   createGoogleDriveSyncStorage,
-  deriveCodeChallenge,
   err,
-  exchangeAuthorizationCode,
-  generateCodeVerifier,
+  GOOGLE_DEVICE_CODE_URL,
+  GOOGLE_DEVICE_FLOW_SCOPES,
+  GOOGLE_TOKEN_URL,
   isOk,
   ok,
   refreshAccessToken,
+  signInWithDeviceFlow,
   type CloudAccount,
   type CloudProvider,
   type CloudToken,
+  type ConnectOptions,
+  type DeviceCodePrompt,
+  type DeviceFlowConfig,
   type DriveRestClient,
+  type OAuthClientConfig,
   type OAuthHttpClient,
   type OAuthTokenResponse,
   type Result,
   type SyncStorage,
 } from '@taking-book/core';
 import type { CloudTokenStore } from './tokenStore';
-import { renderOAuthResultPage } from './oauthLandingPage';
 
-const DEFAULT_SCOPES = [
-  'openid',
-  'email',
-  'profile',
-  'https://www.googleapis.com/auth/drive.file',
-];
-const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const TOKEN_URL = GOOGLE_TOKEN_URL;
 const USER_INFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
 const REFRESH_SKEW_MS = 60_000;
-const OAuth_TIMEOUT_MS = 5 * 60_000;
+const RECONNECT_REQUIRED_MESSAGE =
+  'Reconnect Google Drive once: this sign-in was made by an earlier version of Taking Book.';
 
 export interface GoogleDriveDeps {
   clientId: string;
   clientSecret?: string;
   tokenStore: CloudTokenStore;
   openExternal: (url: string) => Promise<void> | void;
+  /** Puts the device code on the clipboard so the reader can paste it on the verification page. */
+  copyToClipboard: (text: string) => void;
   fetchImpl?: typeof fetch;
-  authorizationUrl?: string;
+  deviceCodeUrl?: string;
   tokenUrl?: string;
   userInfoUrl?: string;
   driveApiBase?: string;
   driveUploadBase?: string;
   scopes?: string[];
   appFolderName?: string;
-}
-
-interface OAuthFlowConfig {
-  clientId: string;
-  clientSecret?: string;
-  authorizationUrl: string;
-  tokenUrl: string;
-  redirectUri: string;
-  scopes: string[];
 }
 
 function postFormHttpClient(fetchImpl: typeof fetch): OAuthHttpClient {
@@ -87,33 +76,54 @@ function toCloudToken(response: OAuthTokenResponse, existingRefreshToken?: strin
 }
 
 /**
- * Google Drive provider. `connect()` runs the loopback OAuth flow (opens a
- * browser at Google's consent screen, catches the redirect on a loopback
- * address), stores the token encrypted, and `createSyncStorage()` hands back a
+ * Google Drive provider. `connect()` runs the OAuth device flow (ADR-0010):
+ * it shows and copies a code, opens the verification page, waits for the
+ * reader to approve, stores the token encrypted, and `createSyncStorage()` hands back a
  * {@link SyncStorage} over the Drive REST API.
  */
 export function createGoogleDriveProvider(deps: GoogleDriveDeps): CloudProvider {
   const fetchImpl = deps.fetchImpl ?? fetch;
-  const authorizationUrl = deps.authorizationUrl ?? AUTH_URL;
+  const deviceCodeUrl = deps.deviceCodeUrl ?? GOOGLE_DEVICE_CODE_URL;
   const tokenUrl = deps.tokenUrl ?? TOKEN_URL;
   const userInfoUrl = deps.userInfoUrl ?? USER_INFO_URL;
   const driveApiBase = deps.driveApiBase ?? DRIVE_API_BASE;
   const driveUploadBase = deps.driveUploadBase ?? DRIVE_UPLOAD_BASE;
-  const scopes = deps.scopes ?? DEFAULT_SCOPES;
+  const scopes = deps.scopes ?? [...GOOGLE_DEVICE_FLOW_SCOPES];
   const appFolderName = deps.appFolderName ?? 'Taking Book';
 
-  function flowConfig(redirectUri: string): OAuthFlowConfig {
+  function flowConfig(): OAuthClientConfig {
+    // The refresh helper reads only the client and token endpoint; the sign-in
+    // redirect fields have no meaning in the device flow.
     return {
       clientId: deps.clientId,
       clientSecret: deps.clientSecret,
-      authorizationUrl,
+      authorizationUrl: '',
       tokenUrl,
-      redirectUri,
+      redirectUri: '',
       scopes,
     };
   }
 
-  async function accountFromToken(token: CloudToken): Promise<Result<CloudAccount>> {
+  function deviceFlowConfig(): DeviceFlowConfig {
+    return {
+      clientId: deps.clientId,
+      clientSecret: deps.clientSecret ?? '',
+      deviceCodeUrl,
+      tokenUrl,
+      scopes,
+    };
+  }
+
+  /** Copies the code and opens the verification page, then lets the UI show them too. */
+  function presentDeviceCode(prompt: DeviceCodePrompt, options: ConnectOptions): void {
+    deps.copyToClipboard(prompt.userCode);
+    void Promise.resolve(deps.openExternal(prompt.verificationUrl)).catch((error: unknown) => {
+      console.error(`[cloud] could not open the verification page: ${errorMessage(error)}`);
+    });
+    options.onDeviceCode?.(prompt);
+  }
+
+  async function accountFromToken(token: CloudToken): Promise<Result<Omit<CloudAccount, 'needsReconnect'>>> {
     try {
       const res = await fetchImpl(userInfoUrl, {
         headers: { Authorization: `Bearer ${token.accessToken}` },
@@ -139,19 +149,28 @@ export function createGoogleDriveProvider(deps: GoogleDriveDeps): CloudProvider 
       const stored = await deps.tokenStore.getAuth();
       if (!isOk(stored)) return stored;
       if (!stored.data) return ok(null);
-      return ok(stored.data.account);
+      const needsReconnect = stored.data.clientId !== deps.clientId;
+      return ok({ ...stored.data.account, needsReconnect });
     },
 
-    async connect(): Promise<Result<CloudAccount>> {
-      const result = await runLoopbackOAuth({
-        oauthConfig: flowConfig(''),
-        tokenStore: deps.tokenStore,
-        fetchImpl,
-        openExternal: deps.openExternal,
-        accountFromToken,
+    async connect(options: ConnectOptions = {}): Promise<Result<CloudAccount>> {
+      const signedIn = await signInWithDeviceFlow({
+        http: postFormHttpClient(fetchImpl),
+        config: deviceFlowConfig(),
+        sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+        now: () => Date.now(),
+        onDeviceCode: (prompt) => presentDeviceCode(prompt, options),
       });
-      if (!isOk(result)) return result;
-      return ok(result.data.account);
+      if (!signedIn.ok) return err(signedIn.error.message);
+      const account = await accountFromToken(signedIn.data);
+      if (!isOk(account)) return account;
+      const saved = await deps.tokenStore.setAuth({
+        token: signedIn.data,
+        account: account.data,
+        clientId: deps.clientId,
+      });
+      if (!isOk(saved)) return saved;
+      return ok({ ...account.data, needsReconnect: false });
     },
 
     async disconnect(): Promise<Result<void>> {
@@ -162,7 +181,7 @@ export function createGoogleDriveProvider(deps: GoogleDriveDeps): CloudProvider 
       const tokenResult = await freshToken(
         deps.tokenStore,
         postFormHttpClient(fetchImpl),
-        flowConfig(''),
+        flowConfig(),
       );
       if (!isOk(tokenResult)) return tokenResult;
       if (!tokenResult.data) return err('Connect Google Drive before syncing.');
@@ -178,131 +197,16 @@ export function createGoogleDriveProvider(deps: GoogleDriveDeps): CloudProvider 
   };
 }
 
-interface LoopbackDeps {
-  oauthConfig: OAuthFlowConfig;
-  tokenStore: CloudTokenStore;
-  fetchImpl: typeof fetch;
-  openExternal: (url: string) => Promise<void> | void;
-  accountFromToken: (token: CloudToken) => Promise<Result<CloudAccount>>;
-}
-
-/** Opens the consent URL, waits for the loopback redirect, exchanges the code. */
-async function runLoopbackOAuth(deps: LoopbackDeps): Promise<Result<{ account: CloudAccount }>> {
-  const { server, port, stop } = await listenLoopback();
-  if (!server) return loopbackFailure('Could not start the local auth server. Try again.');
-  if (!port) return loopbackFailure('Could not resolve a local auth port. Try again.');
-  const redirectUri = `http://127.0.0.1:${port}`;
-  const state = randomUUID();
-  // PKCE: the verifier lives only in this closure — generated before the
-  // browser opens and handed to the token exchange, never persisted. The
-  // challenge is derived via S256 and sent with the authorization request.
-  const codeVerifier = generateCodeVerifier((size) => new Uint8Array(randomBytes(size)));
-  const codeChallenge = deriveCodeChallenge(codeVerifier);
-  const authUrl = buildAuthorizationUrl({ ...deps.oauthConfig, redirectUri }, state, {
-    access_type: 'offline',
-    prompt: 'consent',
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
-  });
-
-  const codePromise = new Promise<Result<string>>((resolve) => {
-    server.on('request', (req, res) => {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      const url = new URL(req.url ?? '/', redirectUri);
-      const returnedState = url.searchParams.get('state');
-      const code = url.searchParams.get('code');
-      let outcome: Result<string>;
-      if (returnedState !== state) {
-        outcome = err('OAuth state mismatch; try again.');
-      } else if (!code) {
-        outcome = err('Google did not return an authorization code.');
-      } else {
-        outcome = ok(code);
-      }
-      res.end(
-        renderOAuthResultPage(
-          isOk(outcome)
-            ? { state: 'success' }
-            : { state: 'error', message: outcome.error },
-        ),
-      );
-      resolve(outcome);
-    });
-  });
-
-  // If the user closes the browser or the consent screen is never completed,
-  // bail out after OAuth_TIMEOUT_MS so the Connect flow returns instead of
-  // hanging and leaving the loopback server running. The caller surfaces the
-  // error and the user can simply click Connect again.
-  const timedOut = withTimeout(
-    codePromise,
-    OAuth_TIMEOUT_MS,
-    err('Sign-in timed out; click Connect to try again.'),
-  );
-
-  try {
-    await deps.openExternal(authUrl);
-  } catch (error) {
-    stop();
-    return err(`Could not open the browser for sign-in: ${errorMessage(error)}`);
-  }
-
-  const codeResult = await timedOut;
-  stop();
-  if (!isOk(codeResult)) return codeResult;
-
-  const http = postFormHttpClient(deps.fetchImpl);
-  const tokenResponse = await exchangeAuthorizationCode(
-    http,
-    { ...deps.oauthConfig, redirectUri },
-    codeResult.data,
-    codeVerifier,
-  );
-  if (!isOk(tokenResponse)) return tokenResponse;
-  const token = toCloudToken(tokenResponse.data);
-  const accountResult = await deps.accountFromToken(token);
-  if (!isOk(accountResult)) return accountResult;
-  const saved = await deps.tokenStore.setAuth({ token, account: accountResult.data });
-  if (!isOk(saved)) return saved;
-  return ok({ account: accountResult.data });
-}
-
-interface LoopbackListenResult {
-  server: Server | null;
-  port: number;
-  stop: () => void;
-}
-
-/** Error returned when the loopback server could not be started. */
-function loopbackFailure(message: string): Result<{ account: CloudAccount }> {
-  return err(message);
-}
-
-function listenLoopback(): Promise<LoopbackListenResult> {
-  return new Promise((resolve) => {
-    const server = createServer();
-    server.once('error', () => resolve({ server: null, port: 0, stop: () => undefined }));
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close();
-        resolve({ server: null, port: 0, stop: () => undefined });
-        return;
-      }
-      resolve({ server, port: address.port, stop: () => server.close() });
-    });
-  });
-}
-
 /** Returns a fresh token, refreshing from the stored refresh token when needed. */
 async function freshToken(
   tokenStore: CloudTokenStore,
   http: OAuthHttpClient,
-  oauthConfig: OAuthFlowConfig,
+  oauthConfig: OAuthClientConfig,
 ): Promise<Result<CloudToken | null>> {
   const stored = await tokenStore.getAuth();
   if (!isOk(stored)) return stored;
   if (!stored.data) return ok(null);
+  if (stored.data.clientId !== oauthConfig.clientId) return err(RECONNECT_REQUIRED_MESSAGE);
   const { token } = stored.data;
   if (token.expiresAt - REFRESH_SKEW_MS > Date.now()) return ok(token);
   if (!token.refreshToken) return err('Google session expired; reconnect your account.');
@@ -314,7 +218,7 @@ async function freshToken(
     return err(`Could not refresh Google session: ${response.error}`);
   }
   const refreshed = toCloudToken(response.data, token.refreshToken);
-  const saved = await tokenStore.setAuth({ token: refreshed, account: stored.data.account });
+  const saved = await tokenStore.setAuth({ ...stored.data, token: refreshed });
   if (!isOk(saved)) return saved;
   return ok(refreshed);
 }
@@ -323,7 +227,7 @@ async function freshToken(
 function createDesktopDriveClient(input: {
   fetchImpl: typeof fetch;
   tokenStore: CloudTokenStore;
-  flowConfig: (redirectUri: string) => OAuthFlowConfig;
+  flowConfig: () => OAuthClientConfig;
   driveApiBase: string;
   driveUploadBase: string;
 }): DriveRestClient {
@@ -334,7 +238,7 @@ function createDesktopDriveClient(input: {
     const stored = await tokenStore.getAuth();
     if (!isOk(stored)) return stored;
     if (!stored.data?.token.refreshToken) return err('Google session expired; reconnect your account.');
-    const response = await refreshAccessToken(http, flowConfig(''), stored.data.token.refreshToken);
+    const response = await refreshAccessToken(http, flowConfig(), stored.data.token.refreshToken);
     if (!isOk(response)) {
       if (response.error.includes('invalid_grant')) {
         return err('Google session expired; reconnect your account.');
@@ -342,7 +246,7 @@ function createDesktopDriveClient(input: {
       return err(`Could not refresh Google session: ${response.error}`);
     }
     const refreshed = toCloudToken(response.data, stored.data.token.refreshToken);
-    const saved = await tokenStore.setAuth({ token: refreshed, account: stored.data.account });
+    const saved = await tokenStore.setAuth({ ...stored.data, token: refreshed });
     if (!isOk(saved)) return saved;
     return ok(refreshed);
   }
@@ -353,7 +257,7 @@ function createDesktopDriveClient(input: {
     driveApiBase: input.driveApiBase,
     driveUploadBase: input.driveUploadBase,
     getAccessToken: async (forceRefresh) => {
-      const token = forceRefresh ? await refreshStoredToken() : await freshToken(tokenStore, http, flowConfig(''));
+      const token = forceRefresh ? await refreshStoredToken() : await freshToken(tokenStore, http, flowConfig());
       if (!isOk(token)) return token;
       if (!token.data) return err('Connect Google Drive before syncing.');
       return ok(token.data.accessToken);
@@ -363,21 +267,4 @@ function createDesktopDriveClient(input: {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/** Resolves with the promise's value, or the fallback after `ms`. */
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return new Promise<T>((resolve) => {
-    const timer = setTimeout(() => resolve(fallback), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      () => {
-        clearTimeout(timer);
-        resolve(fallback);
-      },
-    );
-  });
 }

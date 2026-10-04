@@ -7,7 +7,7 @@ import { createSecureAuthStore, type SecretStore } from './secure-auth-store';
 
 const AUTH: StoredCloudAuth = {
   token: { accessToken: 'at', refreshToken: 'rt', expiresAt: 5 },
-  account: { providerId: 'google-drive', displayName: 'Reader', email: 'reader@example.com' },
+  account: { providerId: 'google-drive', displayName: 'Reader', email: 'reader@example.com', needsReconnect: false },
 };
 
 function memorySecrets(): SecretStore & { values: Map<string, string> } {

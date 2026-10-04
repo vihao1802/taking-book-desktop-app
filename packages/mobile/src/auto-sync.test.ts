@@ -4,7 +4,7 @@ import { AUTO_SYNC_INTERVAL_MS, createAutoSync, type AutoSync } from './auto-syn
 import type { CloudSync } from './cloud-sync';
 
 const SUMMARY: SyncSummary = { added: 1, updated: 0, deleted: 0, uploaded: 0, downloaded: 0, warnings: [], skippedDownloads: [] };
-const ACCOUNT: CloudAccount = { providerId: 'google-drive', displayName: 'Reader', email: 'r@example.com' };
+const ACCOUNT: CloudAccount = { providerId: 'google-drive', displayName: 'Reader', email: 'r@example.com', needsReconnect: false };
 
 describe('createAutoSync', () => {
   let account: CloudAccount | null;

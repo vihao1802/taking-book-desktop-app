@@ -26,7 +26,7 @@ function createMockTokenStore(initialAuth: StoredCloudAuth | null = null): {
   };
 }
 
-const mockAccount: CloudAccount = {
+const mockAccount: Omit<CloudAccount, 'needsReconnect'> = {
   providerId: 'google-drive',
   displayName: 'Test User',
   email: 'test@example.com',
@@ -39,6 +39,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
     });
 
     const account = await provider.getAccount();
@@ -56,17 +57,19 @@ describe('createGoogleDriveProvider', () => {
         expiresAt: Date.now() + 3600_000,
       },
       account: mockAccount,
+      clientId: 'test-client-id',
     });
     const provider = createGoogleDriveProvider({
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
     });
 
     const account = await provider.getAccount();
     expect(isOk(account)).toBe(true);
     if (isOk(account)) {
-      expect(account.data).toEqual(mockAccount);
+      expect(account.data).toEqual({ ...mockAccount, needsReconnect: false });
     }
   });
 
@@ -78,11 +81,13 @@ describe('createGoogleDriveProvider', () => {
         expiresAt: Date.now() + 3600_000,
       },
       account: mockAccount,
+      clientId: 'test-client-id',
     });
     const provider = createGoogleDriveProvider({
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
     });
 
     const result = await provider.disconnect();
@@ -99,6 +104,7 @@ describe('createGoogleDriveProvider', () => {
     const { store, getStored } = createMockTokenStore({
       token: initialToken,
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     // Mock fetch for token refresh (Google returns new access_token without refresh_token)
@@ -121,6 +127,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
       fetchImpl: mockFetch,
     };
 
@@ -144,12 +151,14 @@ describe('createGoogleDriveProvider', () => {
     const { store } = createMockTokenStore({
       token: initialToken,
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     const provider = createGoogleDriveProvider({
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
     });
 
     const storageResult = await provider.createSyncStorage();
@@ -168,6 +177,7 @@ describe('createGoogleDriveProvider', () => {
     const { store } = createMockTokenStore({
       token: initialToken,
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     const mockFetch: typeof fetch = async (url) => {
@@ -188,6 +198,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
       fetchImpl: mockFetch,
     });
 
@@ -206,6 +217,7 @@ describe('createGoogleDriveProvider', () => {
         expiresAt: Date.now() + 3600_000,
       },
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     const requestedUrls: string[] = [];
@@ -260,6 +272,7 @@ describe('createGoogleDriveProvider', () => {
       clientId: 'test-client-id',
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
       fetchImpl: mockFetch,
     });
 
@@ -279,6 +292,7 @@ describe('createGoogleDriveProvider', () => {
         expiresAt: Date.now() + 3600_000,
       },
       account: mockAccount,
+      clientId: 'test-client-id',
     });
 
     const queries: string[] = [];
@@ -310,6 +324,7 @@ describe('createGoogleDriveProvider', () => {
       appFolderName: "O'Reilly Books",
       tokenStore: store,
       openExternal: () => undefined,
+      copyToClipboard: () => undefined,
       fetchImpl: mockFetch,
     });
 
@@ -319,5 +334,120 @@ describe('createGoogleDriveProvider', () => {
       await storageResult.data.readFile('manifest.json');
       expect(queries.some((q) => q.includes("'root' in parents and name = 'O\\'Reilly Books'"))).toBe(true);
     }
+  });
+
+  describe('connect', () => {
+    function deviceFlowFetch(tokenBodies: unknown[]): typeof fetch {
+      const json = (body: unknown, status = 200): Response =>
+        new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+      return async (url) => {
+        const target = String(url);
+        if (target === 'https://oauth2.googleapis.com/device/code') {
+          return json({
+            device_code: 'dev-1',
+            user_code: 'ABCD-EFGH',
+            verification_url: 'https://www.google.com/device',
+            expires_in: 600,
+            interval: 0.001,
+          });
+        }
+        if (target === 'https://oauth2.googleapis.com/token') {
+          const next = tokenBodies.shift();
+          return json(next, (next as { error?: string }).error ? 428 : 200);
+        }
+        return json({ email: 'test@example.com', name: 'Test User' });
+      };
+    }
+
+    it('copies the code, opens the verification page, and stores the token once approved', async () => {
+      const { store, getStored } = createMockTokenStore(null);
+      const copied: string[] = [];
+      const opened: string[] = [];
+      const shown: string[] = [];
+      const provider = createGoogleDriveProvider({
+        clientId: 'client',
+        clientSecret: 'secret',
+        tokenStore: store,
+        openExternal: (url) => {
+          opened.push(url);
+        },
+        copyToClipboard: (text) => copied.push(text),
+        fetchImpl: deviceFlowFetch([
+          { error: 'authorization_pending' },
+          { access_token: 'access-1', refresh_token: 'refresh-1', expires_in: 3600 },
+        ]),
+      });
+
+      const result = await provider.connect({ onDeviceCode: (prompt) => shown.push(prompt.userCode) });
+
+      expect(isOk(result)).toBe(true);
+      expect(copied).toEqual(['ABCD-EFGH']);
+      expect(opened).toEqual(['https://www.google.com/device']);
+      expect(shown).toEqual(['ABCD-EFGH']);
+      expect(getStored()?.token.refreshToken).toBe('refresh-1');
+      expect(getStored()?.account.email).toBe('test@example.com');
+      expect(getStored()?.clientId).toBe('client');
+    });
+
+    it('stores nothing and reports the reason when the reader denies sign-in', async () => {
+      const { store, getStored } = createMockTokenStore(null);
+      const provider = createGoogleDriveProvider({
+        clientId: 'client',
+        clientSecret: 'secret',
+        tokenStore: store,
+        openExternal: () => undefined,
+        copyToClipboard: () => undefined,
+        fetchImpl: deviceFlowFetch([{ error: 'access_denied' }]),
+      });
+
+      const result = await provider.connect();
+
+      expect(isOk(result)).toBe(false);
+      if (!isOk(result)) expect(result.error).toBe('Sign-in was denied.');
+      expect(getStored()).toBeNull();
+    });
+  });
+
+  describe('a token from the old client', () => {
+    const oldAuth: StoredCloudAuth = {
+      token: { accessToken: 'old-access', refreshToken: 'old-refresh', expiresAt: Date.now() + 3600_000 },
+      account: mockAccount,
+      clientId: null,
+    };
+
+    it('reports that the account needs reconnecting, until the same client connects again', async () => {
+      const { store } = createMockTokenStore(oldAuth);
+      const provider = createGoogleDriveProvider({
+        clientId: 'new-client',
+        clientSecret: 'secret',
+        tokenStore: store,
+        openExternal: () => undefined,
+        copyToClipboard: () => undefined,
+      });
+
+      const before = await provider.getAccount();
+      expect(isOk(before) && before.data?.needsReconnect).toBe(true);
+
+      const stored = await store.getAuth();
+      if (!isOk(stored) || !stored.data) throw new Error('expected a stored sign-in');
+      await store.setAuth({ ...stored.data, clientId: 'new-client' });
+      const after = await provider.getAccount();
+      expect(isOk(after) && after.data?.needsReconnect).toBe(false);
+    });
+
+    it('refuses to sync with it and asks the reader to reconnect', async () => {
+      const { store } = createMockTokenStore(oldAuth);
+      const provider = createGoogleDriveProvider({
+        clientId: 'new-client',
+        tokenStore: store,
+        openExternal: () => undefined,
+        copyToClipboard: () => undefined,
+      });
+
+      const storage = await provider.createSyncStorage();
+
+      expect(isOk(storage)).toBe(false);
+      if (!isOk(storage)) expect(storage.error).toContain('Reconnect Google Drive');
+    });
   });
 });

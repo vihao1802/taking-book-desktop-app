@@ -8,6 +8,10 @@ import {
   type SyncState,
 } from './libraryContext';
 
+/** Shown once per launch until the reader reconnects; it contains "reconnect" so the Library offers the Reconnect button. */
+const RECONNECT_NOTICE =
+  'Reconnect Google Drive once to keep syncing: this sign-in was made by an earlier version of Taking Book.';
+
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<BookFile[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -52,7 +56,11 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     window.api.getCloudAccount().then((result) => {
-      if (isOk(result)) setAccount(result.data);
+      if (!isOk(result)) return;
+      setAccount(result.data);
+      if (result.data?.needsReconnect) {
+        setSync({ syncing: false, last: null, error: RECONNECT_NOTICE });
+      }
     });
   }, []);
 
@@ -95,7 +103,6 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setConnecting(true);
     try {
       const result = await window.api.connectCloud();
-      setDeviceCode(null);
       if (isOk(result)) {
         setAccount(result.data);
         setSync({ syncing: false, last: null, error: null });

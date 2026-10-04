@@ -4,7 +4,7 @@ import { createInMemoryReaderApi } from '../src/in-memory-reader-api';
 
 const FIXTURE_URL = '/fixture.pdf';
 const SIGN_IN_PROMPT: DeviceCodePrompt = { userCode: 'ABCD-EFGH', verificationUrl: 'https://www.google.com/device', expiresAt: 0 };
-const SIGNED_IN_ACCOUNT: CloudAccount = { providerId: 'google-drive', displayName: 'Reader', email: 'reader@example.com' };
+const SIGNED_IN_ACCOUNT: CloudAccount = { providerId: 'google-drive', displayName: 'Reader', email: 'reader@example.com', needsReconnect: false };
 // The name of the function on `window` that a check calls to approve the pending sign-in, as the reader does on Google's page.
 const APPROVE_SIGN_IN_HOOK = '__approveSignIn';
 // Adds a Book to the Library and reports an automatic sync, as the app does when it syncs by itself.

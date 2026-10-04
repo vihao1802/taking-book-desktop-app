@@ -17,7 +17,7 @@ import { createCloudSync, type CloudSync, type CloudSyncOptions } from './cloud-
 import { createFakeConnection } from './fake-sqlite-connection';
 import { createMobileServices, type MobileServices } from './mobile-reader-api';
 
-const ACCOUNT: CloudAccount = { providerId: 'google-drive', displayName: 'Reader', email: 'reader@example.com' };
+const ACCOUNT: CloudAccount = { providerId: 'google-drive', displayName: 'Reader', email: 'reader@example.com', needsReconnect: false };
 const PROMPT: DeviceCodePrompt = { userCode: 'ABCD-EFGH', verificationUrl: 'https://www.google.com/device', expiresAt: 0 };
 
 function createMemoryStorage(): SyncStorage & { files: Map<string, Uint8Array> } {

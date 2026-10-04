@@ -98,6 +98,9 @@ export function createCloudProvider(
     clientSecret: clientSecret ?? undefined,
     tokenStore,
     openExternal: (url) => import('electron').then(({ shell }) => shell.openExternal(url)),
+    copyToClipboard: (text) => {
+      void import('electron').then(({ clipboard }) => clipboard.writeText(text));
+    },
   });
 }
 
