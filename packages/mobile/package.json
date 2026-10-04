@@ -10,7 +10,8 @@
     "lint": "eslint --ext .ts,.tsx src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "android:device-check": "npm run build --workspace @taking-book/core && node scripts/device-check.mjs"
   },
   "license": "MIT",
   "dependencies": {

@@ -16,7 +16,11 @@ const CLIENT_ID_KEY = 'googleDriveClientId';
  * hash and uploads read from a stable location regardless of the original file.
  */
 
-/** Returns the persisted device id, creating one the first time. */
+/**
+ * Returns the persisted device id, creating one the first time. It rejects on a database
+ * failure because the core services take the id as a plain string supplier, so there is
+ * no Result to hand back; the rejection surfaces to the IPC handler that asked.
+ */
 export async function getDeviceId(db: SqlDriver): Promise<string> {
   const id = await getCoreDeviceId(db, randomUUID);
   if (!isOk(id)) throw new Error(id.error);

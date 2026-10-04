@@ -43,3 +43,18 @@ through `@capacitor-community/sqlite`. `createCapacitorSqlDriver` implements
 core's `SqlDriver` over it with a write mutex, and runs the same transaction
 tests as the desktop driver (`describeSqlDriverContract`). Covers and reflow
 text are files under the app's private data directory.
+
+## Check the database driver on a device
+
+The driver's transaction tests also run against the real plugin. With an
+emulator or device attached:
+
+```sh
+npm run android:device-check --workspace @taking-book/mobile
+```
+
+It builds a debug APK with `VITE_TB_DEVICE_CHECK` set, installs and starts it,
+and prints one `TB_DEVICE_CHECK` line per test from logcat (exit code 1 if any
+fails). The check uses its own database, not the reader's, and the script
+rebuilds the normal web bundle afterwards; run `android:apk` to put the normal
+app back on the device.

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getDeviceId, isErr } from '../src';
+import { getDeviceId, isErr, startDatabase } from '../src';
 import { createMemoryDriver } from './helpers';
-import { startDatabase } from '../src';
 
 describe('getDeviceId', () => {
   it('creates an id the first time and returns the same one afterwards', async () => {

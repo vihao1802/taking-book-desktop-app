@@ -1,7 +1,11 @@
-import { DEFAULT_FOCUS_MINUTES, err, ok, type Result, type Theme } from '@taking-book/core';
+import { DEFAULT_FOCUS_MINUTES, DEFAULT_TARGET_LANGUAGE, err, ok, type Result, type Theme } from '@taking-book/core';
 import type { ReaderApi } from '@taking-book/renderer';
 
 const NOT_AVAILABLE_YET = 'This is not available in the Android app yet.';
+// Only shown by the Focus controls, which this app hides, so the value is a placeholder.
+const PLACEHOLDER_FOCUS_VOLUME = 0.5;
+// The real version arrives with the update check, which this app does not have yet.
+const UNKNOWN_APP_VERSION = '0.0.0';
 
 function unavailable<T>(): Promise<Result<T>> {
   return Promise.resolve(err(NOT_AVAILABLE_YET));
@@ -23,7 +27,7 @@ export function createInMemoryReaderApi(): ReaderApi {
   let theme: Theme = 'system';
   let sidebarWidth: number | null = null;
   let notesSidebarWidth: number | null = null;
-  let targetLanguage = 'en';
+  let targetLanguage = DEFAULT_TARGET_LANGUAGE;
 
   return {
     capabilities: {
@@ -89,7 +93,7 @@ export function createInMemoryReaderApi(): ReaderApi {
       targetLanguage = code;
       return done(undefined);
     },
-    getFocusPreferences: () => done({ soundId: null, volume: 0.5, minutes: DEFAULT_FOCUS_MINUTES }),
+    getFocusPreferences: () => done({ soundId: null, volume: PLACEHOLDER_FOCUS_VOLUME, minutes: DEFAULT_FOCUS_MINUTES }),
     setFocusPreferences: () => unavailable(),
     hasAiApiKey: () => done(false),
     setAiApiKey: () => unavailable(),
@@ -106,7 +110,7 @@ export function createInMemoryReaderApi(): ReaderApi {
     checkForUpdate: () => done(null),
     openUpdateDownload: () => unavailable(),
     openReleasesPage: () => unavailable(),
-    getAppVersion: () => done('0.0.0'),
+    getAppVersion: () => done(UNKNOWN_APP_VERSION),
     isFullScreen: () => done(false),
     toggleFullScreen: () => done(false),
     onFullScreenChange: () => () => undefined,

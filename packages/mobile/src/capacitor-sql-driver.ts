@@ -18,31 +18,29 @@ export interface SqliteConnection {
 function toRow(row: Record<string, unknown>): Record<string, SqlValue> {
   const out: Record<string, SqlValue> = {};
   for (const [key, value] of Object.entries(row)) {
-    if (value === null || typeof value === 'string' || typeof value === 'number') {
+    if (value === null || value === undefined) {
+      out[key] = null;
+    } else if (typeof value === 'string' || typeof value === 'number') {
       out[key] = value;
     } else if (typeof value === 'bigint') {
       out[key] = Number(value);
     } else if (typeof value === 'boolean') {
       out[key] = value ? 1 : 0;
+    } else {
+      // Silently dropping the column would hand callers a row that looks complete but is not.
+      throw new Error(`Column "${key}" holds a value of an unsupported type (${typeof value}).`);
     }
   }
   return out;
 }
 
-/**
- * Wraps a Capacitor SQLite connection in the platform-agnostic SqlDriver used
- * by core. The plugin does not serialize concurrent queries, and it wraps every
- * statement in its own transaction unless told not to, so this driver always
- * passes `transaction: false` and opens, commits and rolls back explicitly
- * behind a queue, so a caller never joins another's open transaction.
- *
- * @param connection An open connection with foreign keys already on.
- * @returns A driver that satisfies the `SqlDriver` transaction guarantees.
- */
-export function createCapacitorSqlDriver(connection: SqliteConnection): SqlDriver {
-  let transactionQueue: Promise<unknown> = Promise.resolve();
+type TransactionRunner = <T>(fn: () => Promise<T>) => Promise<T>;
 
-  async function runInTransaction<T>(fn: () => Promise<T>): Promise<T> {
+/** Opens, commits and rolls back explicitly, one transaction at a time. */
+function createTransactionRunner(connection: SqliteConnection): TransactionRunner {
+  let queue: Promise<unknown> = Promise.resolve();
+
+  async function runOne<T>(fn: () => Promise<T>): Promise<T> {
     await connection.execute('BEGIN IMMEDIATE', false);
     let result: T;
     try {
@@ -55,6 +53,26 @@ export function createCapacitorSqlDriver(connection: SqliteConnection): SqlDrive
     return result;
   }
 
+  return <T>(fn: () => Promise<T>): Promise<T> => {
+    const result = queue.then(() => runOne(fn));
+    // The caller gets the rejection; the queue only needs to know this turn is over, so a
+    // failed transaction does not stop every later one from starting.
+    queue = result.catch(() => undefined);
+    return result;
+  };
+}
+
+/**
+ * Wraps a Capacitor SQLite connection in the platform-agnostic SqlDriver used
+ * by core. The plugin does not serialize concurrent queries, and it wraps every
+ * statement in its own transaction unless told not to, so this driver always
+ * passes `transaction: false` and runs its own transactions behind a queue, so
+ * a caller never joins another's open transaction.
+ *
+ * @param connection An open connection with foreign keys already on.
+ * @returns A driver that satisfies the `SqlDriver` transaction guarantees.
+ */
+export function createCapacitorSqlDriver(connection: SqliteConnection): SqlDriver {
   return {
     async exec(sql) {
       await connection.execute(sql, false);
@@ -72,10 +90,6 @@ export function createCapacitorSqlDriver(connection: SqliteConnection): SqlDrive
       const result = await connection.query(sql, params);
       return (result.values ?? []).map(toRow);
     },
-    async transaction<T>(fn: () => Promise<T>): Promise<T> {
-      const result = transactionQueue.then(() => runInTransaction(fn));
-      transactionQueue = result.catch(() => undefined);
-      return result;
-    },
+    transaction: createTransactionRunner(connection),
   };
 }

@@ -13,6 +13,24 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+const POLL_MS = 5;
+const WAIT_LIMIT_MS = 5000;
+// How long to let a transaction that should be waiting show that it is not.
+const SETTLE_MS = 150;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** A real driver's calls cross a native bridge, so "started" takes more than one event-loop tick. */
+async function waitUntil(condition: () => boolean, message: string): Promise<void> {
+  const deadline = Date.now() + WAIT_LIMIT_MS;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error(message);
+    await delay(POLL_MS);
+  }
+}
+
 function check(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
 }
@@ -94,9 +112,18 @@ export function describeSqlDriverContract(harness: SqlDriverContractHarness, cre
         await driver.run('INSERT INTO items (name) VALUES (?)', ['second']);
       });
 
-      await tick();
-      check(order.join() === 'first-start', 'the second transaction must wait for the first');
-      releaseFirst();
+      // When a check below fails first, these still settle; mark them handled so that is not reported as a second error.
+      first.catch(() => undefined);
+      second.catch(() => undefined);
+
+      try {
+        await waitUntil(() => order.includes('first-start'), 'the first transaction never started');
+        await delay(SETTLE_MS);
+        check(order.join() === 'first-start', 'the second transaction must wait for the first');
+      } finally {
+        // Always let the first finish, so a failed check cannot leave a transaction open for later tests.
+        releaseFirst();
+      }
 
       await expectRejection(first, 'first fails');
       await second;
