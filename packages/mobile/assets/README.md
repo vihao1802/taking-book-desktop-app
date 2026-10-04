@@ -1,6 +1,6 @@
 # App icons (mobile)
 
-Canonical icon assets for the React Native / Expo app, named to the Expo
+Canonical icon assets for the Capacitor / Expo app, named to the Expo
 convention so they drop straight into `app.json` when Phase 5 starts.
 
 | File | Usage | Source |

@@ -1,7 +1,7 @@
 {
   "name": "taking-book",
   "version": "0.1.0",
-  "description": "Taking Book monorepo: shared core logic, Electron desktop app, React Native mobile app.",
+  "description": "Taking Book monorepo: shared core logic, shared React renderer, Electron desktop app, Capacitor Android app.",
   "private": true,
   "workspaces": [
     "packages/core",
@@ -10,14 +10,15 @@
     "packages/mobile"
   ],
   "scripts": {
-    "build": "npm run build --workspace @taking-book/core",
-    "test": "npm run test --workspace @taking-book/core && npm run test --workspace @taking-book/renderer && npm run test --workspace @taking-book/desktop",
-    "typecheck": "npm run typecheck --workspace @taking-book/core && npm run typecheck --workspace @taking-book/renderer && npm run typecheck --workspace @taking-book/desktop",
-    "lint": "npm run lint --workspace @taking-book/renderer && npm run lint --workspace @taking-book/desktop"
+    "build": "npm run build --workspace @taking-book/core && npm run build --workspace @taking-book/mobile",
+    "test": "npm run test --workspace @taking-book/core && npm run test --workspace @taking-book/renderer && npm run test --workspace @taking-book/desktop && npm run test --workspace @taking-book/mobile",
+    "typecheck": "npm run typecheck --workspace @taking-book/core && npm run typecheck --workspace @taking-book/renderer && npm run typecheck --workspace @taking-book/desktop && npm run typecheck --workspace @taking-book/mobile",
+    "lint": "npm run lint --workspace @taking-book/renderer && npm run lint --workspace @taking-book/desktop && npm run lint --workspace @taking-book/mobile"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4"
+    "@types/react-dom": "^19.2.4",
+    "vite": "^5.4.21"
   },
   "engines": {
     "node": ">=22.13.0"

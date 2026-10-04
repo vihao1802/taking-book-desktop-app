@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Taking Book</string>
+    <string name="title_activity_main">Taking Book</string>
+    <string name="package_name">dev.takingbook.app</string>
+    <string name="custom_url_scheme">dev.takingbook.app</string>
+</resources>

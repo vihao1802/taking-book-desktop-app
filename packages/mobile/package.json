@@ -1,6 +1,39 @@
 {
   "name": "@taking-book/mobile",
   "version": "0.1.0",
-  "description": "React Native mobile app for Taking Book (Phase 5, not yet started).",
-  "private": true
+  "description": "Capacitor Android shell for Taking Book: mounts the shared renderer and implements the reader API.",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "android:sync": "npm run build --workspace @taking-book/core && npm run build && cap sync android",
+    "android:apk": "npm run android:sync && node scripts/build-debug-apk.mjs",
+    "lint": "eslint --ext .ts,.tsx src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@taking-book/core": "0.1.0",
+    "@taking-book/renderer": "0.1.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.1.2",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^8.57.1",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.32.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "vitest": "^3.2.7"
+  }
 }
