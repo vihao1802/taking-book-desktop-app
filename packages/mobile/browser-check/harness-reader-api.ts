@@ -31,12 +31,13 @@ function createFixtureBook(): BookFile {
 /**
  * A reader API for checking the shared renderer in a plain browser: the Android
  * app's capabilities, with a Library holding one fixture Book kept in memory.
- * The Library edits and the saved position work; everything else is the
- * in-memory API's.
+ * The Library edits, the saved position and the zoom of each reader mode work;
+ * everything else is the in-memory API's.
  */
 export function createHarnessReaderApi(): ReaderApi {
   let book = createFixtureBook();
   let lastPosition: LastPosition | null = null;
+  const zooms: Record<ReadMode, number | null> = { page: null, reflow: null };
   const update = (changes: Partial<BookFile>): Promise<Result<void>> => {
     book = { ...book, ...changes };
     return done(undefined);
@@ -51,6 +52,11 @@ export function createHarnessReaderApi(): ReaderApi {
     setFileTitle: (_id: number, title: string) => update({ title }),
     setFileFavorite: (_id: number, favorite: boolean) => update({ favorite }),
     setFilePageCount: (_id: number, pageCount: number) => update({ pageCount }),
+    getFileZoom: (_id: number, mode: ReadMode) => done(zooms[mode]),
+    setFileZoom: (_id: number, zoom: number, mode: ReadMode) => {
+      zooms[mode] = zoom;
+      return done(undefined);
+    },
     getLastPosition: () => done(lastPosition),
     saveLastPosition: (_id: number, page: number, position: number, mode: ReadMode) => {
       lastPosition = { page, position, mode };

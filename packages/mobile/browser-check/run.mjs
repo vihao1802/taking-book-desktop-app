@@ -244,6 +244,68 @@ async function checkResize(page, sizeClass) {
   });
 }
 
+const reflowToggle = 'button[aria-label="Toggle reflow"]';
+
+/** The page number and how far down it the reader is, read from the saved position the harness keeps. */
+const savedPosition = (page) => page.evaluate(() => window.api.getLastPosition(1).then((result) => result.data));
+
+async function setReaderMode(page, sizeClass, mode) {
+  await showOverlay(page, sizeClass);
+  const pressed = (await page.getAttribute(reflowToggle, 'aria-pressed')) === 'true';
+  if (pressed !== (mode === 'reflow')) await tap(page, reflowToggle);
+  if (mode === 'reflow') await page.waitForSelector('[data-reflow-page]', { timeout: 15000 });
+  else await page.waitForSelector('canvas', { timeout: 10000 });
+  await page.waitForTimeout(OVERLAY_HIDE_MS);
+}
+
+async function checkReflow(page, sizeClass) {
+  const name = sizeClass.name;
+  await check(name, 'Reflow: the Book shows its text and its figure', async () => {
+    await setReaderMode(page, sizeClass, 'reflow');
+    await page.evaluate(() => document.querySelector('[data-reflow-page] img, [data-reflow-page] [class*=bg-muted]')?.scrollIntoView());
+    await page.waitForSelector('[data-reflow-page] img', { timeout: 10000 });
+    const text = await page.evaluate(() => document.querySelector('[data-reflow-page]').textContent);
+    return text.includes('query optimizer') ? '' : 'the reflow text is missing';
+  });
+  await check(name, 'Reflow: switching modes keeps the place in both directions', async () => {
+    // Far enough from the end that Page mode, whose three short pages barely
+    // scroll on a phone, does not clamp the spot it is handed.
+    await page.evaluate(() => {
+      const el = document.querySelector('[data-reader-view]');
+      el.scrollTop = (el.scrollHeight - el.clientHeight) * 0.3;
+    });
+    await page.waitForTimeout(SETTLE_MS * 2);
+    const reflowPlace = await savedPosition(page);
+    await setReaderMode(page, sizeClass, 'page');
+    await page.waitForTimeout(SETTLE_MS * 2);
+    const pagePlace = await savedPosition(page);
+    await setReaderMode(page, sizeClass, 'reflow');
+    await page.waitForTimeout(SETTLE_MS * 2);
+    const backPlace = await savedPosition(page);
+    const samePage = reflowPlace.page === pagePlace.page && pagePlace.page === backPlace.page;
+    const drift = Math.abs(reflowPlace.position - backPlace.position);
+    if (!samePage) return `page ${reflowPlace.page} -> ${pagePlace.page} -> ${backPlace.page}`;
+    return drift < 0.25 ? '' : `position ${reflowPlace.position} -> page mode ${pagePlace.position} -> ${backPlace.position}`;
+  });
+  await check(name, 'Reflow: the last-read position records the mode it was left in', async () => {
+    const reflow = await savedPosition(page);
+    await setReaderMode(page, sizeClass, 'page');
+    await page.waitForTimeout(SETTLE_MS * 2);
+    const pageMode = await savedPosition(page);
+    await setReaderMode(page, sizeClass, 'reflow');
+    return reflow.mode === 'reflow' && pageMode.mode === 'page' ? '' : `saved ${reflow.mode}, then ${pageMode.mode}`;
+  });
+  await check(name, 'Reflow: the zoom is kept apart from the page zoom', async () => {
+    const zooms = () => page.evaluate(() => Promise.all(['page', 'reflow'].map((m) => window.api.getFileZoom(1, m).then((r) => r.data))));
+    await showOverlay(page, sizeClass);
+    await tap(page, 'button[aria-label="Zoom in"]');
+    await page.waitForTimeout(1000);
+    const [pageZoom, reflowZoom] = await zooms();
+    return pageZoom === null && reflowZoom > 1 ? '' : `page ${pageZoom}, reflow ${reflowZoom}`;
+  });
+  await setReaderMode(page, sizeClass, 'page');
+}
+
 async function runClass(browser, baseUrl, sizeClass) {
   const context = await browser.newContext({
     viewport: { width: sizeClass.width, height: sizeClass.height },
@@ -265,6 +327,7 @@ async function runClass(browser, baseUrl, sizeClass) {
   await checkReaderTaps(page, session, sizeClass);
   await checkReaderPanels(page, sizeClass);
   await checkResize(page, sizeClass);
+  await checkReflow(page, sizeClass);
   if (errors.length > 0) record(sizeClass.name, 'No uncaught page errors', false, errors[0]);
   await context.close();
 }
